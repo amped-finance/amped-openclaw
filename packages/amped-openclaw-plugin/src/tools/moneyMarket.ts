@@ -305,7 +305,7 @@ async function resolveWalletAndProvider(
   spokeProvider: any;
 }> {
   const walletRegistry = getWalletRegistry();
-  const wallet = walletRegistry.getWallet(walletId);
+  const wallet = await walletRegistry.resolveWallet(walletId);
 
   const spokeProvider = await getSpokeProvider(wallet.address, chainId);
 

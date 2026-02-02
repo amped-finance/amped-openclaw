@@ -224,7 +224,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const sodaxClient = getSodaxClient();
     
     // 2. Resolve wallet
-    const wallet = walletRegistry.getWallet(params.walletId);
+    const wallet = await walletRegistry.resolveWallet(params.walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${params.walletId}`);
     }
@@ -457,7 +457,7 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
     const sodaxClient = getSodaxClient();
     
     // Resolve wallet
-    const wallet = walletRegistry.getWallet(params.walletId);
+    const wallet = await walletRegistry.resolveWallet(params.walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${params.walletId}`);
     }

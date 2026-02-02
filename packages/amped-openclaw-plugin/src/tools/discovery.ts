@@ -304,7 +304,7 @@ async function handleWalletAddress(
 
   // Get wallet from registry
   const walletRegistry = getWalletRegistry();
-  const wallet = walletRegistry.getWallet(walletId);
+  const wallet = await walletRegistry.resolveWallet(walletId);
 
   if (!wallet) {
     throw new Error(`Wallet not found: ${walletId}`);
@@ -328,7 +328,7 @@ async function handleMoneyMarketPositions(
 
   // Get wallet from registry
   const walletRegistry = getWalletRegistry();
-  const wallet = walletRegistry.getWallet(walletId);
+  const wallet = await walletRegistry.resolveWallet(walletId);
 
   if (!wallet) {
     throw new Error(`Wallet not found: ${walletId}`);

@@ -307,7 +307,7 @@ async function handleBridgeExecute(
     const walletRegistry = getWalletRegistry();
 
     // Step 1: Resolve wallet
-    const wallet = walletRegistry.getWallet(walletId);
+    const wallet = await walletRegistry.resolveWallet(walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${walletId}`);
     }
