@@ -40,7 +40,8 @@ npm install @amped/openclaw-plugin
 
 - Node.js >= 18.0.0
 - OpenClaw agent environment
-- SODAX SDK dependencies:
+- **[evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill)** (recommended) - For wallet and RPC configuration
+- SODAX SDK dependencies (installed automatically):
   - `@sodax/sdk@1.0.4-beta`
   - `@sodax/wallet-sdk-core@1.0.4-beta`
   - `@sodax/types@1.0.4-beta`

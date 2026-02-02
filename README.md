@@ -5,6 +5,13 @@
 
 DeFi operations plugin and skill pack for [OpenClaw](https://openclaw.ai) enabling seamless cross-chain swaps, bridging, and money market operations via the [SODAX SDK](https://docs.sodax.com).
 
+## Prerequisites
+
+- [OpenClaw](https://openclaw.ai) agent environment
+- **[evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill)** - This plugin integrates with evm-wallet-skill for wallet and RPC configuration
+- Node.js >= 18.0.0
+- SODAX SDK dependencies (installed automatically)
+
 ## Overview
 
 Amped OpenClaw provides a complete DeFi toolkit for AI agents, enabling sophisticated on-chain operations across multiple networks:
@@ -34,18 +41,33 @@ amped-openclaw/
 
 ## Quick Start
 
-### 1. Install the Plugin
+### 1. Prerequisites
+
+Ensure you have [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill) configured with your wallets and RPCs:
+
+```bash
+# evm-wallet-skill configuration (set these in your environment)
+export EVM_WALLETS_JSON='{
+  "main": {
+    "address": "0xYourWalletAddress",
+    "privateKey": "0xYourPrivateKey"
+  }
+}'
+
+export EVM_RPC_URLS_JSON='{
+  "ethereum": "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
+  "arbitrum": "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
+  "sonic": "https://rpc.soniclabs.com"
+}'
+```
+
+> **Note:** If you don't use evm-wallet-skill, you can set `AMPED_OC_WALLETS_JSON` and `AMPED_OC_RPC_URLS_JSON` instead (see [Configuration](#configuration)).
+
+### 2. Install the Plugin
 
 ```bash
 cd packages/amped-openclaw-plugin
 npm install
-```
-
-### 2. Configure Environment
-
-```bash
-cp .env.example .env
-# Edit .env with your configuration
 ```
 
 ### 3. Build
@@ -60,12 +82,46 @@ npm run build
 npm test
 ```
 
-## Configuration
-
-### Required Environment Variables
+### 4. Test
 
 ```bash
-# Wallet configuration
+npm test
+```
+
+## Configuration
+
+This plugin **automatically integrates** with [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill). If you're using that skill, **no additional configuration is required!**
+
+### Option 1: Using evm-wallet-skill (Recommended)
+
+The plugin automatically detects and uses these environment variables from evm-wallet-skill:
+
+| Variable | Description |
+|----------|-------------|
+| `EVM_WALLETS_JSON` | Wallet configuration (address, private key) |
+| `EVM_RPC_URLS_JSON` | RPC URLs for supported chains |
+
+Example:
+```bash
+export EVM_WALLETS_JSON='{
+  "main": {
+    "address": "0xYourWalletAddress",
+    "privateKey": "0xYourPrivateKey"
+  }
+}'
+
+export EVM_RPC_URLS_JSON='{
+  "ethereum": "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
+  "arbitrum": "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
+  "sonic": "https://rpc.soniclabs.com"
+}'
+```
+
+### Option 2: Plugin-Specific Configuration
+
+If you don't use evm-wallet-skill, set these plugin-specific variables:
+
+```bash
 export AMPED_OC_WALLETS_JSON='{
   "main": {
     "address": "0xYourWalletAddress",
@@ -73,7 +129,6 @@ export AMPED_OC_WALLETS_JSON='{
   }
 }'
 
-# RPC URLs
 export AMPED_OC_RPC_URLS_JSON='{
   "ethereum": "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
   "arbitrum": "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
@@ -81,7 +136,25 @@ export AMPED_OC_RPC_URLS_JSON='{
 }'
 ```
 
-See `.env.example` for full configuration options.
+### Optional Configuration
+
+```bash
+# Operation mode: "execute" (signs transactions) or "prepare" (returns unsigned txs)
+export AMPED_OC_MODE=execute
+
+# Policy limits for security
+export AMPED_OC_LIMITS_JSON='{
+  "default": {
+    "maxSlippageBps": 100,
+    "allowedChains": ["ethereum", "arbitrum", "sonic"]
+  }
+}'
+
+# SODAX API (for intent history queries)
+export SODAX_API_URL=https://canary-api.sodax.com
+```
+
+See `.env.example` for all available options.
 
 ## Features
 
