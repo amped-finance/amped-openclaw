@@ -88,7 +88,7 @@ export interface AmpedError {
  * Error context for logging
  */
 export interface ErrorContext {
-  operation: string;
+  operation?: string;
   walletId?: string;
   chainId?: string;
   chainIds?: string[];
@@ -96,6 +96,7 @@ export interface ErrorContext {
   tokens?: string[];
   amount?: string;
   requestId?: string;
+  txHash?: string;
   [key: string]: unknown;
 }
 

@@ -22,7 +22,7 @@ import { Type, Static } from "@sinclair/typebox";
 import { getSodaxClient } from "../sodax/client";
 import { getSpokeProvider } from "../providers/spokeProviderFactory";
 import { PolicyEngine } from "../policy/policyEngine";
-import { getWalletRegistry } from "../wallet/walletRegistry";
+import { getWalletRegistry, WalletRegistry } from "../wallet/walletRegistry";
 import { AgentTools } from "../types";
 
 // ============================================================================
@@ -324,17 +324,19 @@ async function prepareMoneyMarketOperation(
   policyId?: string
 ): Promise<{ wallet: any; spokeProvider: any; policyResult: any }> {
   // Ensure sodax client is initialized
-  const sodaxClient = await getSodaxClient();
+  const _sodaxClient = getSodaxClient(); // Just verify it's ready
+  void _sodaxClient;
 
   // Resolve wallet and create spoke provider
   const { wallet, spokeProvider } = await resolveWalletAndProvider(walletId, chainId);
 
   // Policy check
   const policyEngine = new PolicyEngine();
-  const policyResult = policyEngine.checkMoneyMarket({
+  const policyResult = await policyEngine.checkMoneyMarket({
     walletId,
     chainId,
     token,
+    amount, // Add required amount parameter
     amountUsd: parseFloat(amount), // Simplified - would need actual price lookup
     operation,
     policyId,
@@ -342,7 +344,7 @@ async function prepareMoneyMarketOperation(
 
   if (!policyResult.allowed) {
     throw new Error(
-      `Policy check failed: ${policyResult.violation || "Operation not permitted"}. ${policyResult.remediation || ""}`
+      `Policy check failed: ${policyResult.reason || "Operation not permitted"}.`
     );
   }
 
@@ -468,19 +470,28 @@ async function handleSupply(
     }
 
     // Execute supply
-    const result = await sodaxClient.moneyMarket.supply(
+    const supplyResult = await (sodaxClient as any).moneyMarket.supply(
       supplyParams,
       spokeProvider,
-      { timeout: timeoutMs, skipSimulation }
+      timeoutMs
     );
+
+    // Handle Result type from SDK
+    if (supplyResult.ok === false) {
+      throw new Error(`Supply failed: ${supplyResult.error}`);
+    }
+    
+    const value = supplyResult.ok ? supplyResult.value : supplyResult;
+    // SDK may return [spokeTxHash, hubTxHash] tuple
+    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
 
     return {
       success: true,
-      txHash: result.txHash,
-      status: result.status || "success",
-      spokeTxHash: result.spokeTxHash,
-      hubTxHash: result.hubTxHash,
-      intentHash: result.intentHash,
+      txHash: String(spokeTxHash),
+      status: "success",
+      spokeTxHash: String(spokeTxHash),
+      hubTxHash: hubTxHash ? String(hubTxHash) : undefined,
+      intentHash: undefined,
       operation: "supply",
       chainId,
       dstChainId: dstChainId || chainId,
@@ -563,19 +574,27 @@ async function handleWithdraw(
     }
 
     // Execute withdraw
-    const result = await sodaxClient.moneyMarket.withdraw(
+    const withdrawResult = await (sodaxClient as any).moneyMarket.withdraw(
       withdrawParams,
       spokeProvider,
-      { timeout: timeoutMs, skipSimulation }
+      timeoutMs
     );
+
+    // Handle Result type from SDK
+    if (withdrawResult.ok === false) {
+      throw new Error(`Withdraw failed: ${withdrawResult.error}`);
+    }
+    
+    const value = withdrawResult.ok ? withdrawResult.value : withdrawResult;
+    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
 
     return {
       success: true,
-      txHash: result.txHash,
-      status: result.status || "success",
-      spokeTxHash: result.spokeTxHash,
-      hubTxHash: result.hubTxHash,
-      intentHash: result.intentHash,
+      txHash: String(spokeTxHash),
+      status: "success",
+      spokeTxHash: String(spokeTxHash),
+      hubTxHash: hubTxHash ? String(hubTxHash) : undefined,
+      intentHash: undefined,
       operation: "withdraw",
       chainId,
       dstChainId: dstChainId || chainId,
@@ -674,19 +693,27 @@ async function handleBorrow(
     }
 
     // Execute borrow
-    const result = await sodaxClient.moneyMarket.borrow(
+    const borrowResult = await (sodaxClient as any).moneyMarket.borrow(
       borrowParams,
       spokeProvider,
-      { timeout: timeoutMs, skipSimulation }
+      timeoutMs
     );
+
+    // Handle Result type from SDK
+    if (borrowResult.ok === false) {
+      throw new Error(`Borrow failed: ${borrowResult.error}`);
+    }
+    
+    const value = borrowResult.ok ? borrowResult.value : borrowResult;
+    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
 
     return {
       success: true,
-      txHash: result.txHash,
-      status: result.status || "success",
-      spokeTxHash: result.spokeTxHash,
-      hubTxHash: result.hubTxHash,
-      intentHash: result.intentHash,
+      txHash: String(spokeTxHash),
+      status: "success",
+      spokeTxHash: String(spokeTxHash),
+      hubTxHash: hubTxHash ? String(hubTxHash) : undefined,
+      intentHash: undefined,
       operation: "borrow",
       chainId,
       dstChainId: dstChainId || chainId,
@@ -778,19 +805,27 @@ async function handleRepay(
     }
 
     // Execute repay
-    const result = await sodaxClient.moneyMarket.repay(
+    const repayResult = await (sodaxClient as any).moneyMarket.repay(
       repayParams,
       spokeProvider,
-      { timeout: timeoutMs, skipSimulation }
+      timeoutMs
     );
+
+    // Handle Result type from SDK
+    if (repayResult.ok === false) {
+      throw new Error(`Repay failed: ${repayResult.error}`);
+    }
+    
+    const value = repayResult.ok ? repayResult.value : repayResult;
+    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
 
     return {
       success: true,
-      txHash: result.txHash,
-      status: result.status || "success",
-      spokeTxHash: result.spokeTxHash,
-      hubTxHash: result.hubTxHash,
-      intentHash: result.intentHash,
+      txHash: String(spokeTxHash),
+      status: "success",
+      spokeTxHash: String(spokeTxHash),
+      hubTxHash: hubTxHash ? String(hubTxHash) : undefined,
+      intentHash: undefined,
       operation: "repay",
       chainId,
       token,

@@ -7,7 +7,10 @@
  * Now integrates with evm-wallet-skill for RPC configuration.
  */
 
-import { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/wallet-sdk-core';
+// Note: Provider types may vary by SDK version - using any for compatibility
+// import { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/wallet-sdk-core';
+type EvmSpokeProvider = any;
+type SonicSpokeProvider = any;
 import { WalletRegistry } from '../wallet/walletRegistry';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
 
@@ -150,13 +153,13 @@ async function createRawSpokeProvider(
  * Get a spoke provider for the given wallet and chain
  * Returns cached provider if available, otherwise creates a new one
  *
- * @param address - The wallet address (can also use walletId as first param for backward compat)
+ * @param walletId - The wallet identifier (used for caching and wallet resolution)
  * @param chainId - The chain identifier
  * @param raw - If true, creates a read-only provider (address-only mode)
  * @returns The spoke provider instance
  */
 export async function getSpokeProvider(
-  address: string,
+  walletId: string,
   chainId: string,
   raw = false
 ): Promise<SpokeProvider> {

@@ -9,11 +9,15 @@
  */
 
 import { Static, Type } from '@sinclair/typebox';
-import { sodax, QuoteRequest, Intent, SwapQuote, IntentStatus } from '@sodax/sdk';
+// SDK types - using any for now due to beta API changes
+import { Intent } from '@sodax/sdk';
+type QuoteRequest = any;
+type SwapQuote = any;
+type IntentStatus = any;
 import { getSodaxClient } from '../sodax/client';
-import { getSpokeProviderFactory } from '../providers/spokeProviderFactory';
+import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
-import { getWalletRegistry } from '../wallet/walletRegistry';
+import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
 import type { AgentTools } from '../types';
 
 // ============================================================================
@@ -36,7 +40,8 @@ const SwapQuoteRequestSchema = Type.Object({
   slippageBps: Type.Number({ default: 50, minimum: 0, maximum: 10000 })
 });
 
-const SwapQuoteResultSchema = Type.Object({
+// Result schema for documentation (not used at runtime)
+const _SwapQuoteResultSchema = Type.Object({
   inputAmount: Type.String(),
   outputAmount: Type.String(),
   srcToken: Type.String(),
@@ -53,6 +58,7 @@ const SwapQuoteResultSchema = Type.Object({
   minOutputAmount: Type.Optional(Type.String()),
   maxInputAmount: Type.Optional(Type.String())
 });
+void _SwapQuoteResultSchema; // Suppress unused warning
 
 const SwapExecuteParamsSchema = Type.Object({
   walletId: Type.String(),
@@ -149,16 +155,23 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
       slippageBps: params.slippageBps
     };
 
-    const quote = await sodaxClient.swaps.getQuote(quoteRequest);
+    const quoteResult = await (sodaxClient as any).swaps.getQuote(quoteRequest);
+    
+    // Handle Result type from SDK
+    if (quoteResult.ok === false) {
+      throw new Error(`Quote failed: ${quoteResult.error}`);
+    }
+    
+    const quote = quoteResult.ok ? quoteResult.value : quoteResult;
     
     // Normalize and return quote
     const result = {
-      inputAmount: quote.inputAmount,
-      outputAmount: quote.outputAmount,
-      srcToken: quote.srcToken,
-      dstToken: quote.dstToken,
-      srcChainId: quote.srcChainId,
-      dstChainId: quote.dstChainId,
+      inputAmount: quote.inputAmount || params.amount,
+      outputAmount: quote.outputAmount || '0',
+      srcToken: quote.srcToken || params.srcToken,
+      dstToken: quote.dstToken || params.dstToken,
+      srcChainId: quote.srcChainId || params.srcChainId,
+      dstChainId: quote.dstChainId || params.dstChainId,
       slippageBps: params.slippageBps,
       deadline: quote.deadline || calculateDeadline(300), // 5 min default
       fees: {
@@ -207,12 +220,11 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
   try {
     // 1. Initialize dependencies
     const policyEngine = new PolicyEngine();
-    const walletRegistry = new WalletRegistry();
-    const spokeProviderFactory = getSpokeProviderFactory();
+    const walletRegistry = getWalletRegistry();
     const sodaxClient = getSodaxClient();
     
     // 2. Resolve wallet
-    const wallet = await walletRegistry.getWallet(params.walletId);
+    const wallet = walletRegistry.getWallet(params.walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${params.walletId}`);
     }
@@ -234,17 +246,23 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     }
     
     // 4. Get spoke provider for source chain
-    const spokeProvider = await spokeProviderFactory.getProvider(
+    const spokeProvider = await getSpokeProvider(
       params.walletId,
       params.quote.srcChainId
     );
     
     // 5. Check allowance
-    const isAllowanceValid = await sodaxClient.swaps.isAllowanceValid({
-      spokeProvider,
-      token: params.quote.srcToken,
-      amount: params.quote.inputAmount
-    });
+    let isAllowanceValid = false;
+    try {
+      const allowanceResult = await (sodaxClient as any).swaps.isAllowanceValid({
+        spokeProvider,
+        token: params.quote.srcToken,
+        amount: params.quote.inputAmount
+      });
+      isAllowanceValid = allowanceResult?.ok ? allowanceResult.value : !!allowanceResult;
+    } catch {
+      isAllowanceValid = false;
+    }
     
     // 6. Approve if needed
     if (!isAllowanceValid) {
@@ -257,14 +275,18 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         message: 'Token approval required'
       });
       
-      const approvalTx = await sodaxClient.swaps.approve({
+      const approvalResult = await (sodaxClient as any).swaps.approve({
         spokeProvider,
         token: params.quote.srcToken,
         amount: params.quote.inputAmount
       });
       
-      // Wait for approval confirmation
-      await spokeProvider.waitForTransaction(approvalTx);
+      const approvalTx = approvalResult?.ok ? approvalResult.value : approvalResult;
+      
+      // Wait for approval confirmation if possible
+      if (spokeProvider.waitForTransaction) {
+        await spokeProvider.waitForTransaction(approvalTx);
+      }
       
       logStructured({
         requestId,
@@ -272,15 +294,14 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         walletId: params.walletId,
         chainId: params.quote.srcChainId,
         token: params.quote.srcToken,
-        approvalTx,
+        approvalTx: String(approvalTx),
         success: true
       });
     }
     
     // 7. Execute swap
-    const swapResult = await sodaxClient.swaps.swap({
-      spokeProvider,
-      quote: {
+    const swapResult = await (sodaxClient as any).swaps.swap({
+      intentParams: {
         srcChainId: params.quote.srcChainId,
         dstChainId: params.quote.dstChainId,
         srcToken: params.quote.srcToken,
@@ -288,19 +309,30 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         inputAmount: params.quote.inputAmount,
         outputAmount: params.quote.outputAmount,
         slippageBps: params.quote.slippageBps,
-        deadline: params.quote.deadline,
+        deadline: BigInt(params.quote.deadline),
         minOutputAmount: params.quote.minOutputAmount,
         maxInputAmount: params.quote.maxInputAmount
       },
+      spokeProvider,
       skipSimulation: params.skipSimulation || false,
-      timeoutMs: params.timeoutMs || 120000
+      timeout: params.timeoutMs || 120000
     });
     
+    // Handle Result type from SDK
+    if (swapResult.ok === false) {
+      throw new Error(`Swap failed: ${swapResult.error}`);
+    }
+    
+    const value = swapResult.ok ? swapResult.value : swapResult;
+    
+    // SDK may return [response, intent, deliveryInfo] tuple
+    const [response, intent] = Array.isArray(value) ? value : [value, undefined];
+    
     const result = {
-      spokeTxHash: swapResult.spokeTxHash,
-      hubTxHash: swapResult.hubTxHash,
-      intentHash: swapResult.intentHash,
-      status: swapResult.status || 'pending',
+      spokeTxHash: response?.spokeTxHash || response?.txHash || String(response),
+      hubTxHash: response?.hubTxHash,
+      intentHash: intent?.intentHash || response?.intentHash,
+      status: response?.status || 'pending',
       message: 'Swap executed successfully'
     };
     
@@ -310,9 +342,9 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       walletId: params.walletId,
       chainIds: [params.quote.srcChainId, params.quote.dstChainId],
       tokenAddresses: [params.quote.srcToken, params.quote.dstToken],
-      spokeTxHash: swapResult.spokeTxHash,
-      hubTxHash: swapResult.hubTxHash,
-      intentHash: swapResult.intentHash,
+      spokeTxHash: result.spokeTxHash,
+      hubTxHash: result.hubTxHash,
+      intentHash: result.intentHash,
       durationMs: Date.now() - startTime,
       success: true
     });
@@ -354,8 +386,11 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
     // Try to get status by intent hash first (more reliable)
     if (params.intentHash) {
       try {
-        status = await sodaxClient.swaps.getStatus({ intentHash: params.intentHash });
-        intent = await sodaxClient.swaps.getIntent({ intentHash: params.intentHash });
+        const statusResult = await (sodaxClient as any).swaps.getStatus(params.intentHash as `0x${string}`);
+        status = statusResult?.ok ? statusResult.value : statusResult;
+        
+        const intentResult = await (sodaxClient as any).swaps.getIntent(params.intentHash as `0x${string}`);
+        intent = intentResult?.ok ? intentResult.value : intentResult;
       } catch {
         // Intent hash lookup failed, will try txHash
       }
@@ -363,7 +398,8 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
     
     // Fallback to txHash
     if (!status && params.txHash) {
-      status = await sodaxClient.swaps.getStatus({ txHash: params.txHash });
+      const statusResult = await (sodaxClient as any).swaps.getStatus(params.txHash as `0x${string}`);
+      status = statusResult?.ok ? statusResult.value : statusResult;
     }
     
     if (!status) {
@@ -371,14 +407,14 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
     }
     
     const result: Record<string, unknown> = {
-      status: status.status,
-      intentHash: params.intentHash || status.intentHash,
-      spokeTxHash: params.txHash || status.spokeTxHash,
-      hubTxHash: status.hubTxHash,
-      filledAmount: status.filledAmount,
-      error: status.error,
-      createdAt: intent?.createdAt,
-      expiresAt: intent?.deadline
+      status: (status as any).status || status,
+      intentHash: params.intentHash || (status as any).intentHash,
+      spokeTxHash: params.txHash || (status as any).spokeTxHash,
+      hubTxHash: (status as any).hubTxHash,
+      filledAmount: (status as any).filledAmount,
+      error: (status as any).error,
+      createdAt: (intent as any)?.createdAt,
+      expiresAt: (intent as any)?.deadline
     };
     
     logStructured({
@@ -386,7 +422,7 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       opType: 'swap_status',
       intentHash: params.intentHash,
       txHash: params.txHash,
-      status: status.status,
+      status: String((status as any).status || status),
       durationMs: Date.now() - startTime,
       success: true
     });
@@ -416,47 +452,53 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
   const startTime = Date.now();
   
   try {
-    const walletRegistry = new WalletRegistry();
-    const spokeProviderFactory = getSpokeProviderFactory();
+    const walletRegistry = getWalletRegistry();
     const sodaxClient = getSodaxClient();
     
     // Resolve wallet
-    const wallet = await walletRegistry.getWallet(params.walletId);
+    const wallet = walletRegistry.getWallet(params.walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${params.walletId}`);
     }
     
     // Get spoke provider for source chain
-    const spokeProvider = await spokeProviderFactory.getProvider(
+    const spokeProvider = await getSpokeProvider(
       params.walletId,
       params.srcChainId
     );
     
     // Construct intent object for cancellation
-    const intent: Intent = {
+    const intent = {
       id: params.intent.id,
       srcChainId: params.intent.srcChainId,
       dstChainId: params.intent.dstChainId,
       srcToken: params.intent.srcToken,
       dstToken: params.intent.dstToken,
       amount: params.intent.amount,
-      deadline: params.intent.deadline,
-      createdAt: Date.now(), // Approximate if not provided
+      deadline: BigInt(params.intent.deadline),
+      createdAt: Date.now(),
       status: 'pending'
-    };
+    } as unknown as Intent;
     
-    // Cancel the intent
-    const cancelTx = await sodaxClient.swaps.cancelIntent({
-      intent,
-      spokeProvider
-    });
+    // Cancel the intent - SDK expects (intent, spokeProvider)
+    const cancelResult = await (sodaxClient as any).swaps.cancelIntent(intent, spokeProvider);
     
-    // Wait for cancellation confirmation
-    await spokeProvider.waitForTransaction(cancelTx);
+    // Handle Result type
+    if (cancelResult.ok === false) {
+      throw new Error(`Cancel failed: ${cancelResult.error}`);
+    }
+    
+    const cancelTx = cancelResult.ok ? cancelResult.value : cancelResult;
+    const cancelTxHash = typeof cancelTx === 'string' ? cancelTx : String(cancelTx);
+    
+    // Wait for cancellation confirmation if possible
+    if (spokeProvider.waitForTransaction) {
+      await spokeProvider.waitForTransaction(cancelTxHash);
+    }
     
     const result = {
       success: true,
-      txHash: cancelTx,
+      txHash: cancelTxHash,
       message: 'Intent cancelled successfully'
     };
     
@@ -466,7 +508,7 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
       walletId: params.walletId,
       chainId: params.srcChainId,
       intentId: params.intent.id,
-      txHash: cancelTx,
+      txHash: cancelTxHash,
       durationMs: Date.now() - startTime,
       success: true
     });
@@ -577,3 +619,8 @@ export function registerSwapTools(agentTools: AgentTools): void {
     handler: handleSwapCancel
   });
 }
+
+// Silence unused variable warnings for result schemas (used for documentation)
+void SwapExecuteResultSchema;
+void SwapStatusResultSchema;
+void SwapCancelResultSchema;

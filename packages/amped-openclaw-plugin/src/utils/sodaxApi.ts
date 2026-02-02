@@ -137,7 +137,7 @@ export class SodaxApiClient {
         );
       }
 
-      return await response.json();
+      return await response.json() as PaginatedResponse<UserIntent>;
     } catch (error) {
       if (error instanceof AmpedOpenClawError) throw error;
       throw new AmpedOpenClawError(

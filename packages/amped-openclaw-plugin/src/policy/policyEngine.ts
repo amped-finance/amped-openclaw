@@ -9,7 +9,7 @@
  * - Simulation requirements
  */
 
-import { BridgeOperation, PolicyConfig, WalletConfig } from '../types';
+import { BridgeOperation, PolicyConfig } from '../types';
 
 /**
  * Policy check result

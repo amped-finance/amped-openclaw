@@ -12,7 +12,7 @@
 
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
-import { getWalletRegistry } from '../wallet/walletRegistry';
+import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
 
 /**
  * Position data for a single token on a single chain
@@ -136,7 +136,10 @@ export async function aggregateCrossChainPositions(
   const supportedChains = sodax.config.getSupportedSpokeChains();
   
   // Determine which chains to query
-  const chainsToQuery = options.chainIds || supportedChains.map(c => c.id);
+  // SDK may return chain IDs as strings or objects with id property
+  const chainsToQuery = options.chainIds || supportedChains.map((c: any) => 
+    typeof c === 'string' ? c : c.id
+  );
   
   console.log('[positionAggregator] Querying positions across chains', {
     walletId,
@@ -206,42 +209,47 @@ export async function aggregateCrossChainPositions(
  * Query positions for a single chain
  */
 async function queryChainPositions(
-  walletId: string,
+  _walletId: string,
   address: string,
   chainId: string
 ): Promise<{ positions: TokenPosition[]; summary: ChainPositionSummary }> {
   try {
+    // Use address for spoke provider lookup
     const spokeProvider = await getSpokeProvider(address, chainId);
     const sodax = getSodaxClient();
 
     // Get user reserves in humanized format
-    const userReserves = await sodax.moneyMarket.data.getUserReservesHumanized(spokeProvider);
+    const userReservesResult = await sodax.moneyMarket.data.getUserReservesHumanized(spokeProvider);
+
+    // SDK may return { userReserves: [...] } or just array
+    const reservesData = (userReservesResult as any).userReserves || userReservesResult;
+    const userReserves = Array.isArray(reservesData) ? reservesData : [];
 
     // Convert to TokenPosition format
-    const positions: TokenPosition[] = userReserves.map(reserve => ({
+    const positions: TokenPosition[] = userReserves.map((reserve: any) => ({
       chainId,
       token: {
-        address: reserve.token.address,
-        symbol: reserve.token.symbol,
-        name: reserve.token.name,
-        decimals: reserve.token.decimals,
-        logoURI: reserve.token.logoURI,
+        address: reserve.token?.address || reserve.underlyingAsset || '',
+        symbol: reserve.token?.symbol || reserve.symbol || '',
+        name: reserve.token?.name || reserve.name || '',
+        decimals: reserve.token?.decimals || reserve.decimals || 18,
+        logoURI: reserve.token?.logoURI || reserve.logoURI,
       },
       supply: {
-        balance: reserve.supply.balance,
-        balanceUsd: reserve.supply.balanceUsd,
-        balanceRaw: reserve.supply.balanceRaw || '0',
-        apy: reserve.supply.apy,
-        isCollateral: reserve.supply.isCollateral,
+        balance: reserve.supply?.balance || reserve.scaledATokenBalance || '0',
+        balanceUsd: reserve.supply?.balanceUsd || '0',
+        balanceRaw: reserve.supply?.balanceRaw || '0',
+        apy: reserve.supply?.apy || 0,
+        isCollateral: reserve.supply?.isCollateral ?? reserve.usageAsCollateralEnabledOnUser ?? false,
       },
       borrow: {
-        balance: reserve.borrow.balance,
-        balanceUsd: reserve.borrow.balanceUsd,
-        balanceRaw: reserve.borrow.balanceRaw || '0',
-        apy: reserve.borrow.apy,
+        balance: reserve.borrow?.balance || reserve.scaledVariableDebt || '0',
+        balanceUsd: reserve.borrow?.balanceUsd || '0',
+        balanceRaw: reserve.borrow?.balanceRaw || '0',
+        apy: reserve.borrow?.apy || 0,
       },
-      loanToValue: reserve.loanToValue,
-      liquidationThreshold: reserve.liquidationThreshold,
+      loanToValue: reserve.loanToValue || 0,
+      liquidationThreshold: reserve.liquidationThreshold || 0,
     }));
 
     // Calculate chain summary
@@ -458,7 +466,7 @@ export function getHealthFactorStatus(hf: number | null): {
  */
 export function getPositionRecommendation(view: CrossChainPositionView): string[] {
   const recommendations: string[] = [];
-  const { summary, riskMetrics } = view;
+  const { summary } = view;
 
   // Health factor recommendations
   if (summary.healthFactor !== null && summary.healthFactor < 1.5) {

@@ -186,3 +186,24 @@ export class WalletRegistry {
     this.wallets = this.loadWallets();
   }
 }
+
+// Singleton instance
+let walletRegistryInstance: WalletRegistry | null = null;
+
+/**
+ * Get the singleton wallet registry instance
+ * @returns The WalletRegistry singleton
+ */
+export function getWalletRegistry(): WalletRegistry {
+  if (!walletRegistryInstance) {
+    walletRegistryInstance = new WalletRegistry();
+  }
+  return walletRegistryInstance;
+}
+
+/**
+ * Reset the wallet registry (useful for testing)
+ */
+export function resetWalletRegistry(): void {
+  walletRegistryInstance = null;
+}

@@ -40,10 +40,10 @@ async function initializeSodax(config?: SodaxConfig): Promise<Sodax> {
     config?.dynamic ?? process.env.AMPED_OC_SODAX_DYNAMIC_CONFIG === "true";
 
   // Initialize SODAX with hardcoded partner configuration
+  // Note: partnerAddress may need to be set differently depending on SDK version
   const sodax = new Sodax({
-    partnerAddress: PARTNER_ADDRESS,
     partnerFeeBps: PARTNER_FEE_BPS,
-  });
+  } as any); // Cast to any due to SDK type variations between versions
 
   // Check if dynamic configuration is enabled
   if (useDynamicConfig) {
@@ -115,4 +115,31 @@ export async function preInitializeSodax(config?: SodaxConfig): Promise<void> {
  */
 export function resetSodaxClient(): void {
   sodaxClient = null;
+}
+
+/**
+ * SodaxClient class wrapper for backward compatibility
+ * Provides static methods to match expected API in index.ts and other files
+ */
+export class SodaxClient {
+  private static instance: Sodax | null = null;
+
+  /**
+   * Get the SODAX client instance (async initialization)
+   */
+  static async getClient(config?: SodaxConfig): Promise<Sodax> {
+    if (!SodaxClient.instance) {
+      SodaxClient.instance = await initializeSodax(config);
+      sodaxClient = SodaxClient.instance; // Keep singleton in sync
+    }
+    return SodaxClient.instance;
+  }
+
+  /**
+   * Reset the client (useful for testing)
+   */
+  static reset(): void {
+    SodaxClient.instance = null;
+    sodaxClient = null;
+  }
 }

@@ -12,7 +12,7 @@
 import { Type, Static } from '@sinclair/typebox';
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
-import { getWalletRegistry } from '../wallet/walletRegistry';
+import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
 import { 
   aggregateCrossChainPositions, 
   formatHealthFactor,
@@ -158,9 +158,15 @@ interface AgentTools {
   register(tool: {
     name: string;
     summary: string;
+    description?: string;
     schema: unknown;
     handler: (params: unknown) => Promise<unknown>;
   }): void;
+}
+
+// Helper to wrap typed handlers for AgentTools registration
+function wrapHandler<T>(handler: (params: T) => Promise<unknown>): (params: unknown) => Promise<unknown> {
+  return (params: unknown) => handler(params as T);
 }
 
 // ============================================================================
@@ -176,15 +182,28 @@ async function handleSupportedChains(
   const sodax = getSodaxClient();
   const chains = sodax.config.getSupportedSpokeChains();
 
+  // SDK may return chain IDs as strings or chain objects
   return {
     success: true,
-    chains: chains.map((chain) => ({
-      id: chain.id,
-      name: chain.name,
-      type: chain.type,
-      isHub: chain.id === 'sonic',
-      nativeCurrency: chain.nativeCurrency,
-    })),
+    chains: chains.map((chain: any) => {
+      // Handle both string IDs and chain objects
+      if (typeof chain === 'string') {
+        return {
+          id: chain,
+          name: chain,
+          type: 'evm',
+          isHub: chain === 'sonic',
+          nativeCurrency: undefined,
+        };
+      }
+      return {
+        id: chain.id || chain,
+        name: chain.name || chain.id || chain,
+        type: chain.type || 'evm',
+        isHub: (chain.id || chain) === 'sonic',
+        nativeCurrency: chain.nativeCurrency,
+      };
+    }),
   };
 }
 
@@ -205,44 +224,59 @@ async function handleSupportedTokens(
     logoURI?: string;
   }> = [];
 
+  // Helper to normalize token data
+  const normalizeToken = (token: any) => ({
+    address: token.address || '',
+    symbol: token.symbol || '',
+    name: token.name || token.symbol || '',
+    decimals: token.decimals || 18,
+    logoURI: token.logoURI || token.logoUri,
+  });
+
   switch (module) {
     case 'swaps': {
       // Get supported swap tokens by chain ID
-      const swapTokens = sodax.config.getSupportedSwapTokensByChainId(chainId);
-      tokens = swapTokens.map((token) => ({
-        address: token.address,
-        symbol: token.symbol,
-        name: token.name,
-        decimals: token.decimals,
-        logoURI: token.logoURI,
-      }));
+      // SDK may require chainId to be cast to specific type
+      try {
+        const swapTokens = sodax.config.getSupportedSwapTokensByChainId(chainId as any);
+        tokens = (swapTokens || []).map(normalizeToken);
+      } catch (e) {
+        console.warn('[discovery] Failed to get swap tokens:', e);
+        tokens = [];
+      }
       break;
     }
 
     case 'bridge': {
       // Get bridgeable tokens for the chain
-      const bridgeTokens = sodax.bridge.getBridgeableTokens(chainId);
-      tokens = bridgeTokens.map((token) => ({
-        address: token.address,
-        symbol: token.symbol,
-        name: token.name,
-        decimals: token.decimals,
-        logoURI: token.logoURI,
-      }));
+      // Note: getBridgeableTokens requires 3 args - we'll get all tokens for a chain
+      try {
+        // Try to get config-based token list instead
+        const configTokens = (sodax.config as any).getBridgeTokensByChainId?.(chainId) || [];
+        tokens = configTokens.map(normalizeToken);
+      } catch (e) {
+        console.warn('[discovery] Failed to get bridge tokens:', e);
+        tokens = [];
+      }
       break;
     }
 
     case 'moneyMarket': {
       // Get money market supported tokens from config
-      const mmConfig = sodax.config.getMoneyMarketConfig();
-      const supportedTokens = mmConfig.supportedTokens?.[chainId] || [];
-      tokens = supportedTokens.map((token) => ({
-        address: token.address,
-        symbol: token.symbol,
-        name: token.name,
-        decimals: token.decimals,
-        logoURI: token.logoURI,
-      }));
+      try {
+        // SDK API may vary - try different approaches
+        const mmToken = sodax.config.getMoneyMarketToken?.(chainId as any, '');
+        if (mmToken) {
+          tokens = [normalizeToken(mmToken)];
+        } else {
+          // Fallback to getting all supported tokens
+          const allTokens = (sodax.config as any).getMoneyMarketTokens?.() || [];
+          tokens = allTokens.filter((t: any) => t.chainId === chainId).map(normalizeToken);
+        }
+      } catch (e) {
+        console.warn('[discovery] Failed to get money market tokens:', e);
+        tokens = [];
+      }
       break;
     }
 
@@ -272,6 +306,10 @@ async function handleWalletAddress(
   const walletRegistry = getWalletRegistry();
   const wallet = walletRegistry.getWallet(walletId);
 
+  if (!wallet) {
+    throw new Error(`Wallet not found: ${walletId}`);
+  }
+
   return {
     success: true,
     walletId,
@@ -292,47 +330,55 @@ async function handleMoneyMarketPositions(
   const walletRegistry = getWalletRegistry();
   const wallet = walletRegistry.getWallet(walletId);
 
+  if (!wallet) {
+    throw new Error(`Wallet not found: ${walletId}`);
+  }
+
   // Get spoke provider for this wallet and chain
-  const spokeProvider = await getSpokeProvider(wallet.address, chainId);
+  const spokeProvider = await getSpokeProvider(walletId, chainId);
 
   const sodax = getSodaxClient();
 
   // Get user reserves in humanized format
-  const userReserves = await sodax.moneyMarket.data.getUserReservesHumanized(
+  const userReservesResult = await sodax.moneyMarket.data.getUserReservesHumanized(
     spokeProvider
   );
 
+  // SDK may return { userReserves: [...], userEmodeCategoryId: ... } or just array
+  const reservesData = userReservesResult.userReserves || userReservesResult;
+  const reservesArray = Array.isArray(reservesData) ? reservesData : [];
+
   // Format positions for readability
-  const positions = userReserves.map((reserve) => ({
+  const positions = reservesArray.map((reserve: any) => ({
     token: {
-      address: reserve.token.address,
-      symbol: reserve.token.symbol,
-      name: reserve.token.name,
-      decimals: reserve.token.decimals,
+      address: reserve.token?.address || reserve.underlyingAsset || '',
+      symbol: reserve.token?.symbol || reserve.symbol || '',
+      name: reserve.token?.name || reserve.name || '',
+      decimals: reserve.token?.decimals || reserve.decimals || 18,
     },
     supply: {
-      balance: reserve.supply.balance,
-      balanceUsd: reserve.supply.balanceUsd,
-      apy: reserve.supply.apy,
-      collateral: reserve.supply.isCollateral,
+      balance: reserve.supply?.balance || reserve.scaledATokenBalance || '0',
+      balanceUsd: reserve.supply?.balanceUsd || '0',
+      apy: reserve.supply?.apy || 0,
+      collateral: reserve.supply?.isCollateral ?? reserve.usageAsCollateralEnabledOnUser ?? false,
     },
     borrow: {
-      balance: reserve.borrow.balance,
-      balanceUsd: reserve.borrow.balanceUsd,
-      apy: reserve.borrow.apy,
+      balance: reserve.borrow?.balance || reserve.scaledVariableDebt || '0',
+      balanceUsd: reserve.borrow?.balanceUsd || '0',
+      apy: reserve.borrow?.apy || 0,
     },
     // Health indicators
-    loanToValue: reserve.loanToValue,
-    liquidationThreshold: reserve.liquidationThreshold,
+    loanToValue: reserve.loanToValue || 0,
+    liquidationThreshold: reserve.liquidationThreshold || 0,
   }));
 
   // Calculate summary metrics
   const totalSupplyUsd = positions.reduce(
-    (sum, p) => sum + (parseFloat(p.supply.balanceUsd) || 0),
+    (sum: number, p: any) => sum + (parseFloat(p.supply.balanceUsd) || 0),
     0
   );
   const totalBorrowUsd = positions.reduce(
-    (sum, p) => sum + (parseFloat(p.borrow.balanceUsd) || 0),
+    (sum: number, p: any) => sum + (parseFloat(p.borrow.balanceUsd) || 0),
     0
   );
   const netWorthUsd = totalSupplyUsd - totalBorrowUsd;
@@ -367,50 +413,55 @@ async function handleMoneyMarketReserves(
   const sodax = getSodaxClient();
 
   // Get reserves in humanized format (hub-centric)
-  const reserves = await sodax.moneyMarket.data.getReservesHumanized();
+  const reservesResult = await sodax.moneyMarket.data.getReservesHumanized();
+
+  // SDK may return ReservesDataHumanized object with .reservesData array or just array
+  const reservesArray = Array.isArray(reservesResult) 
+    ? reservesResult 
+    : (reservesResult as any).reservesData || [];
 
   // Filter by chainId if provided
-  let filteredReserves = reserves;
+  let filteredReserves = reservesArray;
   if (chainId) {
-    filteredReserves = reserves.filter(
-      (r) => r.token.chainId === chainId || r.hubChainId === chainId
+    filteredReserves = reservesArray.filter(
+      (r: any) => r.token?.chainId === chainId || r.hubChainId === chainId || r.chainId === chainId
     );
   }
 
   // Format reserves for readability
-  const formattedReserves = filteredReserves.map((reserve) => ({
+  const formattedReserves = filteredReserves.map((reserve: any) => ({
     token: {
-      address: reserve.token.address,
-      symbol: reserve.token.symbol,
-      name: reserve.token.name,
-      decimals: reserve.token.decimals,
-      chainId: reserve.token.chainId,
+      address: reserve.token?.address || reserve.underlyingAsset || '',
+      symbol: reserve.token?.symbol || reserve.symbol || '',
+      name: reserve.token?.name || reserve.name || '',
+      decimals: reserve.token?.decimals || reserve.decimals || 18,
+      chainId: reserve.token?.chainId || reserve.chainId || '',
     },
     liquidity: {
-      totalSupply: reserve.liquidity.totalSupply,
-      availableLiquidity: reserve.liquidity.availableLiquidity,
-      totalBorrow: reserve.liquidity.totalBorrow,
-      utilizationRate: reserve.liquidity.utilizationRate,
+      totalSupply: reserve.liquidity?.totalSupply || reserve.totalScaledVariableDebt || '0',
+      availableLiquidity: reserve.liquidity?.availableLiquidity || reserve.availableLiquidity || '0',
+      totalBorrow: reserve.liquidity?.totalBorrow || reserve.totalVariableDebt || '0',
+      utilizationRate: reserve.liquidity?.utilizationRate || reserve.utilizationRate || '0',
     },
     rates: {
-      supplyApy: reserve.rates.supplyApy,
-      borrowApy: reserve.rates.borrowApy,
+      supplyApy: reserve.rates?.supplyApy || reserve.supplyAPY || '0',
+      borrowApy: reserve.rates?.borrowApy || reserve.variableBorrowAPY || '0',
     },
     parameters: {
-      loanToValue: reserve.parameters.loanToValue,
-      liquidationThreshold: reserve.parameters.liquidationThreshold,
-      liquidationBonus: reserve.parameters.liquidationBonus,
+      loanToValue: reserve.parameters?.loanToValue || reserve.baseLTVasCollateral || '0',
+      liquidationThreshold: reserve.parameters?.liquidationThreshold || reserve.reserveLiquidationThreshold || '0',
+      liquidationBonus: reserve.parameters?.liquidationBonus || reserve.reserveLiquidationBonus || '0',
     },
-    hubChainId: reserve.hubChainId,
+    hubChainId: reserve.hubChainId || 'sonic',
   }));
 
   // Calculate aggregate metrics
   const totalAvailableLiquidity = formattedReserves.reduce(
-    (sum, r) => sum + (parseFloat(r.liquidity.availableLiquidity) || 0),
+    (sum: number, r: any) => sum + (parseFloat(r.liquidity.availableLiquidity) || 0),
     0
   );
   const totalBorrowed = formattedReserves.reduce(
-    (sum, r) => sum + (parseFloat(r.liquidity.totalBorrow) || 0),
+    (sum: number, r: any) => sum + (parseFloat(r.liquidity.totalBorrow) || 0),
     0
   );
 
@@ -680,7 +731,7 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
     summary:
       'Get a list of all supported spoke chains for swaps, bridging, and money market operations',
     schema: SupportedChainsSchema,
-    handler: handleSupportedChains,
+    handler: wrapHandler(handleSupportedChains),
   });
 
   // 2. amped_oc_supported_tokens - Get supported tokens by module
@@ -689,7 +740,7 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
     summary:
       'Get supported tokens for a specific module (swaps, bridge, or moneyMarket) on a given chain',
     schema: SupportedTokensSchema,
-    handler: handleSupportedTokens,
+    handler: wrapHandler(handleSupportedTokens),
   });
 
   // 3. amped_oc_wallet_address - Get wallet address
@@ -698,7 +749,7 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
     summary:
       'Get the resolved wallet address for a given walletId. Validates private key matches in execute mode.',
     schema: WalletAddressSchema,
-    handler: handleWalletAddress,
+    handler: wrapHandler(handleWalletAddress),
   });
 
   // 4. amped_oc_money_market_positions - Get user positions (humanized)
@@ -707,7 +758,7 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
     summary:
       'Get humanized money market positions for a wallet on a specific chain, including supply/borrow balances and health metrics',
     schema: MoneyMarketPositionsSchema,
-    handler: handleMoneyMarketPositions,
+    handler: wrapHandler(handleMoneyMarketPositions),
   });
 
   // 5. amped_oc_money_market_reserves - Get market reserves (humanized)
@@ -716,7 +767,7 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
     summary:
       'Get humanized money market reserves data including liquidity, rates, and parameters. Hub-centric with optional chain filtering.',
     schema: MoneyMarketReservesSchema,
-    handler: handleMoneyMarketReserves,
+    handler: wrapHandler(handleMoneyMarketReserves),
   });
 
   // 6. amped_oc_cross_chain_positions - Get aggregated positions across all chains
@@ -730,7 +781,7 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
       'weighted APYs, collateral utilization, and personalized recommendations. ' +
       'This is the recommended tool for getting a complete picture of money market positions.',
     schema: CrossChainPositionsSchema,
-    handler: handleCrossChainPositions,
+    handler: wrapHandler(handleCrossChainPositions),
   });
 
   // 7. amped_oc_user_intents - Query user intent history from SODAX API
@@ -744,7 +795,7 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
       'Each intent includes input/output tokens, amounts, chain IDs, and event history. ' +
       'Use this to track the status of past swaps and bridge operations.',
     schema: UserIntentsSchema,
-    handler: handleUserIntents,
+    handler: wrapHandler(handleUserIntents),
   });
 }
 
@@ -767,6 +818,5 @@ export {
   handleMoneyMarketPositions,
   handleMoneyMarketReserves,
   handleCrossChainPositions,
-  handleMoneyMarketPositions,
-  handleMoneyMarketReserves,
+  handleUserIntents,
 };

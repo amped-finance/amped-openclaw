@@ -7,7 +7,7 @@
 
 import { AgentTools } from './types';
 import { SodaxClient } from './sodax/client';
-import { getSpokeProvider, getCacheStats, clearProviderCache } from './providers/spokeProviderFactory';
+import { getCacheStats } from './providers/spokeProviderFactory';
 import { PolicyEngine } from './policy/policyEngine';
 import { getWalletRegistry } from './wallet/walletRegistry';
 
@@ -158,8 +158,9 @@ export function getPluginInfo(): {
 
 // Re-export types and utilities for external use
 export * from './types';
-export { SodaxClient } from './sodax/client';
-export { getSpokeProvider, getCacheStats, clearProviderCache, SpokeProvider } from './providers/spokeProviderFactory';
+export { SodaxClient, getSodaxClient, getSodaxClientAsync } from './sodax/client';
+export { getSpokeProvider, getCacheStats, clearProviderCache } from './providers/spokeProviderFactory';
+export type { SpokeProvider } from './providers/spokeProviderFactory';
 export { PolicyEngine } from './policy/policyEngine';
 export { WalletRegistry, getWalletRegistry } from './wallet/walletRegistry';
 
