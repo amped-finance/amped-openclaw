@@ -1,6 +1,6 @@
 {
   "name": "amped-openclaw",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Amped OpenClaw plugin for DeFi operations via SODAX SDK",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,11 +17,12 @@
     "lint": "eslint src --ext .ts",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "prepublishOnly": "npm run build"
+    "test:coverage": "jest --coverage"
   },
   "openclaw": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   },
   "repository": {
     "type": "git",
