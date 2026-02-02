@@ -7,12 +7,19 @@
  * Now integrates with evm-wallet-skill for RPC configuration.
  */
 
-// Import spoke providers from the main SDK (not wallet-sdk-core)
+// Import wallet provider from wallet-sdk-core
+import { EvmWalletProvider } from '@sodax/wallet-sdk-core';
+
+// Import spoke providers and chain config from SDK
 import { 
   EvmSpokeProvider, 
   SonicSpokeProvider,
   type SpokeProvider 
 } from '@sodax/sdk';
+
+// Import chain configuration from types
+import { spokeChainConfig, type SpokeChainId } from '@sodax/types';
+
 import { WalletRegistry } from '../wallet/walletRegistry';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
 
@@ -23,7 +30,7 @@ const providerCache = new Map<string, SpokeProvider>();
 const SONIC_CHAIN_ID = 'sonic';
 
 // Chain ID mapping for SDK (some chains need specific format)
-const CHAIN_ID_MAP: Record<string, string> = {
+const CHAIN_ID_MAP: Record<string, SpokeChainId> = {
   'sonic': 'sonic',
   'ethereum': 'ethereum',
   'arbitrum': '0xa4b1.arbitrum',
@@ -33,7 +40,7 @@ const CHAIN_ID_MAP: Record<string, string> = {
   'bsc': '0x38.bsc',
   'avalanche': '0xa86a.avax',
   'lightlink': 'lightlink',
-};
+} as Record<string, SpokeChainId>;
 
 /**
  * Get RPC URL for a chain from configuration
@@ -84,8 +91,8 @@ async function getRpcUrl(chainId: string): Promise<string> {
 /**
  * Get the SDK chain ID for a given chain
  */
-function getSdkChainId(chainId: string): string {
-  return CHAIN_ID_MAP[chainId] || chainId;
+function getSdkChainId(chainId: string): SpokeChainId {
+  return (CHAIN_ID_MAP[chainId] || chainId) as SpokeChainId;
 }
 
 /**
@@ -113,6 +120,19 @@ async function createSpokeProvider(
   const rpcUrl = await getRpcUrl(chainId);
   const sdkChainId = getSdkChainId(chainId);
 
+  // Get chain config from SDK
+  const chainConfig = spokeChainConfig[sdkChainId];
+  if (!chainConfig) {
+    throw new Error(`Chain config not found for: ${sdkChainId}`);
+  }
+
+  // Create the wallet provider first
+  const walletProvider = new EvmWalletProvider({
+    privateKey: wallet.privateKey as `0x${string}`,
+    chainId: sdkChainId,
+    rpcUrl: rpcUrl as `http${string}`,
+  });
+
   // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
   if (chainId === SONIC_CHAIN_ID) {
     console.log('[spokeProviderFactory] Creating SonicSpokeProvider', {
@@ -120,11 +140,11 @@ async function createSpokeProvider(
       chainId,
     });
 
-    return new SonicSpokeProvider({
-      privateKey: wallet.privateKey as `0x${string}`,
-      chainId: sdkChainId as any,
-      rpcUrl: rpcUrl as `http${string}`,
-    });
+    return new SonicSpokeProvider(
+      walletProvider,
+      chainConfig as any,
+      rpcUrl
+    );
   } else {
     console.log('[spokeProviderFactory] Creating EvmSpokeProvider', {
       walletId,
@@ -132,11 +152,11 @@ async function createSpokeProvider(
       sdkChainId,
     });
 
-    return new EvmSpokeProvider({
-      privateKey: wallet.privateKey as `0x${string}`,
-      chainId: sdkChainId as any,
-      rpcUrl: rpcUrl as `http${string}`,
-    });
+    return new EvmSpokeProvider(
+      walletProvider,
+      chainConfig as any,
+      rpcUrl
+    );
   }
 }
 
