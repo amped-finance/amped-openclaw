@@ -163,7 +163,11 @@ export default {
         console.log(`[AmpedOpenClaw] Policy engine loaded (${policyEngine.getAvailablePolicies().length} policies)`);
         
         const walletRegistry = getWalletRegistry();
-        console.log(`[AmpedOpenClaw] Wallet registry loaded (${walletRegistry.getWalletIds().length} wallets)`);
+        const walletIds = walletRegistry.getWalletIds();
+        console.log(`[AmpedOpenClaw] Wallet registry loaded (${walletIds.length} wallets)`);
+        if (walletIds.length > 0) {
+          console.log(`[AmpedOpenClaw] Available wallets: ${walletIds.join(', ')}`);
+        }
       } catch (error) {
         console.error('[AmpedOpenClaw] Init error:', error);
       }

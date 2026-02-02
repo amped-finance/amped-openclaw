@@ -158,6 +158,20 @@ export class EvmWalletSkillAdapter {
   isUsingSkillRpcs(): boolean {
     return this.skillRpcs.size > 0;
   }
+
+  /**
+   * Get all skill wallet IDs
+   */
+  getWalletIds(): string[] {
+    return Array.from(this.skillWallets.keys());
+  }
+
+  /**
+   * Get all skill RPC chain IDs
+   */
+  getRpcChainIds(): string[] {
+    return Array.from(this.skillRpcs.keys());
+  }
 }
 
 // Singleton

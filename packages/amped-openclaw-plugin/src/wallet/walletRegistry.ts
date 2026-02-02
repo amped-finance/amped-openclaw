@@ -28,6 +28,11 @@ export class WalletRegistry {
   constructor() {
     this.skillAdapter = getWalletAdapter();
     this.wallets = this.loadWallets();
+    
+    // Log skill adapter status
+    if (this.skillAdapter.isUsingSkillWallets()) {
+      console.log('[walletRegistry] evm-wallet-skill integration active');
+    }
   }
 
   /**
@@ -162,21 +167,24 @@ export class WalletRegistry {
   }
 
   /**
-   * Get all registered wallet IDs
+   * Get all registered wallet IDs (local + skill)
    *
    * @returns Array of wallet IDs
    */
   getWalletIds(): string[] {
-    return Array.from(this.wallets.keys());
+    const localIds = Array.from(this.wallets.keys());
+    const skillIds = this.skillAdapter.getWalletIds();
+    // Merge unique IDs
+    return [...new Set([...localIds, ...skillIds])];
   }
 
   /**
-   * Get the count of registered wallets
+   * Get the count of registered wallets (local + skill)
    *
    * @returns Number of wallets
    */
   getWalletCount(): number {
-    return this.wallets.size;
+    return this.getWalletIds().length;
   }
 
   /**
