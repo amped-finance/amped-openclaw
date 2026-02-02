@@ -4,11 +4,14 @@
  * Creates and caches spoke providers per (walletId, chainId) pair.
  * Uses EvmSpokeProvider for EVM chains and SonicSpokeProvider for Sonic hub chain.
  * 
- * Now integrates with evm-wallet-skill for RPC configuration.
+ * Now uses AmpedWalletProvider instead of wallet-sdk-core's EvmWalletProvider
+ * to support all chains including LightLink and HyperEVM.
+ * 
+ * Also supports pluggable wallet backends (local keys, Bankr, etc.)
  */
 
-// Import wallet provider from wallet-sdk-core
-import { EvmWalletProvider } from '@sodax/wallet-sdk-core';
+// Import our custom wallet provider instead of wallet-sdk-core
+import { AmpedWalletProvider, getDefaultRpcUrl } from '../wallet/providers';
 
 // Import spoke providers and chain config from SDK
 import { 
@@ -40,20 +43,27 @@ const CHAIN_ID_MAP: Record<string, SpokeChainId> = {
   'bsc': '0x38.bsc',
   'avalanche': '0xa86a.avax',
   'lightlink': 'lightlink',
+  'hyperevm': 'hyper',
+  'hyper': 'hyper',
 } as Record<string, SpokeChainId>;
 
 /**
  * Get RPC URL for a chain from configuration
- * Tries evm-wallet-skill first, then falls back to AMPED_OC_RPC_URLS_JSON
+ * Tries evm-wallet-skill first, then falls back to built-in defaults
  *
  * @param chainId - The chain ID
  * @returns The RPC URL for the chain
  * @throws Error if RPC URL is not configured for the chain
  */
 async function getRpcUrl(chainId: string): Promise<string> {
-  // Use skill adapter which has default RPCs baked in
-  const skillAdapter = getWalletAdapter();
-  return await skillAdapter.getRpcUrl(chainId);
+  // Try skill adapter first (may have custom RPCs)
+  try {
+    const skillAdapter = getWalletAdapter();
+    return await skillAdapter.getRpcUrl(chainId);
+  } catch {
+    // Fall back to built-in defaults from our chain config
+    return getDefaultRpcUrl(chainId);
+  }
 }
 
 /**
@@ -94,11 +104,12 @@ async function createSpokeProvider(
     throw new Error(`Chain config not found for: ${sdkChainId}`);
   }
 
-  // Create the wallet provider first
-  const walletProvider = new EvmWalletProvider({
+  // Create the wallet provider using AmpedWalletProvider
+  // This supports all chains including LightLink and HyperEVM
+  const walletProvider = await AmpedWalletProvider.fromPrivateKey({
     privateKey: wallet.privateKey as `0x${string}`,
     chainId: sdkChainId,
-    rpcUrl: rpcUrl as `http${string}`,
+    rpcUrl: rpcUrl,
   });
 
   // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
@@ -118,6 +129,68 @@ async function createSpokeProvider(
       walletId,
       chainId,
       sdkChainId,
+    });
+
+    return new EvmSpokeProvider(
+      walletProvider,
+      chainConfig as any,
+      rpcUrl
+    );
+  }
+}
+
+/**
+ * Create a spoke provider with a Bankr backend
+ * 
+ * This allows execution through Bankr's API instead of local keys.
+ *
+ * @param bankrConfig - Bankr backend configuration
+ * @param chainId - The chain identifier
+ * @returns A new spoke provider instance
+ */
+export async function createBankrSpokeProvider(
+  bankrConfig: {
+    bankrApiUrl: string;
+    bankrApiKey: string;
+    userAddress: `0x${string}`;
+  },
+  chainId: string
+): Promise<SpokeProvider> {
+  const rpcUrl = await getRpcUrl(chainId);
+  const sdkChainId = getSdkChainId(chainId);
+
+  // Get chain config from SDK
+  const chainConfig = spokeChainConfig[sdkChainId];
+  if (!chainConfig) {
+    throw new Error(`Chain config not found for: ${sdkChainId}`);
+  }
+
+  // Create the wallet provider using Bankr backend
+  const walletProvider = await AmpedWalletProvider.fromBankr({
+    bankrApiUrl: bankrConfig.bankrApiUrl,
+    bankrApiKey: bankrConfig.bankrApiKey,
+    userAddress: bankrConfig.userAddress,
+    chainId: sdkChainId,
+    rpcUrl: rpcUrl,
+  });
+
+  // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
+  if (chainId === SONIC_CHAIN_ID) {
+    console.log('[spokeProviderFactory] Creating SonicSpokeProvider with Bankr backend', {
+      chainId,
+      userAddress: bankrConfig.userAddress,
+    });
+
+    return new SonicSpokeProvider(
+      walletProvider,
+      chainConfig as any,
+      rpcUrl
+    );
+  } else {
+    console.log('[spokeProviderFactory] Creating EvmSpokeProvider with Bankr backend', {
+      chainId,
+      sdkChainId,
+      userAddress: bankrConfig.userAddress,
     });
 
     return new EvmSpokeProvider(
