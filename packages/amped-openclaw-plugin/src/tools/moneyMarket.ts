@@ -25,6 +25,7 @@ import { PolicyEngine } from "../policy/policyEngine";
 import { getWalletRegistry, WalletRegistry } from "../wallet/walletRegistry";
 import { AgentTools } from "../types";
 import { serializeError } from '../utils/errorUtils';
+import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 
 // ============================================================================
 // TypeBox Schemas
@@ -323,10 +324,13 @@ async function prepareMoneyMarketOperation(
   amount: string,
   operation: "supply" | "withdraw" | "borrow" | "repay",
   policyId?: string
-): Promise<{ wallet: any; spokeProvider: any; policyResult: any }> {
+): Promise<{ wallet: any; spokeProvider: any; policyResult: any; tokenAddr: string }> {
   // Ensure sodax client is initialized
   const _sodaxClient = getSodaxClient(); // Just verify it's ready
   void _sodaxClient;
+
+  // Resolve token symbol to address
+  const tokenAddr = await resolveToken(chainId, token);
 
   // Resolve wallet and create spoke provider
   const { wallet, spokeProvider } = await resolveWalletAndProvider(walletId, chainId);
@@ -349,7 +353,7 @@ async function prepareMoneyMarketOperation(
     );
   }
 
-  return { wallet, spokeProvider, policyResult };
+  return { wallet, spokeProvider, policyResult, tokenAddr };
 }
 
 /**
@@ -436,7 +440,7 @@ async function handleSupply(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider } = await prepareMoneyMarketOperation(
+    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -450,7 +454,7 @@ async function handleSupply(
 
     // Check allowance for supply
     const { approvalTxHash } = await ensureAllowance(
-      { token, amount: amountBigInt, action: 'supply' },
+      { token: tokenAddr, amount: amountBigInt, action: 'supply' },
       spokeProvider
     );
 
@@ -462,7 +466,7 @@ async function handleSupply(
 
     // Build supply parameters
     const supplyParams: any = {
-      token,
+      token: tokenAddr,
       amount: amountBigInt,
       useAsCollateral,
       recipient: recipient || wallet.address,
@@ -550,7 +554,7 @@ async function handleWithdraw(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider } = await prepareMoneyMarketOperation(
+    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -566,7 +570,7 @@ async function handleWithdraw(
 
     // Build withdraw parameters
     const withdrawParams: any = {
-      token,
+      token: tokenAddr,
       amount: amountBigInt,
       withdrawType,
       recipient: recipient || wallet.address,
@@ -660,7 +664,7 @@ async function handleBorrow(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider } = await prepareMoneyMarketOperation(
+    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -677,7 +681,7 @@ async function handleBorrow(
     
     // Build borrow parameters
     const borrowParams: any = {
-      token,
+      token: tokenAddr,
       amount: amountBigInt,
       interestRateMode,
       recipient: recipient || wallet.address,
@@ -772,7 +776,7 @@ async function handleRepay(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider } = await prepareMoneyMarketOperation(
+    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -786,7 +790,7 @@ async function handleRepay(
 
     // Check allowance for repay
     const { approvalTxHash } = await ensureAllowance(
-      { token, amount: amountBigInt === BigInt(-1) ? BigInt(0) : amountBigInt, action: 'repay' },
+      { token: tokenAddr, amount: amountBigInt === BigInt(-1) ? BigInt(0) : amountBigInt, action: 'repay' },
       spokeProvider
     );
 
@@ -798,7 +802,7 @@ async function handleRepay(
 
     // Build repay parameters
     const repayParams: any = {
-      token,
+      token: tokenAddr,
       amount: amountBigInt,
       interestRateMode,
     };
@@ -869,7 +873,7 @@ async function handleCreateSupplyIntent(
   const { walletId, chainId, token, amount, useAsCollateral = true, dstChainId, recipient, raw = true } = params;
 
   try {
-    const { wallet, spokeProvider } = await prepareMoneyMarketOperation(
+    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId, chainId, token, amount, "supply"
     );
 
@@ -877,7 +881,7 @@ async function handleCreateSupplyIntent(
     const sodaxClient = await getSodaxClient();
 
     const supplyParams: any = {
-      token,
+      token: tokenAddr,
       amount: amountBigInt,
       useAsCollateral,
       recipient: recipient || wallet.address,
@@ -920,7 +924,7 @@ async function handleCreateBorrowIntent(
   const { walletId, chainId, token, amount, interestRateMode = 2, dstChainId, recipient, raw = true } = params;
 
   try {
-    const { wallet, spokeProvider } = await prepareMoneyMarketOperation(
+    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId, chainId, token, amount, "borrow"
     );
 
@@ -928,7 +932,7 @@ async function handleCreateBorrowIntent(
     const sodaxClient = await getSodaxClient();
 
     const borrowParams: any = {
-      token,
+      token: tokenAddr,
       amount: amountBigInt,
       interestRateMode,
       recipient: recipient || wallet.address,

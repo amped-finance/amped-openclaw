@@ -16,6 +16,7 @@ import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
 import { serializeError } from '../utils/errorUtils';
+import { resolveToken } from '../utils/tokenResolver';
 
 // ============================================================================
 // TypeBox Schemas
@@ -126,6 +127,9 @@ async function handleBridgeDiscover(
 ): Promise<{ bridgeableTokens: string[] }> {
   const { srcChainId, dstChainId, srcToken } = params;
 
+    // Resolve token symbol to address
+    const srcTokenAddr = await resolveToken(srcChainId, srcToken);
+
   console.log('[bridge:discover] Discovering bridgeable tokens', {
     srcChainId,
     dstChainId,
@@ -140,7 +144,7 @@ async function handleBridgeDiscover(
     const result = sodax.bridge.getBridgeableTokens(
       srcChainId as any,
       dstChainId as any,
-      srcToken
+      srcTokenAddr
     );
 
     // Handle Result type - SDK returns Result<XToken[], unknown>
@@ -185,6 +189,10 @@ async function handleBridgeQuote(
 ): Promise<{ isBridgeable: boolean; maxBridgeableAmount: string }> {
   const { srcChainId, dstChainId, srcToken, dstToken } = params;
 
+    // Resolve token symbols to addresses
+    const srcTokenAddr = await resolveToken(srcChainId, srcToken);
+    const dstTokenAddr = await resolveToken(dstChainId, dstToken);
+
   console.log('[bridge:quote] Checking bridge quote', {
     srcChainId,
     dstChainId,
@@ -196,8 +204,8 @@ async function handleBridgeQuote(
     const sodax = getSodaxClient();
 
     // Create XToken objects for the SDK
-    const fromToken = { chainId: srcChainId, address: srcToken } as any;
-    const toToken = { chainId: dstChainId, address: dstToken } as any;
+    const fromToken = { chainId: srcChainId, address: srcTokenAddr } as any;
+    const toToken = { chainId: dstChainId, address: dstTokenAddr } as any;
 
     // Check if the route is bridgeable using isBridgeable
     // SDK may have different signature - adapting based on available methods
@@ -207,12 +215,12 @@ async function handleBridgeQuote(
       const result = sodax.bridge.getBridgeableTokens(
         srcChainId as any,
         dstChainId as any,
-        srcToken
+        srcTokenAddr
       );
       if (result.ok && result.value.length > 0) {
         isBridgeable = result.value.some((t: any) => 
-          t.address?.toLowerCase() === dstToken.toLowerCase() ||
-          t === dstToken
+          t.address?.toLowerCase() === dstTokenAddr.toLowerCase() ||
+          t === dstTokenAddr
         );
       }
     } catch {
@@ -290,6 +298,10 @@ async function handleBridgeExecute(
     policyId,
   } = params;
 
+    // Resolve token symbols to addresses
+    const srcTokenAddr = await resolveToken(srcChainId, srcToken);
+    const dstTokenAddr = await resolveToken(dstChainId, dstToken);
+
   console.log('[bridge:execute] Starting bridge execution', {
     walletId,
     srcChainId,
@@ -337,8 +349,8 @@ async function handleBridgeExecute(
     const spokeProvider = await getSpokeProvider(walletId, srcChainId);
 
     // Create XToken objects for the SDK
-    const fromToken = { chainId: srcChainId, address: srcToken } as any;
-    const toToken = { chainId: dstChainId, address: dstToken } as any;
+    const fromToken = { chainId: srcChainId, address: srcTokenAddr } as any;
+    const toToken = { chainId: dstChainId, address: dstTokenAddr } as any;
 
     // Step 4: Check if allowance is valid for the bridge amount
     // SDK may have different API - adapting to common patterns
