@@ -40,7 +40,17 @@ If you use [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill), wal
 cat ~/.evm-wallet.json
 ```
 
-### Option 2: Environment Variables
+### Option 2: Bankr
+
+If you use [Bankr](https://bankr.bot) for agent wallets, set your API key:
+
+```bash
+export BANKR_API_KEY=your-bankr-api-key
+```
+
+> ⚠️ Your Bankr API key must have **"Agent API" access enabled** in your Bankr dashboard.
+
+### Option 3: Environment Variables
 
 ```bash
 export AMPED_OC_WALLETS_JSON='{

@@ -112,6 +112,29 @@ The plugin will automatically detect and use:
 - `EVM_WALLETS_JSON` or `WALLET_CONFIG_JSON`
 - `EVM_RPC_URLS_JSON` or `RPC_URLS_JSON`
 
+### 🤖 Bankr Integration
+
+For users with [Bankr](https://bankr.bot) wallets, the plugin supports the Bankr Agent API for transaction execution. This allows agents to execute transactions through Bankr's managed infrastructure.
+
+**Option 1: Environment Variable**
+```bash
+export BANKR_API_KEY=your-bankr-api-key
+```
+
+**Option 2: Config File**
+
+Create `~/.openclaw/extensions/amped-openclaw/config.json`:
+```json
+{
+  "walletBackend": "bankr",
+  "bankrApiKey": "your-bankr-api-key"
+}
+```
+
+> ⚠️ **Important:** Your Bankr API key must have **"Agent API" access enabled** in your Bankr dashboard. A standard bot key won't work.
+
+When configured, the plugin automatically uses Bankr for transaction execution instead of local key signing.
+
 ### Manual Configuration
 
 If you're not using evm-wallet-skill, set these environment variables:
