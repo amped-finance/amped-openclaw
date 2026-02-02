@@ -35,11 +35,21 @@ openclaw plugins list
 
 - [OpenClaw](https://openclaw.ai) installed
 - Node.js >= 18.0.0
-- Wallet private key and RPC URLs (see [Configuration](#configuration))
 
-## Configuration
+## Wallet Configuration
 
-### Option 1: Environment Variables
+The plugin automatically detects wallets from multiple sources (in order):
+
+### Option 1: evm-wallet-skill (Recommended)
+
+If you use [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill), wallet is auto-detected from `~/.evm-wallet.json`.
+
+```bash
+# evm-wallet-skill stores wallet here automatically
+cat ~/.evm-wallet.json
+```
+
+### Option 2: Environment Variables
 
 ```bash
 export AMPED_OC_WALLETS_JSON='{
@@ -55,10 +65,6 @@ export AMPED_OC_RPC_URLS_JSON='{
   "sonic": "https://rpc.soniclabs.com"
 }'
 ```
-
-### Option 2: evm-wallet-skill Integration
-
-If you use [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill), the plugin automatically detects `EVM_WALLETS_JSON` and `EVM_RPC_URLS_JSON`.
 
 ### Optional Settings
 
@@ -94,8 +100,13 @@ Your collateral stays on the source chain while borrowed tokens arrive on the de
 ```bash
 cd /path/to/amped-openclaw
 git pull
+
+# Remove old extension and reinstall
+rm -rf ~/.openclaw/extensions/amped-openclaw
 cd packages/amped-openclaw-plugin
 openclaw plugins install .
+
+# Install updated dependencies
 cd ~/.openclaw/extensions/amped-openclaw
 npm install
 ```
@@ -116,14 +127,30 @@ cd ~/.openclaw/extensions/amped-openclaw
 npm install
 ```
 
+### "plugin not found" error during install
+
+The config has a stale entry. Remove it:
+```bash
+jq 'del(.plugins.entries["amped-openclaw"])' ~/.openclaw/openclaw.json > /tmp/oc.json && mv /tmp/oc.json ~/.openclaw/openclaw.json
+```
+
+Then reinstall.
+
+### Plugin not detecting wallet
+
+Check wallet sources:
+```bash
+# evm-wallet-skill wallet
+cat ~/.evm-wallet.json
+
+# Or set environment variable
+export AMPED_OC_WALLETS_JSON='{"main":{"address":"0x...","privateKey":"0x..."}}'
+```
+
 ### Plugin not loading
 
 1. Check it's enabled: `openclaw plugins list`
 2. Check logs: `tail -100 ~/.openclaw/logs/openclaw.log`
-
-### "plugin not found" after uninstall
-
-Edit `~/.openclaw/openclaw.json` and remove stale entries from `plugins.entries`.
 
 ## Documentation
 
