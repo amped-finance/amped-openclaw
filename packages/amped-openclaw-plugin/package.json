@@ -13,14 +13,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
-  "openclaw": {
-    "extensions": [
-      {
-        "name": "amped-defi",
-        "entry": "./dist/index.js",
-        "description": "DeFi operations (swaps, bridging, money market) via SODAX SDK"
-      }
-    ]
+  "pi": {
+    "extensions": ["./dist/index.js"]
   },
   "dependencies": {
     "@sinclair/typebox": "^0.32.0",
