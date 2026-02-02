@@ -65,11 +65,15 @@ export EVM_RPC_URLS_JSON='{
 
 ### 2. Install the Plugin (Build from Source)
 
+The plugin code is in `packages/amped-openclaw-plugin/`. You must run npm commands from that directory:
+
 ```bash
 cd packages/amped-openclaw-plugin
 npm install
 npm run build
 ```
+
+**Important:** The `package.json` is in `packages/amped-openclaw-plugin/`, not the repository root.
 
 Verify the build output exists:
 ```bash

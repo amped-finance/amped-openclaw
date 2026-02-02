@@ -46,11 +46,20 @@ DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cro
 
 #### 1. Build from Source
 
+**Important:** Run these commands from within `packages/amped-openclaw-plugin/` directory:
+
 ```bash
+# From repository root
 cd packages/amped-openclaw-plugin
+
+# Install dependencies
 npm install
+
+# Build the plugin
 npm run build
 ```
+
+**Note:** Do not run `npm install` from the repository root. The `package.json` is located in `packages/amped-openclaw-plugin/`.
 
 Verify the build output:
 ```bash
