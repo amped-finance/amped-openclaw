@@ -3,9 +3,13 @@
  *
  * Manages wallet resolution by walletId.
  * Supports execution mode (with private key) and prepare mode (address-only).
+ * 
+ * Now integrates with evm-wallet-skill for seamless wallet configuration.
+ * @see https://github.com/surfer77/evm-wallet-skill
  */
 
 import { WalletConfig } from '../types';
+import { EvmWalletSkillAdapter, getWalletAdapter } from './skillWalletAdapter';
 
 /**
  * Wallet registry entry
@@ -19,8 +23,10 @@ interface WalletEntry extends WalletConfig {
  */
 export class WalletRegistry {
   private wallets: Map<string, WalletEntry>;
+  private skillAdapter: EvmWalletSkillAdapter;
 
   constructor() {
+    this.skillAdapter = getWalletAdapter();
     this.wallets = this.loadWallets();
   }
 
@@ -64,13 +70,37 @@ export class WalletRegistry {
    * @returns The wallet configuration or null if not found
    */
   async resolveWallet(walletId: string): Promise<WalletEntry | null> {
+    // Try local registry first
     const wallet = this.wallets.get(walletId);
-
-    if (!wallet) {
-      console.error(`[walletRegistry] Wallet not found: ${walletId}`);
-      return null;
+    if (wallet) {
+      return this.validateWallet(wallet, walletId);
     }
 
+    // Try skill adapter
+    if (this.skillAdapter.isUsingSkillWallets()) {
+      try {
+        const address = await this.skillAdapter.getWalletAddress(walletId);
+        const mode = this.getMode();
+        
+        // For skill wallets in execute mode, we assume the skill handles signing
+        // and we only need the address for our operations
+        return {
+          address,
+          mode,
+        };
+      } catch (error) {
+        console.error(`[walletRegistry] Skill wallet resolution failed: ${error}`);
+      }
+    }
+
+    console.error(`[walletRegistry] Wallet not found: ${walletId}`);
+    return null;
+  }
+
+  /**
+   * Validate a wallet entry
+   */
+  private validateWallet(wallet: WalletEntry, walletId: string): WalletEntry | null {
     // In execute mode, validate that private key is present
     if (wallet.mode === 'execute' && !wallet.privateKey) {
       console.error(`[walletRegistry] Wallet ${walletId} missing privateKey in execute mode`);

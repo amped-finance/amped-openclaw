@@ -3,10 +3,13 @@
  *
  * Creates and caches spoke providers per (walletId, chainId) pair.
  * Uses EvmSpokeProvider for EVM chains and SonicSpokeProvider for Sonic hub chain.
+ * 
+ * Now integrates with evm-wallet-skill for RPC configuration.
  */
 
 import { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/wallet-sdk-core';
 import { WalletRegistry } from '../wallet/walletRegistry';
+import { getWalletAdapter } from '../wallet/skillWalletAdapter';
 
 // Type for spoke providers
 type SpokeProvider = EvmSpokeProvider | SonicSpokeProvider;
@@ -19,18 +22,30 @@ const SONIC_CHAIN_ID = 'sonic';
 
 /**
  * Get RPC URL for a chain from configuration
+ * Tries evm-wallet-skill first, then falls back to AMPED_OC_RPC_URLS_JSON
  *
  * @param chainId - The chain ID
  * @returns The RPC URL for the chain
  * @throws Error if RPC URL is not configured for the chain
  */
-function getRpcUrl(chainId: string): string {
+async function getRpcUrl(chainId: string): Promise<string> {
+  // Try skill adapter first
+  const skillAdapter = getWalletAdapter();
+  if (skillAdapter.isUsingSkillRpcs()) {
+    try {
+      return await skillAdapter.getRpcUrl(chainId);
+    } catch {
+      // Fall through to legacy config
+    }
+  }
+
+  // Fallback to AMPED_OC_RPC_URLS_JSON
   const rpcUrlsJson = process.env.AMPED_OC_RPC_URLS_JSON;
 
   if (!rpcUrlsJson) {
     throw new Error(
-      'AMPED_OC_RPC_URLS_JSON environment variable not set. ' +
-        'Please configure RPC URLs for all supported chains.'
+      'RPC URL not configured. Set EVM_RPC_URLS_JSON (via evm-wallet-skill) ' +
+        'or AMPED_OC_RPC_URLS_JSON environment variable.'
     );
   }
 
@@ -69,7 +84,7 @@ async function createSpokeProvider(
     throw new Error(`Wallet not found: ${walletId}`);
   }
 
-  const rpcUrl = getRpcUrl(chainId);
+  const rpcUrl = await getRpcUrl(chainId);
 
   // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
   if (chainId === SONIC_CHAIN_ID) {
@@ -115,7 +130,7 @@ async function createRawSpokeProvider(
     throw new Error(`Wallet not found: ${walletId}`);
   }
 
-  const rpcUrl = getRpcUrl(chainId);
+  const rpcUrl = await getRpcUrl(chainId);
 
   // Raw mode: address only, no private key
   if (chainId === SONIC_CHAIN_ID) {
@@ -135,13 +150,13 @@ async function createRawSpokeProvider(
  * Get a spoke provider for the given wallet and chain
  * Returns cached provider if available, otherwise creates a new one
  *
- * @param walletId - The wallet identifier
+ * @param address - The wallet address (can also use walletId as first param for backward compat)
  * @param chainId - The chain identifier
  * @param raw - If true, creates a read-only provider (address-only mode)
  * @returns The spoke provider instance
  */
 export async function getSpokeProvider(
-  walletId: string,
+  address: string,
   chainId: string,
   raw = false
 ): Promise<SpokeProvider> {

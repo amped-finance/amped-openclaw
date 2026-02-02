@@ -47,9 +47,19 @@ npm install @amped/openclaw-plugin
 
 ## Configuration
 
-Set the following environment variables:
+### 🔌 evm-wallet-skill Integration (Recommended)
 
-### Required
+This plugin **automatically integrates** with [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill)! If you're already using that skill, no additional wallet configuration is needed.
+
+The plugin will automatically detect and use:
+- `EVM_WALLETS_JSON` or `WALLET_CONFIG_JSON`
+- `EVM_RPC_URLS_JSON` or `RPC_URLS_JSON`
+
+### Manual Configuration
+
+If you're not using evm-wallet-skill, set these environment variables:
+
+#### Required
 
 ```bash
 # Wallet configuration (JSON map of walletId -> {address, privateKey})
@@ -73,7 +83,7 @@ export AMPED_OC_RPC_URLS_JSON='{
 }'
 ```
 
-### Optional
+#### Optional
 
 ```bash
 # Operation mode: "execute" (default) or "prepare"
