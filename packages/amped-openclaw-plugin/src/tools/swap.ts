@@ -20,6 +20,7 @@ import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
 import type { AgentTools } from '../types';
+import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 
 // ============================================================================
 // TypeBox Schemas
@@ -145,10 +146,17 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
   try {
     const sodaxClient = getSodaxClient();
     
+    // Resolve token symbols to addresses
+    const srcTokenAddr = await resolveToken(params.srcChainId, params.srcToken);
+    const dstTokenAddr = await resolveToken(params.dstChainId, params.dstToken);
+    
+    // Get token info for decimals
+    const srcTokenInfo = await getTokenInfo(params.srcChainId, srcTokenAddr);
+    const dstTokenInfo = await getTokenInfo(params.dstChainId, dstTokenAddr);
+    
     // Get token config to determine decimals for amount conversion
     const configService = (sodaxClient as any).configService;
-    const tokenConfig = configService?.getTokenConfig?.(params.srcChainId, params.srcToken);
-    const decimals = tokenConfig?.decimals ?? 6; // Default to 6 (USDC) if not found
+    const decimals = srcTokenInfo?.decimals ?? 6; // Default to 6 (USDC) if not found
     
     // Convert human-readable amount to raw amount (bigint)
     const amountFloat = parseFloat(params.amount);
@@ -156,9 +164,9 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     
     // Build SDK-compatible request with snake_case parameters
     const quoteRequest = {
-      token_src: params.srcToken,
+      token_src: srcTokenAddr,
       token_src_blockchain_id: params.srcChainId,
-      token_dst: params.dstToken,
+      token_dst: dstTokenAddr,
       token_dst_blockchain_id: params.dstChainId,
       amount: rawAmount,
       quote_type: params.type
@@ -183,8 +191,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     console.log('[swap_quote] SDK response:', JSON.stringify(quote, (k, v) => typeof v === 'bigint' ? v.toString() : v));
     
     // Get token config for output decimal conversion
-    const dstTokenConfig = (sodaxClient as any).configService?.getTokenConfig?.(params.dstChainId, params.dstToken);
-    const dstDecimals = dstTokenConfig?.decimals ?? 6;
+    const dstDecimals = dstTokenInfo?.decimals ?? 6;
     
     // SDK returns quoted_amount as bigint - convert to human-readable string
     const quotedAmount = quote.quoted_amount || quote.quotedAmount || quote.outputAmount;
@@ -196,8 +203,8 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     const result = {
       inputAmount: params.amount,
       outputAmount: outputAmountStr,
-      srcToken: params.srcToken,
-      dstToken: params.dstToken,
+      srcToken: srcTokenAddr,
+      dstToken: dstTokenAddr,
       srcChainId: params.srcChainId,
       dstChainId: params.dstChainId,
       slippageBps: params.slippageBps,
@@ -252,6 +259,14 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const policyEngine = new PolicyEngine();
     const walletRegistry = getWalletRegistry();
     const sodaxClient = getSodaxClient();
+    
+    // Resolve token symbols to addresses
+    const srcTokenAddr = await resolveToken(params.quote.srcChainId, params.quote.srcToken);
+    const dstTokenAddr = await resolveToken(params.quote.dstChainId, params.quote.dstToken);
+    
+    // Get token info for decimals
+    const srcTokenInfo = await getTokenInfo(params.quote.srcChainId, srcTokenAddr);
+    const dstTokenInfo = await getTokenInfo(params.quote.dstChainId, dstTokenAddr);
     
     // 2. Resolve wallet
     const wallet = await walletRegistry.resolveWallet(params.walletId);
@@ -416,6 +431,7 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
     
     const sodaxClient = getSodaxClient();
     
+    // Resolve token symbols to addresses
     let status: IntentStatus | null = null;
     let intent: Intent | null = null;
     
@@ -490,6 +506,14 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
   try {
     const walletRegistry = getWalletRegistry();
     const sodaxClient = getSodaxClient();
+    
+    // Resolve token symbols to addresses
+    const srcTokenAddr = await resolveToken(params.intent.srcChainId, params.intent.srcToken);
+    const dstTokenAddr = await resolveToken(params.intent.dstChainId, params.intent.dstToken);
+    
+    // Get token info for decimals
+    const srcTokenInfo = await getTokenInfo(params.intent.srcChainId, srcTokenAddr);
+    const dstTokenInfo = await getTokenInfo(params.intent.dstChainId, dstTokenAddr);
     
     // Resolve wallet
     const wallet = await walletRegistry.resolveWallet(params.walletId);
