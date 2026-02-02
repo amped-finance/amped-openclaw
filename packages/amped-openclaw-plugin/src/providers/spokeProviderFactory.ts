@@ -7,10 +7,16 @@
  * Now integrates with evm-wallet-skill for RPC configuration.
  */
 
-// Note: Provider types may vary by SDK version - using any for compatibility
-// import { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/wallet-sdk-core';
-type EvmSpokeProvider = any;
-type SonicSpokeProvider = any;
+// Import spoke provider constructors from SDK
+// These are the actual constructors for creating spoke providers
+import { 
+  EvmSpokeProvider as EvmSpokeProviderClass, 
+  SonicSpokeProvider as SonicSpokeProviderClass 
+} from '@sodax/wallet-sdk-core';
+
+// Use the imported classes (cast to any for flexibility with SDK version changes)
+const EvmSpokeProvider = EvmSpokeProviderClass as any;
+const SonicSpokeProvider = SonicSpokeProviderClass as any;
 import { WalletRegistry } from '../wallet/walletRegistry';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
 

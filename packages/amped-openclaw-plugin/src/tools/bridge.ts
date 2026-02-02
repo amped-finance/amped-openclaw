@@ -144,7 +144,7 @@ async function handleBridgeDiscover(
 
     // Handle Result type - SDK returns Result<XToken[], unknown>
     if (!result.ok) {
-      throw new Error(`Failed to get bridgeable tokens: ${result.error}`);
+      throw new Error(`Failed to get bridgeable tokens: ${(result as any).error || 'Unknown error'}`);
     }
 
     const tokens = result.value;
@@ -225,8 +225,12 @@ async function handleBridgeQuote(
         // SDK API: getBridgeableAmount(from: XToken, to: XToken)
         const maxAmountResult = await sodax.bridge.getBridgeableAmount(fromToken, toToken);
         if (maxAmountResult.ok) {
-          maxBridgeableAmount = maxAmountResult.value?.max?.toString() || 
-                                maxAmountResult.value?.toString() || '0';
+          const val = maxAmountResult.value as any;
+          // BridgeLimit may have different property names depending on SDK version
+          maxBridgeableAmount = val?.max?.toString() || 
+                                val?.maxAmount?.toString() ||
+                                val?.limit?.toString() ||
+                                val?.toString() || '0';
         }
       } catch (e) {
         console.warn('[bridge:quote] Could not get max bridgeable amount:', e);

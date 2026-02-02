@@ -387,7 +387,11 @@ async function ensureAllowance(
         spokeProvider,
         false
       );
-      return { approvalTxHash: approvalResult.txHash };
+      // Handle Result type from SDK
+      const txHash = (approvalResult as any).ok 
+        ? (approvalResult as any).value 
+        : (approvalResult as any).txHash || approvalResult;
+      return { approvalTxHash: String(txHash) };
     }
   }
 
