@@ -1,17 +1,18 @@
 /**
  * Bankr Backend
  * 
- * Wallet backend implementation using Bankr's execution API.
+ * Wallet backend implementation using Bankr's Agent API.
  * 
  * Instead of signing transactions locally, this backend:
- * 1. Prepares transaction calldata
- * 2. Sends to Bankr API for execution
- * 3. Monitors for transaction completion
+ * 1. Formats transaction as a natural language prompt
+ * 2. Submits to Bankr Agent API
+ * 3. Polls for job completion
+ * 4. Extracts transaction hash from response
  * 
  * This allows agents with Bankr-provisioned wallets to execute
  * DeFi operations through Amped without exposing private keys.
  * 
- * @see AMPED_BANKR_INTEGRATION.md for architecture details
+ * @see https://github.com/BankrBot/openclaw-skills/blob/main/bankr/references/api-workflow.md
  */
 
 import type { Hash, Address } from 'viem';
@@ -24,25 +25,46 @@ import type {
 import { resolveChainId } from './chainConfig';
 
 /**
- * Bankr API response types (placeholder - update when API spec is available)
+ * Bankr Agent API response types
  */
-interface BankrTransactionResponse {
+interface BankrJobSubmitResponse {
   success: boolean;
-  transactionHash?: Hash;
-  error?: string;
+  jobId: string;
+  status: 'pending';
+  message: string;
 }
 
-interface BankrTransactionStatus {
-  status: 'pending' | 'confirmed' | 'failed';
-  transactionHash: Hash;
-  blockNumber?: bigint;
-  receipt?: TransactionReceipt;
+interface BankrJobStatusResponse {
+  success: boolean;
+  jobId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  prompt: string;
+  response?: string;
+  error?: string;
+  richData?: Array<{ type?: string; [key: string]: unknown }>;
+  statusUpdates?: Array<{ message: string; timestamp: string }>;
+  createdAt: string;
+  completedAt?: string;
+  processingTime?: number;
 }
+
+/**
+ * Chain ID to chain name mapping for Bankr prompts
+ */
+const CHAIN_NAMES: Record<number, string> = {
+  1: 'ethereum',
+  8453: 'base',
+  137: 'polygon',
+  42161: 'arbitrum',
+  10: 'optimism',
+  1890: 'lightlink',
+  146: 'sonic',
+};
 
 /**
  * Bankr execution backend
  * 
- * Delegates transaction execution to Bankr's API.
+ * Delegates transaction execution to Bankr's Agent API.
  * The agent never has direct access to private keys.
  */
 export class BankrBackend implements IWalletBackend {
@@ -53,9 +75,13 @@ export class BankrBackend implements IWalletBackend {
   private readonly userAddress: Address;
   private readonly chainId: number;
   private readonly policy?: BankrBackendConfig['policy'];
+  
+  // Polling configuration
+  private readonly pollIntervalMs = 2000;
+  private readonly maxPollAttempts = 150; // 5 minutes max
 
   constructor(config: BankrBackendConfig) {
-    this.apiUrl = config.bankrApiUrl;
+    this.apiUrl = config.bankrApiUrl || 'https://api.bankr.bot';
     this.apiKey = config.bankrApiKey;
     this.userAddress = config.userAddress;
     this.chainId = resolveChainId(config.chainId);
@@ -74,105 +100,100 @@ export class BankrBackend implements IWalletBackend {
   }
 
   /**
-   * Send a transaction via Bankr API
+   * Send a transaction via Bankr Agent API
    * 
-   * TODO: Implement when Bankr API spec is available
+   * Formats the transaction as a natural language prompt and submits
+   * to Bankr's async job system.
    */
   async sendTransaction(tx: TransactionRequest): Promise<Hash> {
     console.log(`[BankrBackend] Sending transaction via Bankr API`);
     console.log(`[BankrBackend] To: ${tx.to}`);
     console.log(`[BankrBackend] Value: ${tx.value || 0n}`);
+    console.log(`[BankrBackend] Data: ${tx.data ? tx.data.slice(0, 20) + '...' : '0x'}`);
     
     // Validate against policy
     if (this.policy) {
       await this.validatePolicy(tx);
     }
 
-    // Prepare request payload
-    const payload = {
-      chainId: this.chainId,
-      from: this.userAddress,
+    // Format transaction as JSON for Bankr prompt
+    const txJson = JSON.stringify({
       to: tx.to,
-      value: tx.value?.toString() || '0',
       data: tx.data || '0x',
-      // Gas parameters are typically handled by Bankr
-    };
+      value: (tx.value || 0n).toString(),
+      chainId: this.chainId,
+    });
 
-    try {
-      // TODO: Replace with actual Bankr API call
-      // const response = await fetch(`${this.apiUrl}/transactions/execute`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${this.apiKey}`,
-      //   },
-      //   body: JSON.stringify(payload),
-      // });
-      // const data: BankrTransactionResponse = await response.json();
-      
-      // Placeholder - throw error until implemented
-      throw new Error(
-        'BankrBackend not yet implemented. ' +
-        'Awaiting Bankr API specification. ' +
-        'See AMPED_BANKR_INTEGRATION.md for planned architecture.'
-      );
-      
-    } catch (error) {
-      console.error('[BankrBackend] Transaction failed:', error);
-      throw error;
+    // Create natural language prompt for Bankr
+    const prompt = `Submit this transaction: ${txJson}`;
+    
+    console.log(`[BankrBackend] Submitting prompt to Bankr API`);
+
+    // Submit job to Bankr
+    const jobId = await this.submitJob(prompt);
+    console.log(`[BankrBackend] Job submitted: ${jobId}`);
+
+    // Poll for completion
+    const result = await this.pollJobUntilComplete(jobId);
+    
+    // Extract transaction hash from response
+    const txHash = this.extractTransactionHash(result);
+    
+    if (!txHash) {
+      throw new Error(`[BankrBackend] Transaction failed: ${result.response || result.error || 'Unknown error'}`);
     }
+
+    console.log(`[BankrBackend] Transaction hash: ${txHash}`);
+    return txHash;
   }
 
   /**
-   * Wait for transaction confirmation via Bankr API
+   * Wait for transaction confirmation
    * 
-   * TODO: Implement when Bankr API spec is available
+   * Note: With Bankr, the transaction is already confirmed when we get
+   * the response. This method exists for interface compatibility but
+   * returns a minimal receipt.
    */
   async waitForTransaction(txHash: Hash): Promise<TransactionReceipt> {
-    console.log(`[BankrBackend] Waiting for transaction via Bankr API: ${txHash}`);
+    console.log(`[BankrBackend] waitForTransaction called for: ${txHash}`);
     
-    // TODO: Replace with actual Bankr API polling
-    // Poll Bankr API for transaction status
-    // const maxAttempts = 60;
-    // const pollInterval = 5000; // 5 seconds
-    // 
-    // for (let i = 0; i < maxAttempts; i++) {
-    //   const response = await fetch(`${this.apiUrl}/transactions/${txHash}/status`, {
-    //     headers: { 'Authorization': `Bearer ${this.apiKey}` },
-    //   });
-    //   const status: BankrTransactionStatus = await response.json();
-    //   
-    //   if (status.status === 'confirmed') {
-    //     return status.receipt!;
-    //   }
-    //   if (status.status === 'failed') {
-    //     throw new Error(`Transaction failed: ${txHash}`);
-    //   }
-    //   
-    //   await new Promise(resolve => setTimeout(resolve, pollInterval));
-    // }
-    
-    throw new Error(
-      'BankrBackend.waitForTransaction not yet implemented. ' +
-      'Awaiting Bankr API specification.'
-    );
+    // Bankr transactions are confirmed when the job completes
+    // We return a minimal receipt since we don't have full details
+    return {
+      transactionHash: txHash,
+      blockNumber: 0n, // Unknown - would need to query chain
+      blockHash: '0x0000000000000000000000000000000000000000000000000000000000000000' as Hash,
+      from: this.userAddress,
+      to: null,
+      gasUsed: 0n,
+      status: 'success',
+      logs: [],
+    };
   }
 
   /**
    * Check if backend is ready
    * 
-   * Verifies Bankr API connectivity and authentication.
+   * Verifies Bankr API connectivity with a simple balance query.
    */
   async isReady(): Promise<boolean> {
+    if (!this.apiUrl || !this.apiKey || !this.userAddress) {
+      return false;
+    }
+
     try {
-      // TODO: Replace with actual Bankr API health check
-      // const response = await fetch(`${this.apiUrl}/health`, {
-      //   headers: { 'Authorization': `Bearer ${this.apiKey}` },
-      // });
-      // return response.ok;
+      // Test API connectivity with a simple query
+      const response = await fetch(`${this.apiUrl}/agent/prompt`, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': this.apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: 'ping' }),
+      });
       
-      // For now, just check that we have required config
-      return !!(this.apiUrl && this.apiKey && this.userAddress);
+      // Even a 4xx error means API is reachable
+      return response.status !== 503 && response.status !== 502;
     } catch (error) {
       console.error('[BankrBackend] Connectivity check failed:', error);
       return false;
@@ -187,9 +208,139 @@ export class BankrBackend implements IWalletBackend {
   }
 
   /**
-   * Validate transaction against policy
+   * Submit a job to Bankr Agent API
+   */
+  private async submitJob(prompt: string): Promise<string> {
+    const response = await fetch(`${this.apiUrl}/agent/prompt`, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': this.apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`[BankrBackend] Failed to submit job: ${response.status} ${error}`);
+    }
+
+    const data = await response.json() as BankrJobSubmitResponse;
+    
+    if (!data.success || !data.jobId) {
+      throw new Error(`[BankrBackend] Invalid job submission response: ${JSON.stringify(data)}`);
+    }
+
+    return data.jobId;
+  }
+
+  /**
+   * Poll for job completion
+   */
+  private async pollJobUntilComplete(jobId: string): Promise<BankrJobStatusResponse> {
+    let lastStatus = '';
+    
+    for (let attempt = 0; attempt < this.maxPollAttempts; attempt++) {
+      await this.sleep(this.pollIntervalMs);
+      
+      const result = await this.getJobStatus(jobId);
+      
+      // Log status changes
+      if (result.status !== lastStatus) {
+        console.log(`[BankrBackend] Job ${jobId} status: ${result.status}`);
+        lastStatus = result.status;
+      }
+      
+      // Log status updates
+      if (result.statusUpdates && result.statusUpdates.length > 0) {
+        const lastUpdate = result.statusUpdates[result.statusUpdates.length - 1];
+        console.log(`[BankrBackend] Progress: ${lastUpdate.message}`);
+      }
+
+      // Check for terminal states
+      switch (result.status) {
+        case 'completed':
+          return result;
+        case 'failed':
+          throw new Error(`[BankrBackend] Job failed: ${result.error || 'Unknown error'}`);
+        case 'cancelled':
+          throw new Error(`[BankrBackend] Job was cancelled`);
+        case 'pending':
+        case 'processing':
+          // Continue polling
+          break;
+        default:
+          console.warn(`[BankrBackend] Unknown status: ${result.status}`);
+      }
+    }
+
+    throw new Error(`[BankrBackend] Job ${jobId} timed out after ${this.maxPollAttempts * this.pollIntervalMs / 1000} seconds`);
+  }
+
+  /**
+   * Get job status from Bankr API
+   */
+  private async getJobStatus(jobId: string): Promise<BankrJobStatusResponse> {
+    const response = await fetch(`${this.apiUrl}/agent/job/${jobId}`, {
+      method: 'GET',
+      headers: {
+        'X-API-Key': this.apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`[BankrBackend] Failed to get job status: ${response.status} ${error}`);
+    }
+
+    return await response.json() as BankrJobStatusResponse;
+  }
+
+  /**
+   * Extract transaction hash from Bankr response
    * 
-   * Checks that the transaction doesn't exceed configured limits.
+   * The response may contain the tx hash in various formats:
+   * - In richData array
+   * - In the response text (e.g., "Transaction hash: 0x...")
+   */
+  private extractTransactionHash(result: BankrJobStatusResponse): Hash | null {
+    // Check richData for transaction info
+    if (result.richData) {
+      for (const item of result.richData) {
+        if (item.transactionHash) {
+          return item.transactionHash as Hash;
+        }
+        if (item.txHash) {
+          return item.txHash as Hash;
+        }
+        if (item.hash) {
+          return item.hash as Hash;
+        }
+      }
+    }
+
+    // Try to extract from response text
+    if (result.response) {
+      // Look for hex transaction hash pattern (0x followed by 64 hex chars)
+      const hashMatch = result.response.match(/0x[a-fA-F0-9]{64}/);
+      if (hashMatch) {
+        return hashMatch[0] as Hash;
+      }
+      
+      // Check if response indicates failure
+      if (result.response.toLowerCase().includes('reverted') ||
+          result.response.toLowerCase().includes('failed') ||
+          result.response.toLowerCase().includes('insufficient')) {
+        console.error(`[BankrBackend] Transaction failed: ${result.response}`);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate transaction against policy
    */
   private async validatePolicy(tx: TransactionRequest): Promise<void> {
     if (!this.policy) return;
@@ -209,9 +360,13 @@ export class BankrBackend implements IWalletBackend {
         );
       }
     }
+  }
 
-    // Note: Daily volume tracking would require state persistence
-    // which is beyond the scope of this initial implementation
+  /**
+   * Sleep helper
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
