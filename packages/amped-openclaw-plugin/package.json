@@ -13,11 +13,21 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
+  "openclaw": {
+    "extensions": [
+      {
+        "name": "amped-defi",
+        "entry": "./dist/index.js",
+        "description": "DeFi operations (swaps, bridging, money market) via SODAX SDK"
+      }
+    ]
+  },
   "dependencies": {
     "@sinclair/typebox": "^0.32.0",
     "@sodax/sdk": "1.0.4-beta",
     "@sodax/wallet-sdk-core": "1.0.4-beta",
-    "@sodax/types": "1.0.4-beta"
+    "@sodax/types": "1.0.4-beta",
+    "viem": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
