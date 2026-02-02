@@ -35,68 +35,90 @@ DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cro
 ### Prerequisites
 
 - Node.js >= 18.0.0
-- OpenClaw agent environment
+- [OpenClaw](https://openclaw.ai) installed and configured
 - **[evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill)** (recommended) - For wallet and RPC configuration
-- SODAX SDK dependencies (installed automatically):
-  - `@sodax/sdk@1.0.4-beta`
-  - `@sodax/wallet-sdk-core@1.0.4-beta`
-  - `@sodax/types@1.0.4-beta`
 
-### Install in OpenClaw
-
-#### 1. Build from Source
-
-**Important:** Run these commands from within `packages/amped-openclaw-plugin/` directory:
+### Quick Install
 
 ```bash
-# From repository root
-cd packages/amped-openclaw-plugin
+# Clone the repository
+git clone https://github.com/amped-finance/amped-openclaw.git
+cd amped-openclaw/packages/amped-openclaw-plugin
 
-# Install dependencies
+# Install dependencies and build
+npm install
+npm run build
+
+# Install in OpenClaw
+openclaw plugins install .
+```
+
+### Detailed Steps
+
+#### 1. Clone and Build
+
+```bash
+# Clone the repository
+git clone https://github.com/amped-finance/amped-openclaw.git
+
+# Navigate to the plugin directory
+cd amped-openclaw/packages/amped-openclaw-plugin
+
+# Install dependencies (this also installs SODAX SDK)
 npm install
 
-# Build the plugin
+# Build the TypeScript
 npm run build
 ```
 
-**Note:** Do not run `npm install` from the repository root. The `package.json` is located in `packages/amped-openclaw-plugin/`.
-
-Verify the build output:
+**Verify the build:**
 ```bash
 ls dist/index.js  # Must exist for OpenClaw to load the plugin
 ```
 
-#### 2. Install Plugin
+#### 2. Install Plugin in OpenClaw
+
+From inside the `packages/amped-openclaw-plugin` directory:
 
 ```bash
-# From local path
+openclaw plugins install .
+```
+
+Or from any directory using the full path:
+```bash
 openclaw plugins install /path/to/amped-openclaw/packages/amped-openclaw-plugin
-
-# Or from tarball
-openclaw plugins install /path/to/amped-openclaw-plugin.tar.gz
 ```
 
-#### 3. Enable in Configuration
-
-Edit your OpenClaw config (e.g., `~/.openclaw/config.yaml`):
-
-```yaml
-plugins:
-  entries:
-    amped-openclaw:
-      enabled: true
-```
-
-#### 4. Restart Gateway
+#### 3. Verify Installation
 
 ```bash
-openclaw gateway restart
-```
+# List loaded plugins
+openclaw plugins list
 
-#### 5. Verify
-
-```bash
+# Check for amped tools
 openclaw tools list | grep amped_oc
+```
+
+You should see tools like:
+- `amped_oc_supported_chains`
+- `amped_oc_swap_quote`
+- `amped_oc_mm_supply`
+- etc.
+
+### Updating the Plugin
+
+```bash
+cd amped-openclaw/packages/amped-openclaw-plugin
+git pull
+npm install
+npm run build
+openclaw plugins install .
+```
+
+### Uninstalling
+
+```bash
+openclaw plugins uninstall amped-openclaw
 ```
 
 ## Configuration
