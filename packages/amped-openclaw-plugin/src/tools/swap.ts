@@ -626,3 +626,19 @@ export function registerSwapTools(agentTools: AgentTools): void {
 void SwapExecuteResultSchema;
 void SwapStatusResultSchema;
 void SwapCancelResultSchema;
+
+// Export schemas with consistent naming
+export {
+  SwapQuoteRequestSchema as SwapQuoteSchema,
+  SwapExecuteParamsSchema as SwapExecuteSchema,
+  SwapStatusParamsSchema as SwapStatusSchema,
+  SwapCancelParamsSchema as SwapCancelSchema,
+};
+
+// Export handlers
+export {
+  handleSwapQuote,
+  handleSwapExecute,
+  handleSwapStatus,
+  handleSwapCancel,
+};

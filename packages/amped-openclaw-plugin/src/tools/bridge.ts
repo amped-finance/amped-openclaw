@@ -493,3 +493,6 @@ export function registerBridgeTools(agentTools: AgentTools): void {
 
 // Export schemas for testing and reuse
 export { BridgeDiscoverSchema, BridgeQuoteSchema, BridgeExecuteSchema };
+
+// Export handlers
+export { handleBridgeDiscover, handleBridgeQuote, handleBridgeExecute };

@@ -5,166 +5,329 @@
  * via the SODAX SDK.
  */
 
-import { AgentTools } from './types';
-import { SodaxClient } from './sodax/client';
+import { Type, TSchema } from '@sinclair/typebox';
+
+/**
+ * OpenClaw Plugin API (defined locally to avoid SDK dependency)
+ */
+interface OpenClawPluginApi {
+  pluginConfig: Record<string, unknown>;
+  logger: {
+    info: (msg: string) => void;
+    warn: (msg: string) => void;
+    error: (msg: string) => void;
+    debug: (msg: string) => void;
+  };
+  registerTool: (tool: {
+    name: string;
+    description: string;
+    parameters: TSchema;
+    execute: (toolCallId: string, params: unknown) => Promise<{
+      content: Array<{ type: 'text'; text: string }>;
+      details?: unknown;
+    }>;
+  }) => void;
+  registerService: (service: {
+    id: string;
+    start: () => void;
+    stop: () => Promise<void> | void;
+  }) => void;
+  on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => void;
+}
+import { getSodaxClientAsync, resetSodaxClient } from './sodax/client';
 import { getCacheStats } from './providers/spokeProviderFactory';
 import { PolicyEngine } from './policy/policyEngine';
 import { getWalletRegistry } from './wallet/walletRegistry';
 
-// Tool registrations
-import { registerSwapTools } from './tools/swap';
-import { registerBridgeTools } from './tools/bridge';
-import { registerMoneyMarketTools } from './tools/moneyMarket';
-import { registerDiscoveryTools } from './tools/discovery';
+// Tool schemas and handlers
+import { 
+  SwapQuoteSchema, SwapExecuteSchema, SwapStatusSchema, SwapCancelSchema,
+  handleSwapQuote, handleSwapExecute, handleSwapStatus, handleSwapCancel
+} from './tools/swap';
+import {
+  BridgeDiscoverSchema, BridgeQuoteSchema, BridgeExecuteSchema,
+  handleBridgeDiscover, handleBridgeQuote, handleBridgeExecute
+} from './tools/bridge';
+import {
+  MmSupplySchema, MmWithdrawSchema, MmBorrowSchema, MmRepaySchema,
+  handleMmSupply, handleMmWithdraw, handleMmBorrow, handleMmRepay
+} from './tools/moneyMarket';
+import {
+  SupportedChainsSchema, SupportedTokensSchema, WalletAddressSchema,
+  MoneyMarketReservesSchema, MoneyMarketPositionsSchema, CrossChainPositionsSchema,
+  UserIntentsSchema,
+  handleSupportedChains, handleSupportedTokens, handleWalletAddress,
+  handleMoneyMarketReserves, handleMoneyMarketPositions, handleCrossChainPositions,
+  handleUserIntents
+} from './tools/discovery';
 
 /**
- * Plugin activation function - called by OpenClaw on plugin load
+ * Plugin configuration schema (matches openclaw.plugin.json)
  */
-export async function activate(agentTools: AgentTools): Promise<void> {
-  console.log('[AmpedOpenClaw] Activating plugin...');
-  
-  // Log environment info (safely)
-  const mode = process.env.AMPED_OC_MODE || 'execute';
-  const dynamicConfig = process.env.AMPED_OC_SODAX_DYNAMIC_CONFIG === 'true';
-  
-  console.log(`[AmpedOpenClaw] Mode: ${mode}`);
-  console.log(`[AmpedOpenClaw] Dynamic config: ${dynamicConfig}`);
-  
-  // Validate required environment variables
-  validateEnvironment();
-  
-  // Initialize core components
-  try {
-    // Initialize SODAX SDK client (singleton)
-    const sodaxClient = await SodaxClient.getClient();
-    console.log('[AmpedOpenClaw] SODAX client initialized');
-    
-    // Initialize spoke provider factory
-    const cacheStats = getCacheStats();
-    console.log(`[AmpedOpenClaw] Spoke provider factory ready (${cacheStats.size} cached providers)`);
-    
-    // Initialize policy engine
-    const policyEngine = new PolicyEngine();
-    console.log(`[AmpedOpenClaw] Policy engine loaded (${policyEngine.getAvailablePolicies().length} policies)`);
-    
-    // Initialize wallet registry
-    const walletRegistry = getWalletRegistry();
-    console.log(`[AmpedOpenClaw] Wallet registry loaded (${walletRegistry.getWalletIds().length} wallets)`);
-    
-  } catch (error) {
-    console.error('[AmpedOpenClaw] Failed to initialize core components:', error);
-    throw new Error(`Plugin initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+const configSchema = Type.Object({
+  walletsJson: Type.Optional(Type.String()),
+  rpcUrlsJson: Type.Optional(Type.String()),
+  mode: Type.Optional(Type.Union([Type.Literal('execute'), Type.Literal('simulate')])),
+  dynamicConfig: Type.Optional(Type.Boolean()),
+});
+
+/**
+ * Apply plugin config to environment
+ */
+function applyConfig(config: Record<string, unknown>): void {
+  if (config.walletsJson && typeof config.walletsJson === 'string') {
+    process.env.AMPED_OC_WALLETS_JSON = config.walletsJson;
   }
-  
-  // Register all tools
-  console.log('[AmpedOpenClaw] Registering tools...');
-  
-  registerDiscoveryTools(agentTools);
-  console.log('[AmpedOpenClaw] ✓ Discovery tools registered');
-  
-  registerSwapTools(agentTools);
-  console.log('[AmpedOpenClaw] ✓ Swap tools registered');
-  
-  registerBridgeTools(agentTools);
-  console.log('[AmpedOpenClaw] ✓ Bridge tools registered');
-  
-  registerMoneyMarketTools(agentTools);
-  console.log('[AmpedOpenClaw] ✓ Money market tools registered');
-  
-  console.log('[AmpedOpenClaw] Plugin activated successfully');
-  console.log('[AmpedOpenClaw] Available tools:');
-  console.log('  Discovery:');
-  console.log('    - amped_oc_supported_chains');
-  console.log('    - amped_oc_supported_tokens');
-  console.log('    - amped_oc_wallet_address');
-  console.log('    - amped_oc_money_market_reserves');
-  console.log('    - amped_oc_money_market_positions (single chain)');
-  console.log('    - amped_oc_cross_chain_positions (aggregated view)');
-  console.log('    - amped_oc_user_intents (API query)');
-  console.log('  Swap:');
-  console.log('    - amped_oc_swap_quote');
-  console.log('    - amped_oc_swap_execute');
-  console.log('    - amped_oc_swap_status');
-  console.log('    - amped_oc_swap_cancel');
-  console.log('  Bridge:');
-  console.log('    - amped_oc_bridge_discover');
-  console.log('    - amped_oc_bridge_quote');
-  console.log('    - amped_oc_bridge_execute');
-  console.log('  Money Market:');
-  console.log('    - amped_oc_mm_supply');
-  console.log('    - amped_oc_mm_withdraw');
-  console.log('    - amped_oc_mm_borrow (cross-chain capable)');
-  console.log('    - amped_oc_mm_repay');
+  if (config.rpcUrlsJson && typeof config.rpcUrlsJson === 'string') {
+    process.env.AMPED_OC_RPC_URLS_JSON = config.rpcUrlsJson;
+  }
+  if (config.mode && typeof config.mode === 'string') {
+    process.env.AMPED_OC_MODE = config.mode;
+  }
+  if (config.dynamicConfig !== undefined) {
+    process.env.AMPED_OC_SODAX_DYNAMIC_CONFIG = config.dynamicConfig ? 'true' : 'false';
+  }
 }
 
 /**
  * Validate required environment variables
  */
-function validateEnvironment(): void {
-  const requiredVars: string[] = [];
+function validateEnvironment(): string[] {
+  const missing: string[] = [];
   
-  // Wallets are required
   if (!process.env.AMPED_OC_WALLETS_JSON) {
-    requiredVars.push('AMPED_OC_WALLETS_JSON');
+    missing.push('AMPED_OC_WALLETS_JSON');
   }
   
-  // RPC URLs are required for execution mode
   const mode = process.env.AMPED_OC_MODE || 'execute';
   if (mode === 'execute' && !process.env.AMPED_OC_RPC_URLS_JSON) {
-    requiredVars.push('AMPED_OC_RPC_URLS_JSON');
+    missing.push('AMPED_OC_RPC_URLS_JSON');
   }
   
-  if (requiredVars.length > 0) {
-    console.warn(`[AmpedOpenClaw] Missing environment variables: ${requiredVars.join(', ')}`);
-    console.warn('[AmpedOpenClaw] Some features may not work correctly');
-  }
+  return missing;
 }
 
 /**
- * Plugin deactivation - cleanup
+ * Helper to wrap a handler for OpenClaw's tool format
  */
-export async function deactivate(): Promise<void> {
-  console.log('[AmpedOpenClaw] Deactivating plugin...');
-  
-  // Reset singletons
-  SodaxClient.reset();
-  
-  console.log('[AmpedOpenClaw] Plugin deactivated');
-}
-
-/**
- * Get plugin version
- */
-export function getVersion(): string {
-  return '1.0.0';
-}
-
-/**
- * Get plugin info
- */
-export function getPluginInfo(): {
-  name: string;
-  version: string;
-  description: string;
-  author: string;
-} {
-  return {
-    name: 'Amped OpenClaw',
-    version: '1.0.0',
-    description: 'DeFi operations plugin for swaps, bridging, and money market via SODAX SDK',
-    author: 'Amped Finance'
+function wrapHandler(handler: (params: unknown) => Promise<unknown>) {
+  return async (_toolCallId: string, params: unknown) => {
+    const result = await handler(params);
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      details: result,
+    };
   };
 }
 
+/**
+ * OpenClaw Plugin Definition
+ */
+export default {
+  id: 'amped-openclaw',
+  name: 'Amped DeFi',
+  description: 'DeFi operations plugin for swaps, bridging, and money market via SODAX SDK',
+  kind: 'tools' as const,
+  configSchema,
+
+  register(api: OpenClawPluginApi) {
+    console.log('[AmpedOpenClaw] Registering plugin...');
+    
+    // Apply config from OpenClaw
+    const config = api.pluginConfig as Record<string, unknown> || {};
+    applyConfig(config);
+    
+    // Log environment info
+    const mode = process.env.AMPED_OC_MODE || 'execute';
+    const dynamicConfig = process.env.AMPED_OC_SODAX_DYNAMIC_CONFIG === 'true';
+    console.log(`[AmpedOpenClaw] Mode: ${mode}`);
+    console.log(`[AmpedOpenClaw] Dynamic config: ${dynamicConfig}`);
+    
+    // Check for missing env vars
+    const missing = validateEnvironment();
+    if (missing.length > 0) {
+      console.warn(`[AmpedOpenClaw] Missing config: ${missing.join(', ')}`);
+      console.warn('[AmpedOpenClaw] Configure via plugin settings or environment variables');
+    }
+
+    // Initialize core components (async, non-blocking)
+    (async () => {
+      try {
+        await getSodaxClientAsync();
+        console.log('[AmpedOpenClaw] SODAX client initialized');
+        
+        const cacheStats = getCacheStats();
+        console.log(`[AmpedOpenClaw] Spoke provider factory ready (${cacheStats.size} cached)`);
+        
+        const policyEngine = new PolicyEngine();
+        console.log(`[AmpedOpenClaw] Policy engine loaded (${policyEngine.getAvailablePolicies().length} policies)`);
+        
+        const walletRegistry = getWalletRegistry();
+        console.log(`[AmpedOpenClaw] Wallet registry loaded (${walletRegistry.getWalletIds().length} wallets)`);
+      } catch (error) {
+        console.error('[AmpedOpenClaw] Init error:', error);
+      }
+    })();
+
+    // Register Discovery Tools
+    api.registerTool({
+      name: 'amped_oc_supported_chains',
+      description: 'List all blockchain networks supported by the Amped DeFi plugin',
+      parameters: SupportedChainsSchema,
+      execute: wrapHandler(handleSupportedChains),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_supported_tokens',
+      description: 'List tokens supported on a specific chain for swaps and bridging',
+      parameters: SupportedTokensSchema,
+      execute: wrapHandler(handleSupportedTokens),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_wallet_address',
+      description: 'Get the wallet address for a specific wallet ID',
+      parameters: WalletAddressSchema,
+      execute: wrapHandler(handleWalletAddress),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_money_market_reserves',
+      description: 'Get money market reserve info (APY, utilization, liquidity)',
+      parameters: MoneyMarketReservesSchema,
+      execute: wrapHandler(handleMoneyMarketReserves),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_money_market_positions',
+      description: 'Get user positions in money market on a single chain',
+      parameters: MoneyMarketPositionsSchema,
+      execute: wrapHandler(handleMoneyMarketPositions),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_cross_chain_positions',
+      description: 'Get aggregated money market positions across all chains',
+      parameters: CrossChainPositionsSchema,
+      execute: wrapHandler(handleCrossChainPositions),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_user_intents',
+      description: 'Query user intent history from SODAX API',
+      parameters: UserIntentsSchema,
+      execute: wrapHandler(handleUserIntents),
+    });
+
+    // Register Swap Tools
+    api.registerTool({
+      name: 'amped_oc_swap_quote',
+      description: 'Get a quote for swapping tokens (same chain or cross-chain)',
+      parameters: SwapQuoteSchema,
+      execute: wrapHandler(handleSwapQuote),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_swap_execute',
+      description: 'Execute a token swap using a previously obtained quote',
+      parameters: SwapExecuteSchema,
+      execute: wrapHandler(handleSwapExecute),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_swap_status',
+      description: 'Check the status of a swap/bridge operation by intent ID',
+      parameters: SwapStatusSchema,
+      execute: wrapHandler(handleSwapStatus),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_swap_cancel',
+      description: 'Cancel a pending swap/bridge operation',
+      parameters: SwapCancelSchema,
+      execute: wrapHandler(handleSwapCancel),
+    });
+
+    // Register Bridge Tools
+    api.registerTool({
+      name: 'amped_oc_bridge_discover',
+      description: 'Discover available bridge routes between chains',
+      parameters: BridgeDiscoverSchema,
+      execute: wrapHandler(handleBridgeDiscover),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_bridge_quote',
+      description: 'Get a quote for bridging tokens between chains',
+      parameters: BridgeQuoteSchema,
+      execute: wrapHandler(handleBridgeQuote),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_bridge_execute',
+      description: 'Execute a bridge transfer using a previously obtained quote',
+      parameters: BridgeExecuteSchema,
+      execute: wrapHandler(handleBridgeExecute),
+    });
+
+    // Register Money Market Tools
+    api.registerTool({
+      name: 'amped_oc_mm_supply',
+      description: 'Supply (deposit) tokens to money market to earn interest',
+      parameters: MmSupplySchema,
+      execute: wrapHandler(handleMmSupply),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_mm_withdraw',
+      description: 'Withdraw supplied tokens from money market',
+      parameters: MmWithdrawSchema,
+      execute: wrapHandler(handleMmWithdraw),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_mm_borrow',
+      description: 'Borrow tokens from money market (cross-chain capable)',
+      parameters: MmBorrowSchema,
+      execute: wrapHandler(handleMmBorrow),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_mm_repay',
+      description: 'Repay borrowed tokens to money market',
+      parameters: MmRepaySchema,
+      execute: wrapHandler(handleMmRepay),
+    });
+
+    // Register cleanup service
+    api.registerService({
+      id: 'amped-openclaw',
+      start: () => {
+        console.log('[AmpedOpenClaw] Service started');
+      },
+      stop: async () => {
+        console.log('[AmpedOpenClaw] Cleaning up...');
+        resetSodaxClient();
+      },
+    });
+
+    console.log('[AmpedOpenClaw] Plugin registered (18 tools)');
+  },
+};
+
 // Re-export types and utilities for external use
 export * from './types';
-export { SodaxClient, getSodaxClient, getSodaxClientAsync } from './sodax/client';
+export { getSodaxClient, getSodaxClientAsync, resetSodaxClient } from './sodax/client';
 export { getSpokeProvider, getCacheStats, clearProviderCache } from './providers/spokeProviderFactory';
 export type { SpokeProvider } from './providers/spokeProviderFactory';
-// Re-export spoke provider types for consumers who need them
 export { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/sdk';
 export { PolicyEngine } from './policy/policyEngine';
 export { WalletRegistry, getWalletRegistry } from './wallet/walletRegistry';
 
-// Default export for OpenClaw
-export default { activate, deactivate, getVersion, getPluginInfo };
+// Legacy exports for backward compatibility
+export async function activate() {
+  console.warn('[AmpedOpenClaw] activate() is deprecated - use default export');
+}
+export async function deactivate() {
+  resetSodaxClient();
+}

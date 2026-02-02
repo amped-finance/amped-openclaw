@@ -1041,4 +1041,16 @@ export {
   handleCreateBorrowIntent,
 };
 
+// Aliases for index.ts compatibility
+export {
+  MoneyMarketSupplySchema as MmSupplySchema,
+  MoneyMarketWithdrawSchema as MmWithdrawSchema,
+  MoneyMarketBorrowSchema as MmBorrowSchema,
+  MoneyMarketRepaySchema as MmRepaySchema,
+  handleSupply as handleMmSupply,
+  handleWithdraw as handleMmWithdraw,
+  handleBorrow as handleMmBorrow,
+  handleRepay as handleMmRepay,
+};
+
 export type { MoneyMarketOperationResult, IntentResult };
