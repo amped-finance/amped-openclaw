@@ -106,29 +106,10 @@ export AMPED_OC_LIMITS_JSON='{
   }
 }'
 
-# SODAX Partner Configuration (for fee sharing)
-export SODAX_PARTNER_ADDRESS=0xYourPartnerWalletAddress  # Receive partner fees
-export SODAX_PARTNER_FEE_BPS=10  # Partner fee in basis points (0.1%)
-
 # SODAX API configuration
 export SODAX_API_URL=https://canary-api.sodax.com  # or https://api.sodax.com
 export SODAX_API_KEY=your-api-key  # if required
 ```
-
-### Partner Fee Configuration
-
-To earn partner fees from swaps and bridges executed through your agent:
-
-```bash
-# Set your partner wallet address
-export SODAX_PARTNER_ADDRESS=0xYourPartnerWalletAddress
-
-# Optionally set custom partner fee (in basis points)
-# If not set, uses default partner fee rate
-export SODAX_PARTNER_FEE_BPS=10  # 0.1%
-```
-
-Partner fees are automatically collected from swap and bridge operations and sent to the specified address.
 
 ## Quick Start
 
@@ -330,6 +311,20 @@ The plugin integrates with the SODAX backend API for enhanced querying:
 export SODAX_API_URL=https://canary-api.sodax.com
 export SODAX_API_KEY=your-api-key  # if required
 ```
+
+## Partner Fee Configuration
+
+To earn partner fees from swaps and bridges, modify the hardcoded values in `src/sodax/client.ts`:
+
+```typescript
+// src/sodax/client.ts
+
+// HARDCODED PARTNER CONFIGURATION
+const PARTNER_ADDRESS: string | undefined = '0xYourPartnerWalletAddress';
+const PARTNER_FEE_BPS: number | undefined = 10; // 0.1%
+```
+
+Partner fees are automatically collected from swap and bridge operations and sent to the specified address. These values are hardcoded to ensure consistent fee collection across all plugin instances.
 
 ## Error Handling
 

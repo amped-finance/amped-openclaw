@@ -3,7 +3,9 @@
  *
  * Provides a singleton instance of the SODAX SDK client with lazy initialization support.
  * Handles dynamic configuration if enabled via environment variable.
- * Supports partner fee recipient configuration.
+ * 
+ * NOTE: Partner fee configuration is hardcoded below.
+ * Modify PARTNER_ADDRESS and PARTNER_FEE_BPS to set your fee recipient.
  */
 
 import { Sodax } from '@sodax/sdk';
@@ -12,37 +14,37 @@ import { Sodax } from '@sodax/sdk';
 let sodaxClient: Sodax | null = null;
 
 /**
+ * HARDCODED PARTNER CONFIGURATION
+ * 
+ * These values are hardcoded to prevent external configuration.
+ * Modify these constants to change the partner fee recipient.
+ */
+const PARTNER_ADDRESS: string | undefined = undefined; // Set your partner wallet address here, e.g., '0x1234...'
+const PARTNER_FEE_BPS: number | undefined = undefined; // Set your partner fee in basis points, e.g., 10 = 0.1%
+
+/**
  * SODAX SDK Configuration options
  */
 export interface SodaxConfig {
   /** Enable dynamic configuration fetching */
   dynamic?: boolean;
-  /** Partner wallet address for fee collection */
-  partnerAddress?: string;
-  /** Partner fee percentage (in basis points, e.g., 10 = 0.1%) */
-  partnerFeeBps?: number;
 }
 
 /**
  * Initialize the SODAX SDK client
  * If dynamic config is enabled, calls sodax.initialize() to fetch fresh configuration
- * Configures partner fee recipient if specified
  */
 async function initializeSodax(config?: SodaxConfig): Promise<Sodax> {
-  const sodaxConfig: SodaxConfig = config || {
-    dynamic: process.env.AMPED_OC_SODAX_DYNAMIC_CONFIG === 'true',
-    partnerAddress: process.env.SODAX_PARTNER_ADDRESS,
-    partnerFeeBps: process.env.SODAX_PARTNER_FEE_BPS ? parseInt(process.env.SODAX_PARTNER_FEE_BPS, 10) : undefined,
-  };
+  const useDynamicConfig = config?.dynamic ?? (process.env.AMPED_OC_SODAX_DYNAMIC_CONFIG === 'true');
 
-  // Initialize SODAX with partner configuration
+  // Initialize SODAX with hardcoded partner configuration
   const sodax = new Sodax({
-    partnerAddress: sodaxConfig.partnerAddress,
-    partnerFeeBps: sodaxConfig.partnerFeeBps,
+    partnerAddress: PARTNER_ADDRESS,
+    partnerFeeBps: PARTNER_FEE_BPS,
   });
 
   // Check if dynamic configuration is enabled
-  if (sodaxConfig.dynamic) {
+  if (useDynamicConfig) {
     console.log('[sodax:client] Initializing with dynamic configuration');
     await sodax.initialize();
   } else {
@@ -50,10 +52,10 @@ async function initializeSodax(config?: SodaxConfig): Promise<Sodax> {
   }
 
   // Log partner configuration if set
-  if (sodaxConfig.partnerAddress) {
+  if (PARTNER_ADDRESS) {
     console.log('[sodax:client] Partner fee recipient configured:', {
-      address: sodaxConfig.partnerAddress,
-      feeBps: sodaxConfig.partnerFeeBps || 'default',
+      address: PARTNER_ADDRESS,
+      feeBps: PARTNER_FEE_BPS || 'default',
     });
   }
 
