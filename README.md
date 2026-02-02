@@ -3,18 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
-DeFi operations plugin and skill pack for [OpenClaw](https://openclaw.ai) enabling seamless cross-chain swaps, bridging, and money market operations via the [SODAX SDK](https://docs.sodax.com).
+DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cross-chain swaps, bridging, and money market operations via the [SODAX SDK](https://docs.sodax.com).
 
-## Prerequisites
-
-- [OpenClaw](https://openclaw.ai) agent environment
-- **[evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill)** - This plugin integrates with evm-wallet-skill for wallet and RPC configuration
-- Node.js >= 18.0.0
-- SODAX SDK dependencies (installed automatically)
-
-## Overview
-
-Amped OpenClaw provides a complete DeFi toolkit for AI agents, enabling sophisticated on-chain operations across multiple networks:
+## Features
 
 - 🔁 **Cross-Chain Swaps** - Intent-based swaps via SODAX solver network
 - 🌉 **Token Bridging** - Bridge assets between chains  
@@ -22,110 +13,80 @@ Amped OpenClaw provides a complete DeFi toolkit for AI agents, enabling sophisti
 - 📊 **Portfolio Analytics** - Unified view across all chains with risk metrics
 - 📜 **Intent History** - Query complete transaction history
 
-## Repository Structure
-
-```
-amped-openclaw/
-├── packages/amped-openclaw-plugin/    # TypeScript plugin for OpenClaw
-│   ├── src/                           # Source code
-│   ├── examples/                      # Usage examples
-│   ├── README.md                      # Plugin documentation
-│   └── package.json
-├── skills/amped-openclaw/             # OpenClaw skill definition
-│   └── SKILL.md                       # Skill instructions
-├── .env.example                       # Environment template
-├── CHANGELOG.md                       # Version history
-├── CONTRIBUTING.md                    # Contribution guidelines
-└── LICENSE                            # MIT License
-```
-
-## Quick Start
-
-### 1. Prerequisites
-
-Ensure you have [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill) configured with your wallets and RPCs:
+## Quick Install
 
 ```bash
-# evm-wallet-skill configuration (set these in your environment)
-export EVM_WALLETS_JSON='{
-  "main": {
-    "address": "0xYourWalletAddress",
-    "privateKey": "0xYourPrivateKey"
-  }
-}'
+# Clone the repo
+git clone https://github.com/amped-finance/amped-openclaw.git
+cd amped-openclaw/packages/amped-openclaw-plugin
 
-export EVM_RPC_URLS_JSON='{
-  "ethereum": "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
-  "arbitrum": "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
-  "sonic": "https://rpc.soniclabs.com"
-}'
-```
+# Install in OpenClaw
+openclaw plugins install .
 
-> **Note:** If you don't use evm-wallet-skill, you can set `AMPED_OC_WALLETS_JSON` and `AMPED_OC_RPC_URLS_JSON` instead (see [Configuration](#configuration)).
-
-### 2. Install the Plugin (Build from Source)
-
-The plugin code is in `packages/amped-openclaw-plugin/`. You must run npm commands from that directory:
-
-```bash
-cd packages/amped-openclaw-plugin
+# Install dependencies
+cd ~/.openclaw/extensions/amped-openclaw
 npm install
-npm run build
+
+# Verify (should show 18 tools)
+openclaw plugins list
 ```
 
-**Important:** The `package.json` is in `packages/amped-openclaw-plugin/`, not the repository root.
+## Prerequisites
 
-Verify the build output exists:
-```bash
-ls dist/index.js  # Should exist
-```
+- [OpenClaw](https://openclaw.ai) installed
+- Node.js >= 18.0.0
+- Wallet private key and RPC URLs (see [Configuration](#configuration))
 
-### 3. Install in OpenClaw
+## Detailed Installation
 
-Install the plugin in your OpenClaw environment:
-
-```bash
-# Install from local path
-openclaw plugins install /path/to/amped-openclaw/packages/amped-openclaw-plugin
-
-# Or install from tarball
-openclaw plugins install /path/to/amped-openclaw-plugin.tar.gz
-```
-
-### 4. Enable the Plugin
-
-Edit your OpenClaw configuration file (typically `~/.openclaw/config.yaml` or similar):
-
-```yaml
-plugins:
-  entries:
-    amped-openclaw:
-      enabled: true
-      # Optional: specify path if not installed via CLI
-      # path: /path/to/amped-openclaw/packages/amped-openclaw-plugin
-```
-
-### 5. Restart OpenClaw Gateway
-
-Restart the OpenClaw gateway to load the plugin:
+### 1. Clone the Repository
 
 ```bash
-openclaw gateway restart
+git clone https://github.com/amped-finance/amped-openclaw.git
+cd amped-openclaw/packages/amped-openclaw-plugin
 ```
 
-### 6. Verify Installation
-
-Check that the plugin is loaded and tools are available:
+### 2. Install Plugin in OpenClaw
 
 ```bash
-openclaw tools list | grep amped_oc
+openclaw plugins install .
 ```
 
-You should see tools like:
-- `amped_oc_supported_chains`
-- `amped_oc_swap_quote`
-- `amped_oc_cross_chain_positions`
-- etc.
+This copies the plugin to `~/.openclaw/extensions/amped-openclaw/`.
+
+### 3. Install Dependencies
+
+OpenClaw copies source files but not `node_modules`. Install them:
+
+```bash
+cd ~/.openclaw/extensions/amped-openclaw
+npm install
+```
+
+### 4. Verify Installation
+
+```bash
+openclaw plugins list
+```
+
+You should see `amped-openclaw` listed with 18 tools.
+
+### Updating
+
+```bash
+cd /path/to/amped-openclaw
+git pull
+cd packages/amped-openclaw-plugin
+openclaw plugins install .
+cd ~/.openclaw/extensions/amped-openclaw
+npm install
+```
+
+### Uninstalling
+
+```bash
+openclaw plugins uninstall amped-openclaw
+```
 
 ## Configuration
 
