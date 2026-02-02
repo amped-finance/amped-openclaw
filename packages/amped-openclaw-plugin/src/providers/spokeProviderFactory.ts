@@ -1,23 +1,28 @@
 /**
  * Spoke Provider Factory
  *
- * Creates and caches wallet providers per (walletId, chainId) pair.
- * Uses EvmWalletProvider from @sodax/wallet-sdk-core for all EVM chains.
+ * Creates and caches spoke providers per (walletId, chainId) pair.
+ * Uses EvmSpokeProvider for EVM chains and SonicSpokeProvider for Sonic hub chain.
  * 
  * Now integrates with evm-wallet-skill for RPC configuration.
  */
 
-import { EvmWalletProvider } from '@sodax/wallet-sdk-core';
+// Import spoke providers from the main SDK (not wallet-sdk-core)
+import { 
+  EvmSpokeProvider, 
+  SonicSpokeProvider,
+  type SpokeProvider 
+} from '@sodax/sdk';
 import { WalletRegistry } from '../wallet/walletRegistry';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
-
-// Type for spoke/wallet providers - using the SDK's provider type
-type SpokeProvider = EvmWalletProvider;
 
 // Cache for providers: Map<cacheKey, SpokeProvider>
 const providerCache = new Map<string, SpokeProvider>();
 
-// Chain ID mapping for SDK (some chains need numeric IDs)
+// Sonic hub chain identifier
+const SONIC_CHAIN_ID = 'sonic';
+
+// Chain ID mapping for SDK (some chains need specific format)
 const CHAIN_ID_MAP: Record<string, string> = {
   'sonic': 'sonic',
   'ethereum': 'ethereum',
@@ -84,13 +89,13 @@ function getSdkChainId(chainId: string): string {
 }
 
 /**
- * Create a new wallet provider for the given wallet and chain
+ * Create a new spoke provider for the given wallet and chain
  *
  * @param walletId - The wallet identifier
  * @param chainId - The chain identifier
- * @returns A new wallet provider instance
+ * @returns A new spoke provider instance
  */
-async function createWalletProvider(
+async function createSpokeProvider(
   walletId: string,
   chainId: string
 ): Promise<SpokeProvider> {
@@ -108,48 +113,58 @@ async function createWalletProvider(
   const rpcUrl = await getRpcUrl(chainId);
   const sdkChainId = getSdkChainId(chainId);
 
-  console.log('[spokeProviderFactory] Creating EvmWalletProvider', {
-    walletId,
-    chainId,
-    sdkChainId,
-  });
+  // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
+  if (chainId === SONIC_CHAIN_ID) {
+    console.log('[spokeProviderFactory] Creating SonicSpokeProvider', {
+      walletId,
+      chainId,
+    });
 
-  // Create EvmWalletProvider with private key config
-  // SDK expects: { privateKey, chainId, rpcUrl? }
-  return new EvmWalletProvider({
-    privateKey: wallet.privateKey as `0x${string}`,
-    chainId: sdkChainId as any,
-    rpcUrl: rpcUrl as `http${string}`,
-  });
+    return new SonicSpokeProvider({
+      privateKey: wallet.privateKey as `0x${string}`,
+      chainId: sdkChainId as any,
+      rpcUrl: rpcUrl as `http${string}`,
+    });
+  } else {
+    console.log('[spokeProviderFactory] Creating EvmSpokeProvider', {
+      walletId,
+      chainId,
+      sdkChainId,
+    });
+
+    return new EvmSpokeProvider({
+      privateKey: wallet.privateKey as `0x${string}`,
+      chainId: sdkChainId as any,
+      rpcUrl: rpcUrl as `http${string}`,
+    });
+  }
 }
 
 /**
- * Create a raw (read-only) provider for prepare mode
- * Note: EvmWalletProvider requires a private key, so for read-only mode
- * we may need a different approach or throw an error
+ * Create a raw (read-only) spoke provider for prepare mode
  *
  * @param walletId - The wallet identifier
  * @param chainId - The chain identifier
- * @returns A wallet provider instance
+ * @returns A spoke provider instance
  */
-async function createRawProvider(
+async function createRawSpokeProvider(
   walletId: string,
   chainId: string
 ): Promise<SpokeProvider> {
   // For now, raw mode still needs a private key for the SDK
-  // In the future, we could use a read-only viem client instead
-  console.warn('[spokeProviderFactory] Raw mode requested but SDK requires private key');
-  return createWalletProvider(walletId, chainId);
+  // In the future, we could use EvmRawSpokeProvider or SonicRawSpokeProvider
+  console.warn('[spokeProviderFactory] Raw mode requested but using full provider');
+  return createSpokeProvider(walletId, chainId);
 }
 
 /**
- * Get a spoke/wallet provider for the given wallet and chain
+ * Get a spoke provider for the given wallet and chain
  * Returns cached provider if available, otherwise creates a new one
  *
  * @param walletId - The wallet identifier (used for caching and wallet resolution)
  * @param chainId - The chain identifier
  * @param raw - If true, attempts to create a read-only provider (may still require private key)
- * @returns The wallet provider instance
+ * @returns The spoke provider instance
  */
 export async function getSpokeProvider(
   walletId: string,
@@ -171,8 +186,8 @@ export async function getSpokeProvider(
 
   // Create new provider
   const provider = raw
-    ? await createRawProvider(walletId, chainId)
-    : await createWalletProvider(walletId, chainId);
+    ? await createRawSpokeProvider(walletId, chainId)
+    : await createSpokeProvider(walletId, chainId);
 
   // Cache the provider
   providerCache.set(cacheKey, provider);

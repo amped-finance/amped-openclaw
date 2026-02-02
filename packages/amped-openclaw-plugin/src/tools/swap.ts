@@ -284,8 +284,9 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       const approvalTx = approvalResult?.ok ? approvalResult.value : approvalResult;
       
       // Wait for approval confirmation if possible
-      if (spokeProvider.waitForTransaction) {
-        await spokeProvider.waitForTransaction(approvalTx);
+      // SDK may expose waitForTransactionReceipt on the underlying wallet provider
+      if ((spokeProvider as any).walletProvider?.waitForTransactionReceipt) {
+        await (spokeProvider as any).walletProvider.waitForTransactionReceipt(approvalTx);
       }
       
       logStructured({
@@ -492,8 +493,9 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
     const cancelTxHash = typeof cancelTx === 'string' ? cancelTx : String(cancelTx);
     
     // Wait for cancellation confirmation if possible
-    if (spokeProvider.waitForTransaction) {
-      await spokeProvider.waitForTransaction(cancelTxHash);
+    // SDK may expose waitForTransactionReceipt on the underlying wallet provider
+    if ((spokeProvider as any).walletProvider?.waitForTransactionReceipt) {
+      await (spokeProvider as any).walletProvider.waitForTransactionReceipt(cancelTxHash);
     }
     
     const result = {

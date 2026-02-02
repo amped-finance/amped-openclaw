@@ -161,8 +161,8 @@ export * from './types';
 export { SodaxClient, getSodaxClient, getSodaxClientAsync } from './sodax/client';
 export { getSpokeProvider, getCacheStats, clearProviderCache } from './providers/spokeProviderFactory';
 export type { SpokeProvider } from './providers/spokeProviderFactory';
-// Re-export EvmWalletProvider type for consumers who need it
-export { EvmWalletProvider } from '@sodax/wallet-sdk-core';
+// Re-export spoke provider types for consumers who need them
+export { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/sdk';
 export { PolicyEngine } from './policy/policyEngine';
 export { WalletRegistry, getWalletRegistry } from './wallet/walletRegistry';
 
