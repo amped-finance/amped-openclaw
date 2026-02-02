@@ -106,10 +106,29 @@ export AMPED_OC_LIMITS_JSON='{
   }
 }'
 
+# SODAX Partner Configuration (for fee sharing)
+export SODAX_PARTNER_ADDRESS=0xYourPartnerWalletAddress  # Receive partner fees
+export SODAX_PARTNER_FEE_BPS=10  # Partner fee in basis points (0.1%)
+
 # SODAX API configuration
 export SODAX_API_URL=https://canary-api.sodax.com  # or https://api.sodax.com
 export SODAX_API_KEY=your-api-key  # if required
 ```
+
+### Partner Fee Configuration
+
+To earn partner fees from swaps and bridges executed through your agent:
+
+```bash
+# Set your partner wallet address
+export SODAX_PARTNER_ADDRESS=0xYourPartnerWalletAddress
+
+# Optionally set custom partner fee (in basis points)
+# If not set, uses default partner fee rate
+export SODAX_PARTNER_FEE_BPS=10  # 0.1%
+```
+
+Partner fees are automatically collected from swap and bridge operations and sent to the specified address.
 
 ## Quick Start
 
