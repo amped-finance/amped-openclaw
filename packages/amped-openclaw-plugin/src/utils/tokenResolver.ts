@@ -11,6 +11,40 @@ import { getSodaxClient } from '../sodax/client';
 // Cache tokens per chain to avoid repeated lookups
 const tokenCache = new Map<string, Token[]>();
 
+// Native token address (zero address)
+const NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+// Native token configs per chain (18 decimals for all EVM chains)
+const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: number }> = {
+  sonic: { symbol: 'S', name: 'Sonic', decimals: 18 },
+  ethereum: { symbol: 'ETH', name: 'Ether', decimals: 18 },
+  '0xa4b1.arbitrum': { symbol: 'ETH', name: 'Ether', decimals: 18 },
+  '0x2105.base': { symbol: 'ETH', name: 'Ether', decimals: 18 },
+  '0xa.optimism': { symbol: 'ETH', name: 'Ether', decimals: 18 },
+  '0x38.bsc': { symbol: 'BNB', name: 'BNB', decimals: 18 },
+  '0x89.polygon': { symbol: 'POL', name: 'POL', decimals: 18 },
+  '0xa86a.avax': { symbol: 'AVAX', name: 'Avalanche', decimals: 18 },
+  hyper: { symbol: 'HYPE', name: 'Hyperliquid', decimals: 18 },
+  lightlink: { symbol: 'ETH', name: 'Ether', decimals: 18 },
+};
+
+/**
+ * Check if an address is the native token (zero address)
+ */
+function isNativeToken(address: string): boolean {
+  return address.toLowerCase() === NATIVE_TOKEN_ADDRESS;
+}
+
+/**
+ * Get native token info for a chain
+ */
+function getNativeTokenInfo(chainId: string): { address: string; symbol: string; name: string; decimals: number } | null {
+  const native = NATIVE_TOKENS[chainId];
+  if (!native) return null;
+  return { address: NATIVE_TOKEN_ADDRESS, ...native };
+}
+
+
 /**
  * Check if a string is a valid Ethereum address
  */
@@ -101,6 +135,14 @@ export async function getTokenInfo(
   chainId: string,
   tokenInput: string
 ): Promise<Token | null> {
+  // Handle native tokens first
+  if (isAddress(tokenInput) && isNativeToken(tokenInput)) {
+    const nativeInfo = getNativeTokenInfo(chainId);
+    if (nativeInfo) {
+      return nativeInfo as unknown as Token;
+    }
+  }
+
   // Ensure cache is populated
   let tokens = tokenCache.get(chainId);
   if (!tokens) {

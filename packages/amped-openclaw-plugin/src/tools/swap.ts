@@ -156,7 +156,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     
     // Get token config to determine decimals for amount conversion
     const configService = (sodaxClient as any).configService;
-    const decimals = srcTokenInfo?.decimals ?? 6; // Default to 6 (USDC) if not found
+    const decimals = srcTokenInfo?.decimals ?? 18; // Default to 18 (most EVM tokens) if not found
     
     // Convert human-readable amount to raw amount (bigint)
     const amountFloat = parseFloat(params.amount);
@@ -191,7 +191,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     console.log('[swap_quote] SDK response:', JSON.stringify(quote, (k, v) => typeof v === 'bigint' ? v.toString() : v));
     
     // Get token config for output decimal conversion
-    const dstDecimals = dstTokenInfo?.decimals ?? 6;
+    const dstDecimals = dstTokenInfo?.decimals ?? 18;
     
     // SDK returns quoted_amount as bigint - convert to human-readable string
     const quotedAmount = quote.quoted_amount || quote.quotedAmount || quote.outputAmount;
