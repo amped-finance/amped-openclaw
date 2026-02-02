@@ -63,30 +63,65 @@ export EVM_RPC_URLS_JSON='{
 
 > **Note:** If you don't use evm-wallet-skill, you can set `AMPED_OC_WALLETS_JSON` and `AMPED_OC_RPC_URLS_JSON` instead (see [Configuration](#configuration)).
 
-### 2. Install the Plugin
+### 2. Install the Plugin (Build from Source)
 
 ```bash
 cd packages/amped-openclaw-plugin
 npm install
-```
-
-### 3. Build
-
-```bash
 npm run build
 ```
 
-### 4. Test
-
+Verify the build output exists:
 ```bash
-npm test
+ls dist/index.js  # Should exist
 ```
 
-### 4. Test
+### 3. Install in OpenClaw
+
+Install the plugin in your OpenClaw environment:
 
 ```bash
-npm test
+# Install from local path
+openclaw plugins install /path/to/amped-openclaw/packages/amped-openclaw-plugin
+
+# Or install from tarball
+openclaw plugins install /path/to/amped-openclaw-plugin.tar.gz
 ```
+
+### 4. Enable the Plugin
+
+Edit your OpenClaw configuration file (typically `~/.openclaw/config.yaml` or similar):
+
+```yaml
+plugins:
+  entries:
+    amped-openclaw:
+      enabled: true
+      # Optional: specify path if not installed via CLI
+      # path: /path/to/amped-openclaw/packages/amped-openclaw-plugin
+```
+
+### 5. Restart OpenClaw Gateway
+
+Restart the OpenClaw gateway to load the plugin:
+
+```bash
+openclaw gateway restart
+```
+
+### 6. Verify Installation
+
+Check that the plugin is loaded and tools are available:
+
+```bash
+openclaw tools list | grep amped_oc
+```
+
+You should see tools like:
+- `amped_oc_supported_chains`
+- `amped_oc_swap_quote`
+- `amped_oc_cross_chain_positions`
+- etc.
 
 ## Configuration
 

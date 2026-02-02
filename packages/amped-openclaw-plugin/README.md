@@ -32,10 +32,6 @@ DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cro
 
 ## Installation
 
-```bash
-npm install @amped/openclaw-plugin
-```
-
 ### Prerequisites
 
 - Node.js >= 18.0.0
@@ -45,6 +41,54 @@ npm install @amped/openclaw-plugin
   - `@sodax/sdk@1.0.4-beta`
   - `@sodax/wallet-sdk-core@1.0.4-beta`
   - `@sodax/types@1.0.4-beta`
+
+### Install in OpenClaw
+
+#### 1. Build from Source
+
+```bash
+cd packages/amped-openclaw-plugin
+npm install
+npm run build
+```
+
+Verify the build output:
+```bash
+ls dist/index.js  # Must exist for OpenClaw to load the plugin
+```
+
+#### 2. Install Plugin
+
+```bash
+# From local path
+openclaw plugins install /path/to/amped-openclaw/packages/amped-openclaw-plugin
+
+# Or from tarball
+openclaw plugins install /path/to/amped-openclaw-plugin.tar.gz
+```
+
+#### 3. Enable in Configuration
+
+Edit your OpenClaw config (e.g., `~/.openclaw/config.yaml`):
+
+```yaml
+plugins:
+  entries:
+    amped-openclaw:
+      enabled: true
+```
+
+#### 4. Restart Gateway
+
+```bash
+openclaw gateway restart
+```
+
+#### 5. Verify
+
+```bash
+openclaw tools list | grep amped_oc
+```
 
 ## Configuration
 
@@ -349,6 +393,57 @@ try {
 - **Wallet Errors** - Not found, invalid address, missing private key
 - **Transaction Errors** - Failed, timeout, rejected, simulation failed
 - **SDK Errors** - Not initialized, configuration errors
+
+## Troubleshooting
+
+### Plugin Not Loading in OpenClaw
+
+**Issue:** Tools not showing up in `openclaw tools list`
+
+**Solutions:**
+1. Verify `dist/index.js` exists:
+   ```bash
+   ls -la dist/index.js
+   ```
+   If not, run `npm run build`
+
+2. Check OpenClaw config has the plugin enabled:
+   ```yaml
+   plugins:
+     entries:
+       amped-openclaw:
+         enabled: true
+   ```
+
+3. Restart the gateway:
+   ```bash
+   openclaw gateway restart
+   ```
+
+4. Check OpenClaw logs for errors:
+   ```bash
+   openclaw logs
+   ```
+
+### "dist/index.js not found" Error
+
+The plugin must be built before installing:
+```bash
+npm install
+npm run build
+```
+
+### Wallet Not Found Errors
+
+Ensure you have either:
+- `EVM_WALLETS_JSON` set (if using evm-wallet-skill)
+- `AMPED_OC_WALLETS_JSON` set (plugin-specific)
+
+### RPC URL Not Configured
+
+Ensure you have either:
+- `EVM_RPC_URLS_JSON` set (if using evm-wallet-skill)  
+- `AMPED_OC_RPC_URLS_JSON` set (plugin-specific)
 
 ## Testing
 
