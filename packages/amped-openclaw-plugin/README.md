@@ -190,6 +190,71 @@ export SODAX_API_URL=https://canary-api.sodax.com  # or https://api.sodax.com
 export SODAX_API_KEY=your-api-key  # if required
 ```
 
+### 🏦 Bankr Integration (Alternative Wallet Backend)
+
+Instead of using local private keys, you can use [Bankr](https://bankr.bot) as your wallet backend. Bankr manages keys securely and executes transactions on your behalf via their AI Agent API.
+
+#### Why Bankr?
+
+- **No private key exposure** - Keys stay with Bankr, never in your config
+- **Multi-chain support** - Base, Ethereum, Polygon, Solana, and more
+- **Built-in trading features** - DCA, limit orders, stop-loss
+- **Social trading** - Send to ENS, Twitter handles, Farcaster
+
+#### Setup
+
+1. **Create a Bankr account** at [bankr.bot](https://bankr.bot)
+
+2. **Generate an API key** at [bankr.bot/api](https://bankr.bot/api)
+   - Enable **"Agent API"** access on the key
+
+3. **Configure the plugin:**
+
+```bash
+# Set your Bankr API key
+export BANKR_API_KEY=bk_your_api_key_here
+
+# Optionally specify the backend explicitly
+export AMPED_OC_WALLET_BACKEND=bankr
+```
+
+Or via config file (`~/.openclaw/extensions/amped-openclaw/config.json`):
+
+```json
+{
+  "walletBackend": "bankr",
+  "bankrApiKey": "bk_your_api_key_here",
+  "bankrApiUrl": "https://api.bankr.bot"
+}
+```
+
+#### How It Works
+
+When using Bankr backend:
+1. Plugin prepares transaction calldata (approvals, swaps, etc.)
+2. Submits to Bankr Agent API as an execution request
+3. Bankr signs and broadcasts the transaction
+4. Plugin receives transaction hash on completion
+
+#### Important Notes
+
+- **Separate wallet**: Your Bankr wallet address is different from your personal wallets
+- **Check your address**: Run `"What is my wallet address?"` in Bankr terminal
+- **Fund the wallet**: Send ETH/gas tokens to your Bankr wallet before trading
+- **Rate limits**: Agent API may have rate limits depending on your plan
+
+#### Bankr vs Local Keys
+
+| Feature | Local Keys | Bankr |
+|---------|-----------|-------|
+| Key storage | Your machine | Bankr servers |
+| Setup | Configure private key | API key only |
+| Security | You manage keys | Bankr manages keys |
+| Execution | Direct RPC calls | Via Bankr API |
+| Speed | Instant | ~2-45 seconds |
+| Features | Basic tx signing | Full trading suite |
+
+
 ## Quick Start
 
 ```typescript

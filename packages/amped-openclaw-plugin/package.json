@@ -4,6 +4,12 @@
   "description": "Amped OpenClaw plugin for DeFi operations via SODAX SDK",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "openclaw.plugin.json"
+  ],
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
@@ -11,11 +17,21 @@
     "lint": "eslint src --ext .ts",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "prepublishOnly": "npm run build"
   },
   "openclaw": {
     "extensions": ["./src/index.ts"]
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amped-finance/amped-openclaw.git"
+  },
+  "homepage": "https://github.com/amped-finance/amped-openclaw#readme",
+  "bugs": {
+    "url": "https://github.com/amped-finance/amped-openclaw/issues"
+  },
+  "author": "Amped Finance",
   "dependencies": {
     "@sinclair/typebox": "^0.32.0",
     "@sodax/sdk": "1.0.4-beta",
