@@ -1,33 +1,34 @@
 /**
  * Spoke Provider Factory
  *
- * Creates and caches spoke providers per (walletId, chainId) pair.
- * Uses EvmSpokeProvider for EVM chains and SonicSpokeProvider for Sonic hub chain.
+ * Creates and caches wallet providers per (walletId, chainId) pair.
+ * Uses EvmWalletProvider from @sodax/wallet-sdk-core for all EVM chains.
  * 
  * Now integrates with evm-wallet-skill for RPC configuration.
  */
 
-// Import spoke provider constructors from SDK
-// These are the actual constructors for creating spoke providers
-import { 
-  EvmSpokeProvider as EvmSpokeProviderClass, 
-  SonicSpokeProvider as SonicSpokeProviderClass 
-} from '@sodax/wallet-sdk-core';
-
-// Use the imported classes (cast to any for flexibility with SDK version changes)
-const EvmSpokeProvider = EvmSpokeProviderClass as any;
-const SonicSpokeProvider = SonicSpokeProviderClass as any;
+import { EvmWalletProvider } from '@sodax/wallet-sdk-core';
 import { WalletRegistry } from '../wallet/walletRegistry';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
 
-// Type for spoke providers
-type SpokeProvider = EvmSpokeProvider | SonicSpokeProvider;
+// Type for spoke/wallet providers - using the SDK's provider type
+type SpokeProvider = EvmWalletProvider;
 
-// Cache for spoke providers: Map<cacheKey, SpokeProvider>
+// Cache for providers: Map<cacheKey, SpokeProvider>
 const providerCache = new Map<string, SpokeProvider>();
 
-// Sonic hub chain identifier
-const SONIC_CHAIN_ID = 'sonic';
+// Chain ID mapping for SDK (some chains need numeric IDs)
+const CHAIN_ID_MAP: Record<string, string> = {
+  'sonic': 'sonic',
+  'ethereum': 'ethereum',
+  'arbitrum': '0xa4b1.arbitrum',
+  'optimism': '0xa.optimism',
+  'base': '0x2105.base',
+  'polygon': '0x89.polygon',
+  'bsc': '0x38.bsc',
+  'avalanche': '0xa86a.avax',
+  'lightlink': 'lightlink',
+};
 
 /**
  * Get RPC URL for a chain from configuration
@@ -76,13 +77,20 @@ async function getRpcUrl(chainId: string): Promise<string> {
 }
 
 /**
- * Create a new spoke provider for the given wallet and chain
+ * Get the SDK chain ID for a given chain
+ */
+function getSdkChainId(chainId: string): string {
+  return CHAIN_ID_MAP[chainId] || chainId;
+}
+
+/**
+ * Create a new wallet provider for the given wallet and chain
  *
  * @param walletId - The wallet identifier
  * @param chainId - The chain identifier
- * @returns A new spoke provider instance
+ * @returns A new wallet provider instance
  */
-async function createSpokeProvider(
+async function createWalletProvider(
   walletId: string,
   chainId: string
 ): Promise<SpokeProvider> {
@@ -93,76 +101,55 @@ async function createSpokeProvider(
     throw new Error(`Wallet not found: ${walletId}`);
   }
 
-  const rpcUrl = await getRpcUrl(chainId);
-
-  // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
-  if (chainId === SONIC_CHAIN_ID) {
-    console.log('[spokeProviderFactory] Creating SonicSpokeProvider', {
-      walletId,
-      chainId,
-    });
-
-    return new SonicSpokeProvider({
-      rpcUrl,
-      privateKey: wallet.privateKey,
-      address: wallet.address,
-    });
-  } else {
-    console.log('[spokeProviderFactory] Creating EvmSpokeProvider', {
-      walletId,
-      chainId,
-    });
-
-    return new EvmSpokeProvider({
-      rpcUrl,
-      privateKey: wallet.privateKey,
-      address: wallet.address,
-    });
+  if (!wallet.privateKey) {
+    throw new Error(`Wallet ${walletId} has no private key (required for execute mode)`);
   }
+
+  const rpcUrl = await getRpcUrl(chainId);
+  const sdkChainId = getSdkChainId(chainId);
+
+  console.log('[spokeProviderFactory] Creating EvmWalletProvider', {
+    walletId,
+    chainId,
+    sdkChainId,
+  });
+
+  // Create EvmWalletProvider with private key config
+  // SDK expects: { privateKey, chainId, rpcUrl? }
+  return new EvmWalletProvider({
+    privateKey: wallet.privateKey as `0x${string}`,
+    chainId: sdkChainId as any,
+    rpcUrl: rpcUrl as `http${string}`,
+  });
 }
 
 /**
- * Create a raw (address-only) spoke provider for prepare mode
+ * Create a raw (read-only) provider for prepare mode
+ * Note: EvmWalletProvider requires a private key, so for read-only mode
+ * we may need a different approach or throw an error
  *
  * @param walletId - The wallet identifier
  * @param chainId - The chain identifier
- * @returns A new raw spoke provider instance
+ * @returns A wallet provider instance
  */
-async function createRawSpokeProvider(
+async function createRawProvider(
   walletId: string,
   chainId: string
 ): Promise<SpokeProvider> {
-  const walletRegistry = new WalletRegistry();
-  const wallet = await walletRegistry.resolveWallet(walletId);
-
-  if (!wallet) {
-    throw new Error(`Wallet not found: ${walletId}`);
-  }
-
-  const rpcUrl = await getRpcUrl(chainId);
-
-  // Raw mode: address only, no private key
-  if (chainId === SONIC_CHAIN_ID) {
-    return new SonicSpokeProvider({
-      rpcUrl,
-      address: wallet.address,
-    });
-  } else {
-    return new EvmSpokeProvider({
-      rpcUrl,
-      address: wallet.address,
-    });
-  }
+  // For now, raw mode still needs a private key for the SDK
+  // In the future, we could use a read-only viem client instead
+  console.warn('[spokeProviderFactory] Raw mode requested but SDK requires private key');
+  return createWalletProvider(walletId, chainId);
 }
 
 /**
- * Get a spoke provider for the given wallet and chain
+ * Get a spoke/wallet provider for the given wallet and chain
  * Returns cached provider if available, otherwise creates a new one
  *
  * @param walletId - The wallet identifier (used for caching and wallet resolution)
  * @param chainId - The chain identifier
- * @param raw - If true, creates a read-only provider (address-only mode)
- * @returns The spoke provider instance
+ * @param raw - If true, attempts to create a read-only provider (may still require private key)
+ * @returns The wallet provider instance
  */
 export async function getSpokeProvider(
   walletId: string,
@@ -184,8 +171,8 @@ export async function getSpokeProvider(
 
   // Create new provider
   const provider = raw
-    ? await createRawSpokeProvider(walletId, chainId)
-    : await createSpokeProvider(walletId, chainId);
+    ? await createRawProvider(walletId, chainId)
+    : await createWalletProvider(walletId, chainId);
 
   // Cache the provider
   providerCache.set(cacheKey, provider);
@@ -213,4 +200,5 @@ export function getCacheStats(): { size: number; keys: string[] } {
   };
 }
 
-export { SpokeProvider };
+// Export the type for use in other modules
+export type { SpokeProvider };
