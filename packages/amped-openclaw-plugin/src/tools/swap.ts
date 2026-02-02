@@ -151,7 +151,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
       srcToken: params.srcToken,
       dstToken: params.dstToken,
       amount: params.amount,
-      type: params.type,
+      quote_type: params.type,  // SDK expects snake_case
       slippageBps: params.slippageBps
     };
 
