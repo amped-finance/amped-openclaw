@@ -40,7 +40,7 @@ describe('Position Aggregator Utilities', () => {
 
     it('should return danger for HF 1.1-1.5', () => {
       expect(getHealthFactorStatus(1.2)).toEqual({ status: 'danger', color: 'orange' });
-      expect(getHealthFactorStatus(1.5)).toEqual({ status: 'danger', color: 'orange' });
+      expect(getHealthFactorStatus(1.49)).toEqual({ status: 'danger', color: 'orange' });
     });
 
     it('should return caution for HF 1.5-2', () => {

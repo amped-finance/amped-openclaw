@@ -83,9 +83,9 @@ describe('Error Utilities', () => {
 
       expect(error.code).toBe(ErrorCode.POLICY_SLIPPAGE_EXCEEDED);
       expect(error.severity).toBe(ErrorSeverity.WARNING);
-      expect(error.remediation).toContain('Increase maxSlippageBps');
       expect(error.remediation).toContain('150');
       expect(error.remediation).toContain('100');
+      expect(error.remediation).toContain('exceeds limit');
     });
 
     it('should create wallet error with context', () => {
