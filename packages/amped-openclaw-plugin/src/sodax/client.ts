@@ -3,24 +3,25 @@
  *
  * Provides a singleton instance of the SODAX SDK client with lazy initialization support.
  * Handles dynamic configuration if enabled via environment variable.
- * 
+ *
  * NOTE: Partner fee configuration is hardcoded below.
  * Modify PARTNER_ADDRESS and PARTNER_FEE_BPS to set your fee recipient.
  */
 
-import { Sodax } from '@sodax/sdk';
+import { Sodax } from "@sodax/sdk";
 
 // Singleton instance
 let sodaxClient: Sodax | null = null;
 
 /**
  * HARDCODED PARTNER CONFIGURATION
- * 
+ *
  * These values are hardcoded to prevent external configuration.
  * Modify these constants to change the partner fee recipient.
  */
-const PARTNER_ADDRESS: string | undefined = undefined; // Set your partner wallet address here, e.g., '0x1234...'
-const PARTNER_FEE_BPS: number | undefined = undefined; // Set your partner fee in basis points, e.g., 10 = 0.1%
+const PARTNER_ADDRESS: string | undefined =
+  "0xd99C871c8130B03C8BB597A74fb5EAA7a46864Bb"; // Set your partner wallet address here, e.g., '0x1234...'
+const PARTNER_FEE_BPS: number | undefined = 10; // Set your partner fee in basis points, e.g., 10 = 0.1%
 
 /**
  * SODAX SDK Configuration options
@@ -35,7 +36,8 @@ export interface SodaxConfig {
  * If dynamic config is enabled, calls sodax.initialize() to fetch fresh configuration
  */
 async function initializeSodax(config?: SodaxConfig): Promise<Sodax> {
-  const useDynamicConfig = config?.dynamic ?? (process.env.AMPED_OC_SODAX_DYNAMIC_CONFIG === 'true');
+  const useDynamicConfig =
+    config?.dynamic ?? process.env.AMPED_OC_SODAX_DYNAMIC_CONFIG === "true";
 
   // Initialize SODAX with hardcoded partner configuration
   const sodax = new Sodax({
@@ -45,17 +47,17 @@ async function initializeSodax(config?: SodaxConfig): Promise<Sodax> {
 
   // Check if dynamic configuration is enabled
   if (useDynamicConfig) {
-    console.log('[sodax:client] Initializing with dynamic configuration');
+    console.log("[sodax:client] Initializing with dynamic configuration");
     await sodax.initialize();
   } else {
-    console.log('[sodax:client] Using static configuration');
+    console.log("[sodax:client] Using static configuration");
   }
 
   // Log partner configuration if set
   if (PARTNER_ADDRESS) {
-    console.log('[sodax:client] Partner fee recipient configured:', {
+    console.log("[sodax:client] Partner fee recipient configured:", {
       address: PARTNER_ADDRESS,
-      feeBps: PARTNER_FEE_BPS || 'default',
+      feeBps: PARTNER_FEE_BPS || "default",
     });
   }
 
@@ -69,7 +71,9 @@ async function initializeSodax(config?: SodaxConfig): Promise<Sodax> {
  * @param config - Optional SDK configuration
  * @returns The SODAX SDK client instance
  */
-export async function getSodaxClientAsync(config?: SodaxConfig): Promise<Sodax> {
+export async function getSodaxClientAsync(
+  config?: SodaxConfig,
+): Promise<Sodax> {
   if (!sodaxClient) {
     sodaxClient = await initializeSodax(config);
   }
@@ -88,7 +92,7 @@ export function getSodaxClient(): Sodax {
     // For synchronous access, we need to ensure initialization happened
     // This assumes async initialization was done at plugin startup
     throw new Error(
-      'SODAX client not initialized. Call getSodaxClientAsync() first or ensure plugin initialization.'
+      "SODAX client not initialized. Call getSodaxClientAsync() first or ensure plugin initialization.",
     );
   }
   return sodaxClient;

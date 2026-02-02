@@ -64,16 +64,34 @@ export class WalletRegistry {
   }
 
   /**
-   * Resolve a wallet by its ID
+   * Get a wallet by its ID (synchronous version)
+   * Only checks local registry, not skill adapter
+   *
+   * @param walletId - The wallet identifier
+   * @returns The wallet configuration or null if not found
+   */
+  getWallet(walletId: string): WalletEntry | null {
+    const wallet = this.wallets.get(walletId);
+    if (wallet) {
+      return this.validateWallet(wallet, walletId);
+    }
+
+    console.error(`[walletRegistry] Wallet not found: ${walletId}`);
+    return null;
+  }
+
+  /**
+   * Resolve a wallet by its ID (async version)
+   * Checks local registry first, then tries skill adapter
    *
    * @param walletId - The wallet identifier
    * @returns The wallet configuration or null if not found
    */
   async resolveWallet(walletId: string): Promise<WalletEntry | null> {
-    // Try local registry first
-    const wallet = this.wallets.get(walletId);
+    // Try local registry first (synchronous)
+    const wallet = this.getWallet(walletId);
     if (wallet) {
-      return this.validateWallet(wallet, walletId);
+      return wallet;
     }
 
     // Try skill adapter
