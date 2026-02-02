@@ -4,15 +4,27 @@
  * Integrates with the evm-wallet-skill to reuse existing wallet configuration
  * instead of requiring custom AMPED_OC_WALLETS_JSON.
  * 
- * This allows users to:
- * - Use existing wallet setup from evm-wallet-skill
- * - Support multiple wallet types (private key, KMS, hardware)
- * - Leverage existing RPC configuration
+ * Supports multiple wallet sources:
+ * - ~/.evm-wallet.json (evm-wallet-skill default location)
+ * - EVM_WALLETS_JSON environment variable
+ * - WALLET_CONFIG_JSON environment variable
  * 
  * @see https://github.com/surfer77/evm-wallet-skill
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { ErrorCode, AmpedOpenClawError } from '../utils/errors';
+
+// Try to import viem for address derivation
+let privateKeyToAccount: ((key: `0x${string}`) => { address: string }) | null = null;
+try {
+  const viem = require('viem/accounts');
+  privateKeyToAccount = viem.privateKeyToAccount;
+} catch {
+  // viem not available, will use address from config
+}
 
 /**
  * Wallet information from evm-wallet-skill
@@ -48,13 +60,73 @@ export class EvmWalletSkillAdapter {
   }
 
   /**
-   * Load configuration from evm-wallet-skill environment variables
+   * Load configuration from evm-wallet-skill
+   * Checks multiple sources in order:
+   * 1. ~/.evm-wallet.json (evm-wallet-skill default)
+   * 2. EVM_WALLETS_JSON environment variable
+   * 3. WALLET_CONFIG_JSON environment variable
    */
   private loadSkillConfig(): void {
+    // 1. Try ~/.evm-wallet.json first (evm-wallet-skill default location)
+    this.loadEvmWalletFile();
+    
+    // 2. Try environment variables
+    this.loadEnvWallets();
+    
+    // 3. Load RPC URLs from environment
+    this.loadEnvRpcs();
+  }
+
+  /**
+   * Load wallet from ~/.evm-wallet.json (evm-wallet-skill format)
+   */
+  private loadEvmWalletFile(): void {
     try {
-      // Try evm-wallet-skill config formats
+      const walletPath = path.join(os.homedir(), '.evm-wallet.json');
+      
+      if (!fs.existsSync(walletPath)) {
+        return;
+      }
+
+      const content = fs.readFileSync(walletPath, 'utf-8');
+      const walletData = JSON.parse(content);
+
+      // evm-wallet-skill stores: { privateKey: "0x..." } or { privateKey: "0x...", address: "0x..." }
+      if (walletData.privateKey) {
+        let address = walletData.address;
+        
+        // Derive address from private key if not provided
+        if (!address && privateKeyToAccount) {
+          try {
+            const account = privateKeyToAccount(walletData.privateKey as `0x${string}`);
+            address = account.address;
+          } catch (e) {
+            console.warn('[walletAdapter] Failed to derive address from private key');
+          }
+        }
+
+        if (address) {
+          this.skillWallets.set('default', {
+            id: 'default',
+            address,
+            provider: 'privateKey',
+          });
+          // Store private key for later use
+          (this.skillWallets.get('default') as any).privateKey = walletData.privateKey;
+          console.log(`[walletAdapter] Loaded wallet from ~/.evm-wallet.json (${address.slice(0, 8)}...)`);
+        }
+      }
+    } catch (error) {
+      // Silently ignore - file may not exist
+    }
+  }
+
+  /**
+   * Load wallets from environment variables
+   */
+  private loadEnvWallets(): void {
+    try {
       const skillWalletsJson = process.env.EVM_WALLETS_JSON || process.env.WALLET_CONFIG_JSON;
-      const skillRpcsJson = process.env.EVM_RPC_URLS_JSON || process.env.RPC_URLS_JSON;
 
       if (skillWalletsJson) {
         const wallets = JSON.parse(skillWalletsJson);
@@ -79,18 +151,29 @@ export class EvmWalletSkillAdapter {
           });
         }
 
-        console.log(`[walletAdapter] Loaded ${this.skillWallets.size} wallets from evm-wallet-skill`);
+        console.log(`[walletAdapter] Loaded ${this.skillWallets.size} wallets from environment`);
       }
+    } catch (error) {
+      console.warn('[walletAdapter] Failed to parse wallet environment variables:', error);
+    }
+  }
+
+  /**
+   * Load RPC URLs from environment variables
+   */
+  private loadEnvRpcs(): void {
+    try {
+      const skillRpcsJson = process.env.EVM_RPC_URLS_JSON || process.env.RPC_URLS_JSON;
 
       if (skillRpcsJson) {
         const rpcs = JSON.parse(skillRpcsJson);
         Object.entries(rpcs).forEach(([chain, url]) => {
           this.skillRpcs.set(String(chain).toLowerCase(), url as string);
         });
-        console.log(`[walletAdapter] Loaded ${this.skillRpcs.size} RPC URLs from evm-wallet-skill`);
+        console.log(`[walletAdapter] Loaded ${this.skillRpcs.size} RPC URLs from environment`);
       }
     } catch (error) {
-      console.warn('[walletAdapter] Failed to load evm-wallet-skill config:', error);
+      console.warn('[walletAdapter] Failed to parse RPC environment variables:', error);
     }
   }
 
@@ -116,8 +199,41 @@ export class EvmWalletSkillAdapter {
     throw new AmpedOpenClawError(
       ErrorCode.WALLET_NOT_FOUND,
       `Wallet not found: ${walletId || 'default'}`,
-      { remediation: 'Configure EVM_WALLETS_JSON or AMPED_OC_WALLETS_JSON' }
+      { remediation: 'Configure ~/.evm-wallet.json, EVM_WALLETS_JSON, or AMPED_OC_WALLETS_JSON' }
     );
+  }
+
+  /**
+   * Get wallet private key - for signing transactions
+   */
+  async getPrivateKey(walletId?: string): Promise<string | null> {
+    // Try skill wallets
+    if (this.skillWallets.size > 0) {
+      const wallet = this.skillWallets.get(walletId || 'default') || 
+                     Array.from(this.skillWallets.values())[0];
+      if (wallet && (wallet as any).privateKey) {
+        return (wallet as any).privateKey;
+      }
+    }
+
+    // Fallback to AMPED_OC_WALLETS_JSON
+    const legacy = process.env.AMPED_OC_WALLETS_JSON;
+    if (legacy) {
+      const config = JSON.parse(legacy);
+      const wallet = config[walletId || 'main'] || config.default || Object.values(config)[0];
+      if (wallet?.privateKey) return wallet.privateKey;
+    }
+
+    return null;
+  }
+
+  /**
+   * Get full wallet config (address + privateKey if available)
+   */
+  async getWalletConfig(walletId?: string): Promise<{ address: string; privateKey?: string }> {
+    const address = await this.getWalletAddress(walletId);
+    const privateKey = await this.getPrivateKey(walletId);
+    return { address, privateKey: privateKey || undefined };
   }
 
   /**

@@ -99,16 +99,15 @@ export class WalletRegistry {
       return wallet;
     }
 
-    // Try skill adapter
+    // Try skill adapter (includes ~/.evm-wallet.json)
     if (this.skillAdapter.isUsingSkillWallets()) {
       try {
-        const address = await this.skillAdapter.getWalletAddress(walletId);
+        const config = await this.skillAdapter.getWalletConfig(walletId);
         const mode = this.getMode();
         
-        // For skill wallets in execute mode, we assume the skill handles signing
-        // and we only need the address for our operations
         return {
-          address,
+          address: config.address,
+          privateKey: config.privateKey,
           mode,
         };
       } catch (error) {
