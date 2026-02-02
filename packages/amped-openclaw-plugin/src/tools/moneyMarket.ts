@@ -24,6 +24,7 @@ import { getSpokeProvider } from "../providers/spokeProviderFactory";
 import { PolicyEngine } from "../policy/policyEngine";
 import { getWalletRegistry, WalletRegistry } from "../wallet/walletRegistry";
 import { AgentTools } from "../types";
+import { serializeError } from '../utils/errorUtils';
 
 // ============================================================================
 // TypeBox Schemas
@@ -482,7 +483,7 @@ async function handleSupply(
 
     // Handle Result type from SDK
     if (supplyResult.ok === false) {
-      throw new Error(`Supply failed: ${supplyResult.error}`);
+      throw new Error(`Supply failed: ${serializeError(supplyResult.error)}`);
     }
     
     const value = supplyResult.ok ? supplyResult.value : supplyResult;
@@ -586,7 +587,7 @@ async function handleWithdraw(
 
     // Handle Result type from SDK
     if (withdrawResult.ok === false) {
-      throw new Error(`Withdraw failed: ${withdrawResult.error}`);
+      throw new Error(`Withdraw failed: ${serializeError(withdrawResult.error)}`);
     }
     
     const value = withdrawResult.ok ? withdrawResult.value : withdrawResult;
@@ -705,7 +706,7 @@ async function handleBorrow(
 
     // Handle Result type from SDK
     if (borrowResult.ok === false) {
-      throw new Error(`Borrow failed: ${borrowResult.error}`);
+      throw new Error(`Borrow failed: ${serializeError(borrowResult.error)}`);
     }
     
     const value = borrowResult.ok ? borrowResult.value : borrowResult;
@@ -817,7 +818,7 @@ async function handleRepay(
 
     // Handle Result type from SDK
     if (repayResult.ok === false) {
-      throw new Error(`Repay failed: ${repayResult.error}`);
+      throw new Error(`Repay failed: ${serializeError(repayResult.error)}`);
     }
     
     const value = repayResult.ok ? repayResult.value : repayResult;

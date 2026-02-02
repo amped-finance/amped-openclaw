@@ -7,6 +7,10 @@ module.exports = {
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
+  // Transform ESM modules from @sodax packages
+  transformIgnorePatterns: [
+    'node_modules/(?!(@sodax)/)',
+  ],
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
   collectCoverageFrom: [
     'src/**/*.ts',
@@ -23,6 +27,9 @@ module.exports = {
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^@sodax/sdk$': '<rootDir>/src/__mocks__/@sodax/sdk.ts',
+    '^@sodax/types$': '<rootDir>/src/__mocks__/@sodax/sdk.ts',
+    '^@sodax/wallet-sdk-core$': '<rootDir>/src/__mocks__/@sodax/sdk.ts',
   },
   verbose: true,
 };

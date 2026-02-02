@@ -271,7 +271,7 @@ export function wrapError(
 function getPolicyRemediation(code: ErrorCode, details?: Record<string, unknown>): string {
   switch (code) {
     case ErrorCode.POLICY_SLIPPAGE_EXCEEDED:
-      return `Increase maxSlippageBps in your policy configuration (current limit: ${details?.limit} bps) or wait for better market conditions.`;
+      return `Slippage ${details?.current} bps exceeds limit of ${details?.limit} bps. Increase maxSlippageBps in your policy configuration or wait for better market conditions.`;
     case ErrorCode.POLICY_SPEND_LIMIT_EXCEEDED:
       return `Reduce the operation amount or request a policy limit increase. Current limit: ${details?.limit}`;
     case ErrorCode.POLICY_CHAIN_NOT_ALLOWED:

@@ -9,6 +9,7 @@
  */
 
 import { Static, Type } from '@sinclair/typebox';
+import { serializeError } from '../utils/errorUtils';
 // SDK types - using any for now due to beta API changes
 import { Intent } from '@sodax/sdk';
 type QuoteRequest = any;
@@ -169,7 +170,12 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     
     // Handle Result type from SDK
     if (quoteResult.ok === false) {
-      throw new Error(`Quote failed: ${quoteResult.error}`);
+      const errorMsg = quoteResult.error instanceof Error 
+        ? quoteResult.error.message 
+        : typeof quoteResult.error === 'string' 
+          ? quoteResult.error 
+          : JSON.stringify(quoteResult.error, null, 2);
+      throw new Error(`Quote failed: ${errorMsg}`);
     }
     
     const quote = quoteResult.ok ? quoteResult.value : quoteResult;
@@ -345,7 +351,12 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     
     // Handle Result type from SDK
     if (swapResult.ok === false) {
-      throw new Error(`Swap failed: ${swapResult.error}`);
+      const errorMsg = swapResult.error instanceof Error 
+        ? swapResult.error.message 
+        : typeof swapResult.error === 'string' 
+          ? swapResult.error 
+          : JSON.stringify(swapResult.error, null, 2);
+      throw new Error(`Swap failed: ${errorMsg}`);
     }
     
     const value = swapResult.ok ? swapResult.value : swapResult;
@@ -510,7 +521,7 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
     
     // Handle Result type
     if (cancelResult.ok === false) {
-      throw new Error(`Cancel failed: ${cancelResult.error}`);
+      throw new Error(`Cancel failed: ${serializeError(cancelResult.error)}`);
     }
     
     const cancelTx = cancelResult.ok ? cancelResult.value : cancelResult;
