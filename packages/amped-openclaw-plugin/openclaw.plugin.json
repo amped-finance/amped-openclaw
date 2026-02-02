@@ -1,0 +1,10 @@
+{
+  "id": "amped-openclaw",
+  "name": "Amped OpenClaw",
+  "version": "1.0.0",
+  "description": "DeFi operations plugin for swaps, bridging, and money market via SODAX SDK",
+  "entry": "dist/index.js",
+  "skills": [
+    "../../skills/amped-openclaw"
+  ]
+}
