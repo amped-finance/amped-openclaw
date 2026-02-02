@@ -27,6 +27,25 @@ try {
 }
 
 /**
+ * Default public RPC URLs for SODAX-supported chains
+ * These are used when no custom RPCs are configured
+ */
+const DEFAULT_RPCS: Record<string, string> = {
+  // SODAX supported spoke chains
+  ethereum: 'https://eth.llamarpc.com',
+  arbitrum: 'https://arb1.arbitrum.io/rpc',
+  base: 'https://mainnet.base.org',
+  optimism: 'https://mainnet.optimism.io',
+  avalanche: 'https://api.avax.network/ext/bc/C/rpc',
+  bsc: 'https://bsc-dataseed.binance.org',
+  polygon: 'https://polygon-rpc.com',
+  // Sonic hub chain
+  sonic: 'https://rpc.soniclabs.com',
+  // Additional chains (may not be SODAX-supported but useful)
+  lightlink: 'https://replicator.phoenix.lightlink.io/rpc/v1',
+};
+
+/**
  * Wallet information from evm-wallet-skill
  */
 export interface EvmWalletInfo {
@@ -159,22 +178,32 @@ export class EvmWalletSkillAdapter {
   }
 
   /**
-   * Load RPC URLs from environment variables
+   * Load RPC URLs - uses defaults, then overrides with environment variables
    */
   private loadEnvRpcs(): void {
+    // Start with default RPCs
+    Object.entries(DEFAULT_RPCS).forEach(([chain, url]) => {
+      this.skillRpcs.set(chain.toLowerCase(), url);
+    });
+
+    // Override with environment variables if provided
     try {
-      const skillRpcsJson = process.env.EVM_RPC_URLS_JSON || process.env.RPC_URLS_JSON;
+      const skillRpcsJson = process.env.AMPED_OC_RPC_URLS_JSON || 
+                            process.env.EVM_RPC_URLS_JSON || 
+                            process.env.RPC_URLS_JSON;
 
       if (skillRpcsJson) {
         const rpcs = JSON.parse(skillRpcsJson);
         Object.entries(rpcs).forEach(([chain, url]) => {
           this.skillRpcs.set(String(chain).toLowerCase(), url as string);
         });
-        console.log(`[walletAdapter] Loaded ${this.skillRpcs.size} RPC URLs from environment`);
+        console.log(`[walletAdapter] Custom RPC URLs configured for: ${Object.keys(rpcs).join(', ')}`);
       }
     } catch (error) {
       console.warn('[walletAdapter] Failed to parse RPC environment variables:', error);
     }
+
+    console.log(`[walletAdapter] ${this.skillRpcs.size} RPC URLs available (includes defaults)`);
   }
 
   /**

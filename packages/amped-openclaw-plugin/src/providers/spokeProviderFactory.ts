@@ -51,41 +51,9 @@ const CHAIN_ID_MAP: Record<string, SpokeChainId> = {
  * @throws Error if RPC URL is not configured for the chain
  */
 async function getRpcUrl(chainId: string): Promise<string> {
-  // Try skill adapter first
+  // Use skill adapter which has default RPCs baked in
   const skillAdapter = getWalletAdapter();
-  if (skillAdapter.isUsingSkillRpcs()) {
-    try {
-      return await skillAdapter.getRpcUrl(chainId);
-    } catch {
-      // Fall through to legacy config
-    }
-  }
-
-  // Fallback to AMPED_OC_RPC_URLS_JSON
-  const rpcUrlsJson = process.env.AMPED_OC_RPC_URLS_JSON;
-
-  if (!rpcUrlsJson) {
-    throw new Error(
-      'RPC URL not configured. Set EVM_RPC_URLS_JSON (via evm-wallet-skill) ' +
-        'or AMPED_OC_RPC_URLS_JSON environment variable.'
-    );
-  }
-
-  try {
-    const rpcUrls = JSON.parse(rpcUrlsJson) as Record<string, string>;
-    const rpcUrl = rpcUrls[chainId];
-
-    if (!rpcUrl) {
-      throw new Error(`RPC URL not configured for chain: ${chainId}`);
-    }
-
-    return rpcUrl;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in AMPED_OC_RPC_URLS_JSON: ${error.message}`);
-    }
-    throw error;
-  }
+  return await skillAdapter.getRpcUrl(chainId);
 }
 
 /**
