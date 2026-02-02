@@ -13,8 +13,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
-  "pi": {
-    "extensions": ["./dist/index.js"]
+  "openclaw": {
+    "extensions": ["./src/index.ts"]
   },
   "dependencies": {
     "@sinclair/typebox": "^0.32.0",
