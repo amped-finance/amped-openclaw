@@ -144,16 +144,26 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
   try {
     const sodaxClient = getSodaxClient();
     
-    const quoteRequest: QuoteRequest = {
-      walletId: params.walletId,
-      srcChainId: params.srcChainId,
-      dstChainId: params.dstChainId,
-      srcToken: params.srcToken,
-      dstToken: params.dstToken,
-      amount: params.amount,
-      quote_type: params.type,  // SDK expects snake_case
-      slippageBps: params.slippageBps
+    // Get token config to determine decimals for amount conversion
+    const configService = (sodaxClient as any).configService;
+    const tokenConfig = configService?.getTokenConfig?.(params.srcChainId, params.srcToken);
+    const decimals = tokenConfig?.decimals ?? 6; // Default to 6 (USDC) if not found
+    
+    // Convert human-readable amount to raw amount (bigint)
+    const amountFloat = parseFloat(params.amount);
+    const rawAmount = BigInt(Math.floor(amountFloat * Math.pow(10, decimals)));
+    
+    // Build SDK-compatible request with snake_case parameters
+    const quoteRequest = {
+      token_src: params.srcToken,
+      token_src_blockchain_id: params.srcChainId,
+      token_dst: params.dstToken,
+      token_dst_blockchain_id: params.dstChainId,
+      amount: rawAmount,
+      quote_type: params.type
     };
+    
+    console.log('[swap_quote] SDK request:', JSON.stringify(quoteRequest, (k, v) => typeof v === 'bigint' ? v.toString() : v));
 
     const quoteResult = await (sodaxClient as any).swaps.getQuote(quoteRequest);
     
