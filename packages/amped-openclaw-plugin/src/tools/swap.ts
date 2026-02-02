@@ -204,7 +204,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
       minOutputAmount: quote.min_output_amount || quote.minOutputAmount,
       maxInputAmount: quote.max_input_amount || quote.maxInputAmount,
       // Include raw SDK response for debugging
-      _raw: quote
+      _raw: JSON.parse(JSON.stringify(quote, (k, v) => typeof v === 'bigint' ? v.toString() : v))
     };
     
     logStructured({
