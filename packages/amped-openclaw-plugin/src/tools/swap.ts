@@ -174,23 +174,37 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     
     const quote = quoteResult.ok ? quoteResult.value : quoteResult;
     
-    // Normalize and return quote
+    console.log('[swap_quote] SDK response:', JSON.stringify(quote, (k, v) => typeof v === 'bigint' ? v.toString() : v));
+    
+    // Get token config for output decimal conversion
+    const dstTokenConfig = (sodaxClient as any).configService?.getTokenConfig?.(params.dstChainId, params.dstToken);
+    const dstDecimals = dstTokenConfig?.decimals ?? 6;
+    
+    // SDK returns quoted_amount as bigint - convert to human-readable string
+    const quotedAmount = quote.quoted_amount || quote.quotedAmount || quote.outputAmount;
+    const outputAmountStr = quotedAmount 
+      ? (Number(quotedAmount) / Math.pow(10, dstDecimals)).toString()
+      : '0';
+    
+    // Normalize and return quote (SDK uses snake_case, we return camelCase)
     const result = {
-      inputAmount: quote.inputAmount || params.amount,
-      outputAmount: quote.outputAmount || '0',
-      srcToken: quote.srcToken || params.srcToken,
-      dstToken: quote.dstToken || params.dstToken,
-      srcChainId: quote.srcChainId || params.srcChainId,
-      dstChainId: quote.dstChainId || params.dstChainId,
+      inputAmount: params.amount,
+      outputAmount: outputAmountStr,
+      srcToken: params.srcToken,
+      dstToken: params.dstToken,
+      srcChainId: params.srcChainId,
+      dstChainId: params.dstChainId,
       slippageBps: params.slippageBps,
       deadline: quote.deadline || calculateDeadline(300), // 5 min default
       fees: {
-        solverFee: quote.fees?.solverFee || '0',
-        protocolFee: quote.fees?.protocolFee,
-        partnerFee: quote.fees?.partnerFee
+        solverFee: quote.solver_fee || quote.fees?.solverFee || '0',
+        protocolFee: quote.protocol_fee || quote.fees?.protocolFee,
+        partnerFee: quote.partner_fee || quote.fees?.partnerFee
       },
-      minOutputAmount: quote.minOutputAmount,
-      maxInputAmount: quote.maxInputAmount
+      minOutputAmount: quote.min_output_amount || quote.minOutputAmount,
+      maxInputAmount: quote.max_input_amount || quote.maxInputAmount,
+      // Include raw SDK response for debugging
+      _raw: quote
     };
     
     logStructured({
