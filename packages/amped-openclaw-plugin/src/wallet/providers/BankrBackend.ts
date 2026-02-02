@@ -25,6 +25,19 @@ import type {
 import { resolveChainId } from './chainConfig';
 
 /**
+ * Serialize error objects for readable error messages
+ */
+function serializeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error, null, 2);
+  } catch {
+    return String(error);
+  }
+}
+
+/**
  * Bankr Agent API response types
  */
 interface BankrJobSubmitResponse {
@@ -140,7 +153,7 @@ export class BankrBackend implements IWalletBackend {
     const txHash = this.extractTransactionHash(result);
     
     if (!txHash) {
-      throw new Error(`[BankrBackend] Transaction failed: ${result.response || result.error || 'Unknown error'}`);
+      throw new Error(`[BankrBackend] Transaction failed: ${serializeError(result.response || result.error) || 'Unknown error'}`);
     }
 
     console.log(`[BankrBackend] Transaction hash: ${txHash}`);
@@ -262,7 +275,7 @@ export class BankrBackend implements IWalletBackend {
         case 'completed':
           return result;
         case 'failed':
-          throw new Error(`[BankrBackend] Job failed: ${result.error || 'Unknown error'}`);
+          throw new Error(`[BankrBackend] Job failed: ${serializeError(result.error) || 'Unknown error'}`);
         case 'cancelled':
           throw new Error(`[BankrBackend] Job was cancelled`);
         case 'pending':

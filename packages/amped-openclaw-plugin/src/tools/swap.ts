@@ -9,6 +9,7 @@
  */
 
 import { Static, Type } from '@sinclair/typebox';
+import { serializeError } from '../utils/errorUtils';
 // SDK types - using any for now due to beta API changes
 import { Intent } from '@sodax/sdk';
 type QuoteRequest = any;
@@ -520,7 +521,7 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
     
     // Handle Result type
     if (cancelResult.ok === false) {
-      throw new Error(`Cancel failed: ${cancelResult.error}`);
+      throw new Error(`Cancel failed: ${serializeError(cancelResult.error)}`);
     }
     
     const cancelTx = cancelResult.ok ? cancelResult.value : cancelResult;

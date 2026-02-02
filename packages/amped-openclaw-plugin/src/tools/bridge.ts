@@ -15,6 +15,7 @@ import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
+import { serializeError } from '../utils/errorUtils';
 
 // ============================================================================
 // TypeBox Schemas
@@ -144,7 +145,7 @@ async function handleBridgeDiscover(
 
     // Handle Result type - SDK returns Result<XToken[], unknown>
     if (!result.ok) {
-      throw new Error(`Failed to get bridgeable tokens: ${(result as any).error || 'Unknown error'}`);
+      throw new Error(`Failed to get bridgeable tokens: ${serializeError((result as any).error) || 'Unknown error'}`);
     }
 
     const tokens = result.value;
@@ -406,7 +407,7 @@ async function handleBridgeExecute(
 
     // Handle Result type from SDK
     if (result.ok === false) {
-      throw new Error(`Bridge failed: ${result.error}`);
+      throw new Error(`Bridge failed: ${serializeError(result.error)}`);
     }
 
     // SODAX bridge returns Result<[spokeTxHash, hubTxHash], Error>
