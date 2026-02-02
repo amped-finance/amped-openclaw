@@ -44,3 +44,4 @@ temp/
 # Cache
 .cache/
 .eslintcache
+.ralph-tui/

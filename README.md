@@ -1,5 +1,6 @@
 # Amped OpenClaw
 
+[![npm version](https://img.shields.io/npm/v/amped-openclaw.svg)](https://www.npmjs.com/package/amped-openclaw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
@@ -16,20 +17,10 @@ DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cro
 ## Quick Install
 
 ```bash
-# Clone the repo
-git clone https://github.com/amped-finance/amped-openclaw.git
-cd amped-openclaw/packages/amped-openclaw-plugin
-
-# Install in OpenClaw
-openclaw plugins install .
-
-# Install dependencies
-cd ~/.openclaw/extensions/amped-openclaw
-npm install
-
-# Verify (should show "Amped DeFi" as loaded)
-openclaw plugins list
+openclaw plugins install amped-openclaw
 ```
+
+Verify with `openclaw plugins list` — you should see "Amped DeFi" as loaded.
 
 ## Prerequisites
 
@@ -98,17 +89,8 @@ Your collateral stays on the source chain while borrowed tokens arrive on the de
 ## Updating
 
 ```bash
-cd /path/to/amped-openclaw
-git pull
-
-# Remove old extension and reinstall
-rm -rf ~/.openclaw/extensions/amped-openclaw
-cd packages/amped-openclaw-plugin
-openclaw plugins install .
-
-# Install updated dependencies
-cd ~/.openclaw/extensions/amped-openclaw
-npm install
+openclaw plugins uninstall amped-openclaw
+openclaw plugins install amped-openclaw
 ```
 
 ## Uninstalling

@@ -1,6 +1,6 @@
 # Amped OpenClaw Plugin
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/amped-finance/amped-openclaw)
+[![npm version](https://img.shields.io/npm/v/amped-openclaw.svg)](https://www.npmjs.com/package/amped-openclaw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
@@ -41,41 +41,14 @@ DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cro
 ### Quick Install
 
 ```bash
-# Clone the repository
-git clone https://github.com/amped-finance/amped-openclaw.git
-cd amped-openclaw/packages/amped-openclaw-plugin
-
-# Install in OpenClaw
-openclaw plugins install .
-
-# Install dependencies in the extension directory
-cd ~/.openclaw/extensions/amped-openclaw
-npm install
-
-# Verify
-openclaw plugins list
+openclaw plugins install amped-openclaw
 ```
 
-### Detailed Steps
+Verify with `openclaw plugins list`.
 
-#### 1. Clone the Repository
+### Install from Source
 
-```bash
-git clone https://github.com/amped-finance/amped-openclaw.git
-cd amped-openclaw/packages/amped-openclaw-plugin
-```
-
-#### 2. Install Plugin in OpenClaw
-
-```bash
-openclaw plugins install .
-```
-
-This copies the plugin source to `~/.openclaw/extensions/amped-openclaw/`.
-
-#### 3. Install Dependencies
-
-OpenClaw copies the source files but not `node_modules`. Install dependencies in the extension directory:
+If you prefer installing from source:
 
 ```bash
 cd ~/.openclaw/extensions/amped-openclaw
@@ -102,17 +75,8 @@ You should see tools like:
 ### Updating the Plugin
 
 ```bash
-# Pull latest source
-cd /path/to/amped-openclaw
-git pull
-
-# Reinstall
-cd packages/amped-openclaw-plugin
-openclaw plugins install .
-
-# Update dependencies
-cd ~/.openclaw/extensions/amped-openclaw
-npm install
+openclaw plugins uninstall amped-openclaw
+openclaw plugins install amped-openclaw
 ```
 
 ### Uninstalling
