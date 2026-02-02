@@ -45,57 +45,50 @@ DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cro
 git clone https://github.com/amped-finance/amped-openclaw.git
 cd amped-openclaw/packages/amped-openclaw-plugin
 
-# Install dependencies and build
-npm install
-npm run build
-
 # Install in OpenClaw
 openclaw plugins install .
+
+# Install dependencies in the extension directory
+cd ~/.openclaw/extensions/amped-openclaw
+npm install
+
+# Verify
+openclaw plugins list
 ```
 
 ### Detailed Steps
 
-#### 1. Clone and Build
+#### 1. Clone the Repository
 
 ```bash
-# Clone the repository
 git clone https://github.com/amped-finance/amped-openclaw.git
-
-# Navigate to the plugin directory
 cd amped-openclaw/packages/amped-openclaw-plugin
-
-# Install dependencies (this also installs SODAX SDK)
-npm install
-
-# Build the TypeScript
-npm run build
-```
-
-**Verify the build:**
-```bash
-ls dist/index.js  # Must exist for OpenClaw to load the plugin
 ```
 
 #### 2. Install Plugin in OpenClaw
-
-From inside the `packages/amped-openclaw-plugin` directory:
 
 ```bash
 openclaw plugins install .
 ```
 
-Or from any directory using the full path:
+This copies the plugin source to `~/.openclaw/extensions/amped-openclaw/`.
+
+#### 3. Install Dependencies
+
+OpenClaw copies the source files but not `node_modules`. Install dependencies in the extension directory:
+
 ```bash
-openclaw plugins install /path/to/amped-openclaw/packages/amped-openclaw-plugin
+cd ~/.openclaw/extensions/amped-openclaw
+npm install
 ```
 
-#### 3. Verify Installation
+#### 4. Verify Installation
 
 ```bash
 # List loaded plugins
 openclaw plugins list
 
-# Check for amped tools
+# Check for amped tools (should see 18 tools)
 openclaw tools list | grep amped_oc
 ```
 
@@ -103,22 +96,46 @@ You should see tools like:
 - `amped_oc_supported_chains`
 - `amped_oc_swap_quote`
 - `amped_oc_mm_supply`
+- `amped_oc_cross_chain_positions`
 - etc.
 
 ### Updating the Plugin
 
 ```bash
-cd amped-openclaw/packages/amped-openclaw-plugin
+# Pull latest source
+cd /path/to/amped-openclaw
 git pull
-npm install
-npm run build
+
+# Reinstall
+cd packages/amped-openclaw-plugin
 openclaw plugins install .
+
+# Update dependencies
+cd ~/.openclaw/extensions/amped-openclaw
+npm install
 ```
 
 ### Uninstalling
 
 ```bash
 openclaw plugins uninstall amped-openclaw
+```
+
+### Troubleshooting Installation
+
+**"Cannot find module 'viem'" or similar errors:**
+```bash
+cd ~/.openclaw/extensions/amped-openclaw
+npm install
+```
+
+**"plugin not found" after uninstall:**
+Edit `~/.openclaw/openclaw.json` and remove the `amped-openclaw` entry from `plugins.entries`.
+
+**Plugin not loading:**
+Check OpenClaw logs for errors:
+```bash
+tail -f ~/.openclaw/logs/openclaw.log
 ```
 
 ## Configuration
@@ -432,11 +449,11 @@ try {
 **Issue:** Tools not showing up in `openclaw tools list`
 
 **Solutions:**
-1. Verify `dist/index.js` exists:
+1. Ensure dependencies are installed in the extension directory:
    ```bash
-   ls -la dist/index.js
+   cd ~/.openclaw/extensions/amped-openclaw
+   npm install
    ```
-   If not, run `npm run build`
 
 2. Check OpenClaw config has the plugin enabled:
    ```yaml
@@ -446,22 +463,25 @@ try {
          enabled: true
    ```
 
-3. Restart the gateway:
+3. Check OpenClaw logs for errors:
    ```bash
-   openclaw gateway restart
+   tail -100 ~/.openclaw/logs/openclaw.log
    ```
 
-4. Check OpenClaw logs for errors:
-   ```bash
-   openclaw logs
-   ```
+### "Cannot find module" Errors
 
-### "dist/index.js not found" Error
-
-The plugin must be built before installing:
+This means dependencies weren't installed in the extension directory:
 ```bash
+cd ~/.openclaw/extensions/amped-openclaw
 npm install
-npm run build
+```
+
+### "plugin not found" After Uninstall
+
+Edit `~/.openclaw/openclaw.json` and remove the stale entry:
+```bash
+# Remove the amped-openclaw entry from plugins.entries
+nano ~/.openclaw/openclaw.json
 ```
 
 ### Wallet Not Found Errors
@@ -469,12 +489,14 @@ npm run build
 Ensure you have either:
 - `EVM_WALLETS_JSON` set (if using evm-wallet-skill)
 - `AMPED_OC_WALLETS_JSON` set (plugin-specific)
+- Or configure via OpenClaw plugin settings
 
 ### RPC URL Not Configured
 
 Ensure you have either:
 - `EVM_RPC_URLS_JSON` set (if using evm-wallet-skill)  
 - `AMPED_OC_RPC_URLS_JSON` set (plugin-specific)
+- Or configure via OpenClaw plugin settings
 
 ## Testing
 
