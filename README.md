@@ -33,11 +33,25 @@ The plugin automatically detects wallets from multiple sources (in order):
 
 ### Option 1: evm-wallet-skill (Recommended)
 
-If you use [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill), wallet is auto-detected from `~/.evm-wallet.json`.
+Install our enhanced [evm-wallet-skill](https://github.com/amped-finance/evm-wallet-skill) with support for all SODAX chains:
 
 ```bash
-# evm-wallet-skill stores wallet here automatically
-cat ~/.evm-wallet.json
+# Install via clawdhub
+clawdhub install amped-finance/evm-wallet-skill
+
+# Or clone directly
+git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill
+cd ~/.openclaw/skills/evm-wallet-skill && npm install
+```
+
+The plugin auto-detects wallets from `~/.evm-wallet.json`.
+
+**Supported chains:** Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, and more.
+
+**Add custom chains:**
+```bash
+# Ask your agent to add a chain, or run directly:
+node src/add-chain.js berachain 80094 https://rpc.berachain.com --native-token BERA
 ```
 
 ### Option 2: Bankr
