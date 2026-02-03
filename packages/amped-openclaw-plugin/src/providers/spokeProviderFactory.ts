@@ -28,7 +28,7 @@ import {
 // Import chain configuration from types
 import { spokeChainConfig, type SpokeChainId } from '@sodax/types';
 
-import { WalletRegistry } from '../wallet/walletRegistry';
+import { getWalletManager } from '../wallet/walletManager';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
 
 // Cache for providers: Map<cacheKey, SpokeProvider>
@@ -85,8 +85,8 @@ async function createLocalKeySpokeProvider(
   walletId: string,
   chainId: string
 ): Promise<SpokeProvider> {
-  const walletRegistry = new WalletRegistry();
-  const wallet = await walletRegistry.resolveWallet(walletId);
+  const walletManager = getWalletManager();
+  const wallet = await walletManager.resolve(walletId);
 
   if (!wallet) {
     throw new Error(`Wallet not found: ${walletId}`);

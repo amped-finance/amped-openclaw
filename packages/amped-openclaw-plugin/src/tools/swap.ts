@@ -18,7 +18,7 @@ type IntentStatus = any;
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
-import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
+import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 
@@ -257,7 +257,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
   try {
     // 1. Initialize dependencies
     const policyEngine = new PolicyEngine();
-    const walletRegistry = getWalletRegistry();
+    const walletManager = getWalletManager();
     const sodaxClient = getSodaxClient();
     
     // Resolve token symbols to addresses
@@ -269,7 +269,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const dstTokenInfo = await getTokenInfo(params.quote.dstChainId, dstTokenAddr);
     
     // 2. Resolve wallet
-    const wallet = await walletRegistry.resolveWallet(params.walletId);
+    const wallet = await walletManager.resolve(params.walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${params.walletId}`);
     }
@@ -504,7 +504,7 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
   const startTime = Date.now();
   
   try {
-    const walletRegistry = getWalletRegistry();
+    const walletManager = getWalletManager();
     const sodaxClient = getSodaxClient();
     
     // Resolve token symbols to addresses
@@ -516,7 +516,7 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
     const dstTokenInfo = await getTokenInfo(params.intent.dstChainId, dstTokenAddr);
     
     // Resolve wallet
-    const wallet = await walletRegistry.resolveWallet(params.walletId);
+    const wallet = await walletManager.resolve(params.walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${params.walletId}`);
     }

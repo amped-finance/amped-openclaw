@@ -37,6 +37,7 @@ interface OpenClawPluginApi {
 import { getSodaxClientAsync, resetSodaxClient } from './sodax/client';
 import { getCacheStats } from './providers/spokeProviderFactory';
 import { PolicyEngine } from './policy/policyEngine';
+import { getWalletManager } from './wallet/walletManager';
 import { getWalletRegistry } from './wallet/walletRegistry';
 
 // Tool schemas and handlers
@@ -162,8 +163,8 @@ export default {
         const policyEngine = new PolicyEngine();
         console.log(`[AmpedOpenClaw] Policy engine loaded (${policyEngine.getAvailablePolicies().length} policies)`);
         
-        const walletRegistry = getWalletRegistry();
-        const walletIds = walletRegistry.getWalletIds();
+        const walletManager = getWalletManager();
+        const walletIds = walletManager.getAvailableWalletIds();
         console.log(`[AmpedOpenClaw] Wallet registry loaded (${walletIds.length} wallets)`);
         if (walletIds.length > 0) {
           console.log(`[AmpedOpenClaw] Available wallets: ${walletIds.join(', ')}`);
@@ -327,6 +328,7 @@ export type { SpokeProvider } from './providers/spokeProviderFactory';
 export { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/sdk';
 export { PolicyEngine } from './policy/policyEngine';
 export { WalletRegistry, getWalletRegistry } from './wallet/walletRegistry';
+export { WalletManager, getWalletManager, resetWalletManager, type ResolvedWallet, type WalletSource, type ChainType } from './wallet/walletManager';
 
 // Legacy exports for backward compatibility
 export async function activate() {

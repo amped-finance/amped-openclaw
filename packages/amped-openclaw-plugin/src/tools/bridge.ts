@@ -14,7 +14,7 @@ import { AgentTools, BridgeOperation } from '../types';
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
-import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
+import { getWalletManager } from '../wallet/walletManager';
 import { serializeError } from '../utils/errorUtils';
 import { resolveToken } from '../utils/tokenResolver';
 
@@ -317,10 +317,10 @@ async function handleBridgeExecute(
   try {
     const sodax = getSodaxClient();
     const policyEngine = new PolicyEngine();
-    const walletRegistry = getWalletRegistry();
+    const walletManager = getWalletManager();
 
     // Step 1: Resolve wallet
-    const wallet = await walletRegistry.resolveWallet(walletId);
+    const wallet = await walletManager.resolve(walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${walletId}`);
     }

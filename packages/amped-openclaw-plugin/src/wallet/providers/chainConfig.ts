@@ -3,11 +3,9 @@
  *
  * Complete chain configuration for all SODAX-supported EVM chains.
  * 
- * Note: As of SDK 1.1.0-beta-rc2, @sodax/wallet-sdk-core now includes
- * LightLink, HyperEVM, and Kaia. We maintain our own config for:
- * - Type compatibility (avoid viem version mismatches)
- * - RPC URL customization
- * - SDK-format chain ID resolution
+ * Note: We maintain our own chain definitions to avoid viem version
+ * mismatches with @sodax/wallet-sdk-core. The SDK's getEvmViemChain()
+ * is used as a fallback for future chain additions.
  */
 
 import { defineChain, type Chain } from 'viem';
