@@ -1,18 +1,26 @@
 /**
- * Bankr Backend
- * 
- * Wallet backend implementation using Bankr's Agent API.
- * 
- * Instead of signing transactions locally, this backend:
- * 1. Formats transaction as a natural language prompt
- * 2. Submits to Bankr Agent API
- * 3. Polls for job completion
- * 4. Extracts transaction hash from response
- * 
- * This allows agents with Bankr-provisioned wallets to execute
- * DeFi operations through Amped without exposing private keys.
- * 
- * @see https://github.com/BankrBot/openclaw-skills/blob/main/bankr/references/api-workflow.md
+ * Bankr Backend - Transaction Execution Layer
+ *
+ * CRITICAL: This backend is for EXECUTION ONLY, not routing.
+ *
+ * Architecture:
+ *   SODAX SDK (routing) → BankrBackend (execution) → Blockchain
+ *
+ * What Bankr DOES:
+ *   ✓ Signs the pre-computed transaction from SODAX
+ *   ✓ Submits to blockchain via Bankr API
+ *   ✓ Returns transaction hash
+ *
+ * What Bankr does NOT do:
+ *   ✗ NO routing decisions
+ *   ✗ NO DeFi protocol selection
+ *   ✗ NO swap optimization
+ *   ✗ NO interpretation of intent
+ *
+ * The SODAX SDK always handles routing logic. Bankr receives the exact
+ * transaction data (to, data, value, chainId) and submits it verbatim.
+ *
+ * @see SKILL.md "Transaction Execution Architecture" section
  */
 
 import type { Hash, Address } from 'viem';

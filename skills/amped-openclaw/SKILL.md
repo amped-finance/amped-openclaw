@@ -901,3 +901,74 @@ Agent actions:
 
 Result: User has 20k USDC on Arbitrum to trade with, while their 50k USDC collateral remains on Ethereum!
 ```
+
+## Transaction Execution Architecture
+
+### SODAX-First Routing (Mandatory)
+
+**Critical:** ALL DeFi operations MUST route through the SODAX SDK first. External wallet backends (like Bankr) are used ONLY for transaction execution—never for routing decisions.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  SODAX SDK (Routing Layer)                      │
+│  ✓ Calculates optimal swap routes                               │
+│  ✓ Determines bridge paths                                      │
+│  ✓ Manages money market intents                                 │
+│  ✓ Handles slippage, fees, deadlines                            │
+│  ✓ Prepares transaction data (to, data, value)                  │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼ raw transaction data
+┌─────────────────────────────────────────────────────────────────┐
+│           Wallet Backend (Execution Layer ONLY)                 │
+│  ✓ Signs the pre-computed transaction                           │
+│  ✓ Submits to blockchain                                        │
+│  ✓ Returns transaction hash                                     │
+│  ✗ NO routing decisions                                         │
+│  ✗ NO token swapping logic                                      │
+│  ✗ NO DeFi protocol selection                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Supported Backends
+
+| Backend | Description | Use Case |
+|---------|-------------|----------|
+| `localKey` | Direct signing via private key from `~/.evm-wallet.json` or config | Default, self-custody |
+| `bankr` | Bankr API for transaction submission | Managed wallets via Bankr |
+
+### Backend Selection
+
+The wallet backend is selected via:
+1. `config.json` → `walletBackend: "bankr" | "localKey"`
+2. Environment: `AMPED_OC_WALLET_BACKEND`
+3. Default: `localKey`
+
+### Bankr Integration
+
+When `walletBackend: "bankr"` is configured:
+
+1. **SODAX SDK prepares the transaction** - All routing, calculation, and intent creation happens in SODAX
+2. **Transaction data is passed to Bankr** - Only the raw `{to, data, value, chainId}` is sent
+3. **Bankr signs and submits** - Bankr executes exactly what SODAX prepared
+4. **No Bankr routing** - Bankr does NOT interpret or re-route the transaction
+
+This ensures:
+- Consistent behavior across all backends
+- SODAX optimizations always apply
+- Audit trail shows SODAX as routing authority
+- Backend is a pure execution layer
+
+### Configuration Example (Bankr)
+
+```json
+// ~/.openclaw/extensions/amped-openclaw/config.json
+{
+  "walletBackend": "bankr",
+  "bankrApiKey": "bk_...",
+  "bankrApiUrl": "https://api.bankr.bot",
+  "bankrWalletAddress": "0x..."
+}
+```
+
+**Security Note:** The Bankr API key is stored locally and never exposed in tool parameters or logs.
