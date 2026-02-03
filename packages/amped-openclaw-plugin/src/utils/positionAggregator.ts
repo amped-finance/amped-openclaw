@@ -12,7 +12,7 @@
 
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
-import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
+import { getWalletManager } from '../wallet/walletManager';
 
 /**
  * Position data for a single token on a single chain
@@ -124,8 +124,8 @@ export async function aggregateCrossChainPositions(
   const startTime = Date.now();
   
   // Get wallet
-  const walletRegistry = getWalletRegistry();
-  const wallet = await walletRegistry.resolveWallet(walletId);
+  const walletManager = getWalletManager();
+  const wallet = await walletManager.resolve(walletId);
   
   if (!wallet) {
     throw new Error(`Wallet not found: ${walletId}`);

@@ -22,7 +22,7 @@ import { Type, Static } from "@sinclair/typebox";
 import { getSodaxClient } from "../sodax/client";
 import { getSpokeProvider } from "../providers/spokeProviderFactory";
 import { PolicyEngine } from "../policy/policyEngine";
-import { getWalletRegistry, WalletRegistry } from "../wallet/walletRegistry";
+import { getWalletManager } from '../wallet/walletManager';
 import { AgentTools } from "../types";
 import { serializeError } from '../utils/errorUtils';
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
@@ -306,8 +306,8 @@ async function resolveWalletAndProvider(
   wallet: { address: string; privateKey?: string };
   spokeProvider: any;
 }> {
-  const walletRegistry = getWalletRegistry();
-  const wallet = await walletRegistry.resolveWallet(walletId);
+  const walletManager = getWalletManager();
+  const wallet = await walletManager.resolve(walletId);
 
   const spokeProvider = await getSpokeProvider(wallet.address, chainId);
 

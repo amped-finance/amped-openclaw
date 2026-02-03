@@ -12,7 +12,7 @@
 import { Type, Static } from '@sinclair/typebox';
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
-import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
+import { getWalletManager, ResolvedWallet } from '../wallet/walletManager';
 import { 
   aggregateCrossChainPositions, 
   formatHealthFactor,
@@ -295,26 +295,29 @@ async function handleSupportedTokens(
 
 /**
  * Get wallet address by walletId
- * In execute mode, validates that the private key matches the address
+ * Returns enhanced wallet info with source and supported chains
  */
 async function handleWalletAddress(
   params: WalletAddressParams
 ): Promise<unknown> {
   const { walletId } = params;
 
-  // Get wallet from registry
-  const walletRegistry = getWalletRegistry();
-  const wallet = await walletRegistry.resolveWallet(walletId);
+  // Get wallet from unified WalletManager
+  const walletManager = getWalletManager();
+  const wallet = await walletManager.resolve(walletId);
 
   if (!wallet) {
-    throw new Error(`Wallet not found: ${walletId}`);
+    throw new Error(`Wallet not found: ${walletId}. Available wallets: ${walletManager.getAvailableWalletIds().join(', ')}`);
   }
 
   return {
     success: true,
-    walletId,
+    walletId: wallet.id,
     address: wallet.address,
+    source: wallet.source,
+    chains: wallet.chains,
     mode: wallet.mode,
+    label: wallet.label,
   };
 }
 
@@ -326,9 +329,9 @@ async function handleMoneyMarketPositions(
 ): Promise<unknown> {
   const { walletId, chainId } = params;
 
-  // Get wallet from registry
-  const walletRegistry = getWalletRegistry();
-  const wallet = await walletRegistry.resolveWallet(walletId);
+  // Get wallet from unified WalletManager
+  const walletManager = getWalletManager();
+  const wallet = await walletManager.resolve(walletId);
 
   if (!wallet) {
     throw new Error(`Wallet not found: ${walletId}`);
@@ -622,9 +625,9 @@ async function handleUserIntents(
   });
 
   try {
-    // Get wallet address
-    const walletRegistry = getWalletRegistry();
-    const wallet = await walletRegistry.resolveWallet(walletId);
+    // Get wallet address from unified WalletManager
+    const walletManager = getWalletManager();
+    const wallet = await walletManager.resolve(walletId);
 
     if (!wallet) {
       throw new Error(`Wallet not found: ${walletId}`);

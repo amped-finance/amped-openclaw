@@ -18,7 +18,7 @@ type IntentStatus = any;
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
-import { getWalletRegistry, WalletRegistry } from '../wallet/walletRegistry';
+import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 
@@ -39,7 +39,10 @@ const SwapQuoteRequestSchema = Type.Object({
   dstToken: Type.String(),
   amount: Type.String(),
   type: SwapTypeSchema,
-  slippageBps: Type.Number({ default: 50, minimum: 0, maximum: 10000 })
+  slippageBps: Type.Number({ default: 50, minimum: 0, maximum: 10000 }),
+  recipient: Type.Optional(Type.String({
+    description: 'Recipient address on destination chain. For cross-chain swaps to Solana, provide a Solana base58 address. Defaults to wallet address if omitted.'
+  }))
 });
 
 // Result schema for documentation (not used at runtime)
@@ -58,7 +61,8 @@ const _SwapQuoteResultSchema = Type.Object({
     partnerFee: Type.Optional(Type.String())
   }),
   minOutputAmount: Type.Optional(Type.String()),
-  maxInputAmount: Type.Optional(Type.String())
+  maxInputAmount: Type.Optional(Type.String()),
+    recipient: Type.Optional(Type.String())
 });
 void _SwapQuoteResultSchema; // Suppress unused warning
 
@@ -74,7 +78,8 @@ const SwapExecuteParamsSchema = Type.Object({
     slippageBps: Type.Number(),
     deadline: Type.Number(),
     minOutputAmount: Type.Optional(Type.String()),
-    maxInputAmount: Type.Optional(Type.String())
+    maxInputAmount: Type.Optional(Type.String()),
+    recipient: Type.Optional(Type.String())
   }),
   maxSlippageBps: Type.Optional(Type.Number({ minimum: 0, maximum: 10000 })),
   policyId: Type.Optional(Type.String()),
@@ -216,6 +221,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
       },
       minOutputAmount: quote.min_output_amount || quote.minOutputAmount,
       maxInputAmount: quote.max_input_amount || quote.maxInputAmount,
+      recipient: params.recipient, // Pass through for execute
       // Include raw SDK response for debugging
       _raw: JSON.parse(JSON.stringify(quote, (k, v) => typeof v === 'bigint' ? v.toString() : v))
     };
@@ -257,7 +263,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
   try {
     // 1. Initialize dependencies
     const policyEngine = new PolicyEngine();
-    const walletRegistry = getWalletRegistry();
+    const walletManager = getWalletManager();
     const sodaxClient = getSodaxClient();
     
     // Resolve token symbols to addresses
@@ -269,7 +275,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const dstTokenInfo = await getTokenInfo(params.quote.dstChainId, dstTokenAddr);
     
     // 2. Resolve wallet
-    const wallet = await walletRegistry.resolveWallet(params.walletId);
+    const wallet = await walletManager.resolve(params.walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${params.walletId}`);
     }
@@ -348,6 +354,8 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     // 7. Execute swap
     const swapResult = await (sodaxClient as any).swaps.swap({
       intentParams: {
+        srcAddress: wallet.address,
+        dstAddress: params.quote.recipient || wallet.address,
         srcChainId: params.quote.srcChainId,
         dstChainId: params.quote.dstChainId,
         srcToken: params.quote.srcToken,
@@ -504,7 +512,7 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
   const startTime = Date.now();
   
   try {
-    const walletRegistry = getWalletRegistry();
+    const walletManager = getWalletManager();
     const sodaxClient = getSodaxClient();
     
     // Resolve token symbols to addresses
@@ -516,7 +524,7 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
     const dstTokenInfo = await getTokenInfo(params.intent.dstChainId, dstTokenAddr);
     
     // Resolve wallet
-    const wallet = await walletRegistry.resolveWallet(params.walletId);
+    const wallet = await walletManager.resolve(params.walletId);
     if (!wallet) {
       throw new Error(`Wallet not found: ${params.walletId}`);
     }
