@@ -42,6 +42,16 @@ const FALLBACK_TOKENS: Record<string, { address: string; symbol: string; name: s
     { address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18 },
     { address: '0x0000000000000000000000000000000000000000', symbol: 'ETH', name: 'Ether', decimals: 18 },
   ],
+  '0xa4b1.arbitrum': [
+    { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
+    { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', symbol: 'USDT', name: 'Tether USD', decimals: 6 },
+    { address: '0x0000000000000000000000000000000000000000', symbol: 'ETH', name: 'Ether', decimals: 18 },
+  ],
+  'sonic': [
+    { address: '0x29219dd400f2Bf60E5a23d13Be72B486D4038894', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
+    { address: '0x6047828dc181963ba44974801FF68e538dA5eaF9', symbol: 'USDT', name: 'Tether USD', decimals: 6 },
+    { address: '0x0000000000000000000000000000000000000000', symbol: 'S', name: 'Sonic', decimals: 18 },
+  ],
 };
 
 
@@ -70,6 +80,50 @@ function isAddress(value: string): boolean {
 }
 
 /**
+ * Populate the token cache for a chain from SDK config service
+ * This is the canonical way to get tokens - used by both resolveToken and getTokenInfo
+ */
+function populateTokenCache(chainId: string): Token[] {
+  let tokens = tokenCache.get(chainId);
+  if (tokens) return tokens;
+  
+  try {
+    const client = getSodaxClient();
+    const configService = (client as any).configService;
+    
+    if (configService?.getSupportedSwapTokensByChainId) {
+      // Preferred method - returns readonly Token[]
+      tokens = [...configService.getSupportedSwapTokensByChainId(chainId)] as Token[];
+    } else if (configService?.getSwapTokensByChainId) {
+      tokens = configService.getSwapTokensByChainId(chainId) as Token[];
+    } else if (configService?.getSwapTokens) {
+      const allTokens = configService.getSwapTokens();
+      tokens = allTokens[chainId] || [];
+    } else {
+      console.warn(`[tokenResolver] configService not available for chain ${chainId}`);
+      tokens = [];
+    }
+    
+    // Log what we got from SDK
+    if (tokens && tokens.length > 0) {
+      console.log(`[tokenResolver] Loaded ${tokens.length} tokens from SDK for ${chainId}`);
+    }
+  } catch (err) {
+    console.error(`[tokenResolver] Failed to fetch tokens for chain ${chainId}:`, err);
+    tokens = [];
+  }
+  
+  // Use fallback tokens if SDK returned empty list
+  if ((!tokens || tokens.length === 0) && FALLBACK_TOKENS[chainId]) {
+    console.log(`[tokenResolver] Using fallback token list for ${chainId}`);
+    tokens = FALLBACK_TOKENS[chainId] as unknown as Token[];
+  }
+  
+  tokenCache.set(chainId, tokens || []);
+  return tokens || [];
+}
+
+/**
  * Resolve a token symbol or address to a normalized address
  * 
  * @param chainId - The chain ID to resolve the token on
@@ -86,44 +140,8 @@ export async function resolveToken(
     return tokenInput.toLowerCase();
   }
 
-  // Get tokens from SDK config service
-  let tokens = tokenCache.get(chainId);
-  if (!tokens) {
-    try {
-      const client = getSodaxClient();
-      const configService = (client as any).configService;
-      
-      if (configService?.getSwapTokensByChainId) {
-        tokens = configService.getSwapTokensByChainId(chainId) as Token[];
-      } else if (configService?.getSwapTokens) {
-        const allTokens = configService.getSwapTokens();
-        tokens = allTokens[chainId] || [];
-      } else {
-        console.warn(`[tokenResolver] configService not available, falling back to empty token list`);
-        tokens = [];
-      }
-      
-      tokenCache.set(chainId, tokens);
-    } catch (err) {
-      console.error(`[tokenResolver] Failed to fetch tokens for chain ${chainId}:`, err);
-      tokens = [];
-      tokenCache.set(chainId, tokens);
-      
-      // Use fallback tokens if SDK returned empty list
-      if (tokens.length === 0 && FALLBACK_TOKENS[chainId]) {
-        console.log(`[tokenResolver] Using fallback token list for ${chainId}`);
-        tokens = FALLBACK_TOKENS[chainId] as unknown as Token[];
-        tokenCache.set(chainId, tokens);
-      }
-    }
-  }
-
-  // Use fallback tokens if SDK returned empty list
-  if (tokens.length === 0 && FALLBACK_TOKENS[chainId]) {
-    console.log(`[tokenResolver] Using fallback token list for ${chainId}`);
-    tokens = FALLBACK_TOKENS[chainId] as unknown as Token[];
-    tokenCache.set(chainId, tokens);
-  }
+  // Get tokens from cache or SDK
+  const tokens = populateTokenCache(chainId);
 
   // Find by symbol (case-insensitive)
   const symbolUpper = tokenInput.toUpperCase();
@@ -174,21 +192,27 @@ export async function getTokenInfo(
     }
   }
 
-  // Ensure cache is populated
-  let tokens = tokenCache.get(chainId);
-  if (!tokens) {
-    try {
-      await resolveToken(chainId, 'USDC'); // Force cache population
-    } catch {
-      // Ignore - we just want to populate cache
-    }
-    tokens = tokenCache.get(chainId) || [];
-  }
+  // Get tokens from cache or SDK (same path as resolveToken)
+  const tokens = populateTokenCache(chainId);
 
   // Find by address or symbol
   if (isAddress(tokenInput)) {
     const addrLower = tokenInput.toLowerCase();
-    return tokens.find(t => t.address.toLowerCase() === addrLower) || null;
+    const found = tokens.find(t => t.address.toLowerCase() === addrLower);
+    if (found) {
+      return found;
+    }
+    // Check fallback tokens even if SDK tokens were loaded
+    // (SDK might not include all tokens we need)
+    const fallback = FALLBACK_TOKENS[chainId];
+    if (fallback) {
+      const fallbackToken = fallback.find(t => t.address.toLowerCase() === addrLower);
+      if (fallbackToken) {
+        console.log(`[tokenResolver] Found ${fallbackToken.symbol} in fallback for ${chainId}`);
+        return fallbackToken as unknown as Token;
+      }
+    }
+    return null;
   } else {
     const symbolUpper = tokenInput.toUpperCase();
     return tokens.find(t => t.symbol.toUpperCase() === symbolUpper) || null;
