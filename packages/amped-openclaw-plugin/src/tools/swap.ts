@@ -195,10 +195,24 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     
     console.log('[swap_quote] SDK response:', JSON.stringify(quote, (k, v) => typeof v === 'bigint' ? v.toString() : v));
     
-    // Get token config for output decimal conversion
-    const dstDecimals = dstTokenInfo?.decimals ?? 18;
-    
+    // Get output token decimals with multiple fallbacks
     // SDK returns quoted_amount as bigint - convert to human-readable string
+    let dstDecimals = (quote as any).token_dst_decimals || (quote as any).tokenDstDecimals;
+    
+    if (!dstDecimals && dstTokenInfo) {
+      dstDecimals = dstTokenInfo.decimals;
+    }
+    
+    if (!dstDecimals) {
+      // Hardcoded decimals for common stablecoins
+      const KNOWN_DECIMALS: Record<string, number> = {
+        usdc: 6, USDC: 6, usdt: 6, USDT: 6,
+        dai: 18, DAI: 18, bnusd: 18, bnUSD: 18
+      };
+      const tokenSymbol = params.dstToken.toUpperCase();
+      dstDecimals = KNOWN_DECIMALS[tokenSymbol] || 18;
+      console.warn(`[swap_quote] Using fallback decimals (${dstDecimals}) for token ${params.dstToken}`);
+    }
     const quotedAmount = quote.quoted_amount || quote.quotedAmount || quote.outputAmount;
     const outputAmountStr = quotedAmount 
       ? (Number(quotedAmount) / Math.pow(10, dstDecimals)).toString()
@@ -458,8 +472,16 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
     
     // Fallback to txHash
     if (!status && params.txHash) {
+      try {
       const statusResult = await (sodaxClient as any).swaps.getStatus(params.txHash as `0x${string}`);
       status = statusResult?.ok ? statusResult.value : statusResult;
+      } catch (err) {
+        throw new Error(
+          `Unable to find intent for txHash: ${params.txHash}. ` +
+          `This may not be a SODAX swap transaction, or the transaction is still pending indexing. ` +
+          `Error: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
     }
     
     if (!status) {
