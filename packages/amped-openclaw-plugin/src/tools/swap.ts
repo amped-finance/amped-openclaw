@@ -39,7 +39,10 @@ const SwapQuoteRequestSchema = Type.Object({
   dstToken: Type.String(),
   amount: Type.String(),
   type: SwapTypeSchema,
-  slippageBps: Type.Number({ default: 50, minimum: 0, maximum: 10000 })
+  slippageBps: Type.Number({ default: 50, minimum: 0, maximum: 10000 }),
+  recipient: Type.Optional(Type.String({
+    description: 'Recipient address on destination chain. For cross-chain swaps to Solana, provide a Solana base58 address. Defaults to wallet address if omitted.'
+  }))
 });
 
 // Result schema for documentation (not used at runtime)
@@ -58,7 +61,8 @@ const _SwapQuoteResultSchema = Type.Object({
     partnerFee: Type.Optional(Type.String())
   }),
   minOutputAmount: Type.Optional(Type.String()),
-  maxInputAmount: Type.Optional(Type.String())
+  maxInputAmount: Type.Optional(Type.String()),
+    recipient: Type.Optional(Type.String())
 });
 void _SwapQuoteResultSchema; // Suppress unused warning
 
@@ -74,7 +78,8 @@ const SwapExecuteParamsSchema = Type.Object({
     slippageBps: Type.Number(),
     deadline: Type.Number(),
     minOutputAmount: Type.Optional(Type.String()),
-    maxInputAmount: Type.Optional(Type.String())
+    maxInputAmount: Type.Optional(Type.String()),
+    recipient: Type.Optional(Type.String())
   }),
   maxSlippageBps: Type.Optional(Type.Number({ minimum: 0, maximum: 10000 })),
   policyId: Type.Optional(Type.String()),
@@ -216,6 +221,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
       },
       minOutputAmount: quote.min_output_amount || quote.minOutputAmount,
       maxInputAmount: quote.max_input_amount || quote.maxInputAmount,
+      recipient: params.recipient, // Pass through for execute
       // Include raw SDK response for debugging
       _raw: JSON.parse(JSON.stringify(quote, (k, v) => typeof v === 'bigint' ? v.toString() : v))
     };
@@ -348,6 +354,8 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     // 7. Execute swap
     const swapResult = await (sodaxClient as any).swaps.swap({
       intentParams: {
+        srcAddress: wallet.address,
+        dstAddress: params.quote.recipient || wallet.address,
         srcChainId: params.quote.srcChainId,
         dstChainId: params.quote.dstChainId,
         srcToken: params.quote.srcToken,
