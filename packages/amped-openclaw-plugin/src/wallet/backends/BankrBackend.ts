@@ -10,7 +10,7 @@
 
 import type { Address, Hash } from 'viem';
 import type { IWalletBackend, RawTransaction } from '../types';
-import { BANKR_SUPPORTED_CHAINS, getBankrChainId } from '../types';
+import { BANKR_SUPPORTED_CHAINS, getBankrChainId, normalizeChainId, isBankrSupportedChain } from '../types';
 
 /**
  * Bankr API response types
@@ -104,7 +104,8 @@ export class BankrBackend implements IWalletBackend {
   }
 
   supportsChain(chainId: string): boolean {
-    return this.supportedChains.includes(chainId as any);
+    // Normalize chain ID to handle SODAX format (0x2105.base -> base)
+    return isBankrSupportedChain(chainId);
   }
 
   async isReady(): Promise<boolean> {

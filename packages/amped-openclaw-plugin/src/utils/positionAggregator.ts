@@ -13,6 +13,7 @@
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { getWalletManager } from '../wallet/walletManager';
+import { normalizeChainId } from '../wallet/types';
 
 /**
  * Position data for a single token on a single chain
@@ -150,8 +151,9 @@ export async function aggregateCrossChainPositions(
   console.log('[positionAggregator] Wallet chain filter', {
     walletType: wallet.type,
     walletSupports: walletSupportedChains,
-    sodaxChains: allSodaxChains.length,
-    filteredChains: filteredChains.length,
+    sodaxChains: allSodaxChains,
+    filteredChains: filteredChains,
+    normalizedFiltered: filteredChains.map(normalizeChainId),
   });
   
   console.log('[positionAggregator] Querying positions across chains', {

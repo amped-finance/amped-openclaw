@@ -27,7 +27,7 @@ import { spokeChainConfig, type SpokeChainId } from '@sodax/types';
 // Import wallet management
 import { getWalletManager, type IWalletBackend, createBankrWalletProvider } from '../wallet';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
-import { BANKR_CHAIN_IDS } from '../wallet/types';
+import { BANKR_CHAIN_IDS, normalizeChainId, getBankrChainId } from '../wallet/types';
 
 // Cache for providers: Map<cacheKey, SpokeProvider>
 const providerCache = new Map<string, SpokeProvider>();
@@ -143,15 +143,16 @@ async function createBankrSpokeProvider(
   rpcUrl: string
 ): Promise<SpokeProvider> {
   const sdkChainId = getSdkChainId(chainId);
-  const numericChainId = BANKR_CHAIN_IDS[chainId];
   
-  if (!numericChainId) {
-    throw new Error(
-      `Bankr does not support chain "${chainId}". ` +
-      `Supported chains: ethereum, polygon, base. ` +
-      `Use a local wallet for other chains.`
-    );
-  }
+  // Normalize chain ID for Bankr lookup (0x2105.base -> base)
+  const normalizedChainId = normalizeChainId(chainId);
+  const numericChainId = getBankrChainId(normalizedChainId);
+  
+  console.log('[spokeProviderFactory] Bankr chain resolution', {
+    input: chainId,
+    normalized: normalizedChainId,
+    numeric: numericChainId,
+  });
 
   // Get chain config from SDK
   const chainConfig = spokeChainConfig[sdkChainId];
