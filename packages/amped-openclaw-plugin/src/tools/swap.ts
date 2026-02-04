@@ -206,7 +206,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     if (!dstDecimals) {
       // Hardcoded decimals for common stablecoins
       const KNOWN_DECIMALS: Record<string, number> = {
-        usdc: 6, USDC: 6, usdt: 6, USDT: 6,
+        usdc: 6, USDC: 6, usdt: 6, USDT: 6, sol: 9, SOL: 9,
         dai: 18, DAI: 18, bnusd: 18, bnUSD: 18
       };
       const tokenSymbol = params.dstToken.toUpperCase();
