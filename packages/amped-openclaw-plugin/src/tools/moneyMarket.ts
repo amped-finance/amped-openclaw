@@ -614,6 +614,39 @@ async function handleWithdraw(
       warnings.push(`Cross-chain withdraw: withdrawing from ${chainId}, receiving tokens on ${dstChainId}`);
     }
 
+    // Check and handle allowance (required for hub chain operations)
+    // Reference: sodax-frontend moneymarket-ops.ts
+    const isHubChain = chainId === 'sonic' || chainId === '146';
+    if (isHubChain) {
+      try {
+        const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
+          { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
+          spokeProvider
+        );
+        
+        if (allowanceResult.ok && !allowanceResult.value) {
+          console.log('[mm:withdraw] Approval needed, approving...');
+          const approveResult = await (sodaxClient as any).moneyMarket.approve(
+            { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
+            spokeProvider
+          );
+          
+          if (!approveResult.ok) {
+            throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
+          }
+          
+          // Wait for approval confirmation
+          const approvalTxHash = approveResult.value;
+          if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
+            await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
+            console.log('[mm:withdraw] Approval confirmed');
+          }
+        }
+      } catch (allowanceError) {
+        console.warn('[mm:withdraw] Allowance check failed, proceeding anyway:', allowanceError);
+      }
+    }
+
     // Execute withdraw
     const withdrawResult = await (sodaxClient as any).moneyMarket.withdraw(
       withdrawParams,
@@ -747,6 +780,39 @@ async function handleBorrow(
       borrowParams.toChainId = toSodaxChainId(dstChainId);
       warnings.push(`Cross-chain borrow: Using collateral on ${chainId}, receiving borrowed tokens on ${dstChainId}`);
       warnings.push(`Ensure you have sufficient collateral on ${chainId} to support this borrow`);
+    }
+
+    // Check and handle allowance (required for hub chain operations)
+    // Reference: sodax-frontend moneymarket-ops.ts
+    const isHubChain = chainId === 'sonic' || chainId === '146';
+    if (isHubChain) {
+      try {
+        const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
+          { token: borrowTokenAddr, amount: amountBigInt, action: 'borrow' },
+          spokeProvider
+        );
+        
+        if (allowanceResult.ok && !allowanceResult.value) {
+          console.log('[mm:borrow] Approval needed, approving...');
+          const approveResult = await (sodaxClient as any).moneyMarket.approve(
+            { token: borrowTokenAddr, amount: amountBigInt, action: 'borrow' },
+            spokeProvider
+          );
+          
+          if (!approveResult.ok) {
+            throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
+          }
+          
+          // Wait for approval confirmation
+          const approvalTxHash = approveResult.value;
+          if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
+            await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
+            console.log('[mm:borrow] Approval confirmed');
+          }
+        }
+      } catch (allowanceError) {
+        console.warn('[mm:borrow] Allowance check failed, proceeding anyway:', allowanceError);
+      }
     }
 
     // Execute borrow
