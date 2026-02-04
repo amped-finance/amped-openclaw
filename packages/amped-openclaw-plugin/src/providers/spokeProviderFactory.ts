@@ -8,7 +8,7 @@
  * 1. Resolve wallet by nickname using WalletManager
  * 2. Check if wallet supports requested chain
  * 3. For local wallets: use SDK's EvmWalletProvider
- * 4. For Bankr wallets: use BankrSpokeProvider wrapper
+ * 4. For Bankr wallets: use BankrWalletProvider (submits to Bankr API)
  */
 
 // Official SDK wallet provider
@@ -25,8 +25,9 @@ import {
 import { spokeChainConfig, type SpokeChainId } from '@sodax/types';
 
 // Import wallet management
-import { getWalletManager, type IWalletBackend } from '../wallet';
+import { getWalletManager, type IWalletBackend, createBankrWalletProvider } from '../wallet';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
+import { BANKR_CHAIN_IDS } from '../wallet/types';
 
 // Cache for providers: Map<cacheKey, SpokeProvider>
 const providerCache = new Map<string, SpokeProvider>();
@@ -133,6 +134,66 @@ async function createLocalSpokeProvider(
 }
 
 /**
+ * Create a spoke provider for Bankr wallet
+ * Uses BankrWalletProvider which submits transactions to Bankr API
+ */
+async function createBankrSpokeProvider(
+  wallet: IWalletBackend,
+  chainId: string,
+  rpcUrl: string
+): Promise<SpokeProvider> {
+  const sdkChainId = getSdkChainId(chainId);
+  const numericChainId = BANKR_CHAIN_IDS[chainId];
+  
+  if (!numericChainId) {
+    throw new Error(
+      `Bankr does not support chain "${chainId}". ` +
+      `Supported chains: ethereum, polygon, base. ` +
+      `Use a local wallet for other chains.`
+    );
+  }
+
+  // Get chain config from SDK
+  const chainConfig = spokeChainConfig[sdkChainId];
+  if (!chainConfig) {
+    throw new Error(`Chain config not found for: ${sdkChainId}`);
+  }
+
+  // Get Bankr API key from environment
+  const apiKey = process.env.BANKR_API_KEY;
+  if (!apiKey) {
+    throw new Error('BANKR_API_KEY environment variable not set');
+  }
+
+  // Get the Bankr wallet address (cached after first call)
+  const walletAddress = await wallet.getAddress();
+
+  // Create BankrWalletProvider which implements IEvmWalletProvider
+  const walletProvider = createBankrWalletProvider({
+    apiKey,
+    apiUrl: process.env.BANKR_API_URL,
+    chainId: numericChainId,
+    rpcUrl,
+    cachedAddress: walletAddress,
+  });
+
+  console.log('[spokeProviderFactory] Creating EvmSpokeProvider with Bankr backend', {
+    wallet: wallet.nickname,
+    chainId,
+    sdkChainId,
+    address: walletAddress?.slice(0, 10) + '...',
+  });
+
+  // Use standard EvmSpokeProvider with our BankrWalletProvider
+  // The SDK doesn't care how transactions are signed - it just calls the interface methods
+  return new EvmSpokeProvider(
+    walletProvider as any, // BankrWalletProvider implements IEvmWalletProvider
+    chainConfig as any,
+    rpcUrl
+  );
+}
+
+/**
  * Create a spoke provider for the given wallet and chain
  * 
  * @param walletId - Wallet nickname (e.g., "main", "bankr", "trading")
@@ -153,19 +214,8 @@ async function createSpokeProvider(
 
   // Route based on wallet type
   if (wallet.type === 'bankr') {
-    // For Bankr wallets, we cannot use the SDK's signing
-    // The SODAX SDK requires a wallet provider that can sign transactions
-    // Bankr doesn't expose private keys, so we need a different approach
-    //
-    // For now, throw an informative error. Full Bankr integration would require
-    // intercepting the SDK's transaction calls at a lower level.
-    throw new Error(
-      `Bankr wallet integration with SODAX SDK requires additional work.\n` +
-      `The SODAX SDK's EvmSpokeProvider expects to sign transactions locally,\n` +
-      `but Bankr keeps keys server-side.\n\n` +
-      `Workaround: Use a local wallet for SODAX operations.\n` +
-      `Available local wallets can be listed with "What wallets do I have?"`
-    );
+    // Use BankrWalletProvider for Bankr wallets
+    return createBankrSpokeProvider(wallet, chainId, rpcUrl);
   }
 
   // Local key signing (evm-wallet-skill or env)
