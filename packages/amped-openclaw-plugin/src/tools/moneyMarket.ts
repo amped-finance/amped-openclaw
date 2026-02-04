@@ -493,13 +493,13 @@ async function handleSupply(
       action: 'supply',
       token: tokenAddr,
       amount: amountBigInt,
-      useAsCollateral,
-      recipient: recipient || walletAddress,
+      
+      toAddress: recipient || walletAddress,
     };
 
     // Add cross-chain parameters if applicable
     if (crossChain && dstChainId) {
-      supplyParams.dstChainId = dstChainId;
+      supplyParams.toChainId = dstChainId;
       warnings.push(`Cross-chain supply: tokens supplied on ${chainId}, collateral recorded on ${dstChainId}`);
     }
 
@@ -604,13 +604,13 @@ async function handleWithdraw(
       action: 'withdraw',
       token: tokenAddr,
       amount: amountBigInt,
-      withdrawType,
-      recipient: recipient || walletAddress,
+      
+      toAddress: recipient || walletAddress,
     };
 
     // Add cross-chain parameters if applicable
     if (crossChain && dstChainId) {
-      withdrawParams.dstChainId = dstChainId;
+      withdrawParams.toChainId = dstChainId;
       warnings.push(`Cross-chain withdraw: withdrawing from ${chainId}, receiving tokens on ${dstChainId}`);
     }
 
@@ -722,20 +722,17 @@ async function handleBorrow(
       action: 'borrow',
       token: tokenAddr,
       amount: amountBigInt,
-      interestRateMode,
-      recipient: recipient || walletAddress,
+      
+      toAddress: recipient || walletAddress,
     };
 
     // Add optional parameters
-    if (referralCode) {
-      borrowParams.referralCode = referralCode;
-    }
 
     // KEY CROSS-CHAIN FEATURE:
     // If dstChainId is provided and different from chainId, the borrowed tokens
     // will be delivered to dstChainId instead of chainId where the borrow is initiated
     if (crossChain && dstChainId) {
-      borrowParams.dstChainId = dstChainId;
+      borrowParams.toChainId = dstChainId;
       warnings.push(`Cross-chain borrow: Using collateral on ${chainId}, receiving borrowed tokens on ${dstChainId}`);
       warnings.push(`Ensure you have sufficient collateral on ${chainId} to support this borrow`);
     }
@@ -850,12 +847,12 @@ async function handleRepay(
       action: 'repay',
       token: tokenAddr,
       amount: amountBigInt,
-      interestRateMode,
+      
     };
 
     // Add cross-chain parameters if applicable
     if (crossChain && collateralChainId) {
-      repayParams.collateralChainId = collateralChainId;
+      repayParams.toChainId = collateralChainId;
       warnings.push(`Cross-chain repay: Repaying debt on ${collateralChainId} using tokens from ${chainId}`);
     }
 
@@ -936,12 +933,12 @@ async function handleCreateSupplyIntent(
       action: 'supply',
       token: tokenAddr,
       amount: amountBigInt,
-      useAsCollateral,
-      recipient: recipient || walletAddress,
+      
+      toAddress: recipient || walletAddress,
     };
 
     if (dstChainId) {
-      supplyParams.dstChainId = dstChainId;
+      supplyParams.toChainId = dstChainId;
     }
 
     const intentData = await sodaxClient.moneyMarket.createSupplyIntent(
@@ -989,12 +986,12 @@ async function handleCreateBorrowIntent(
       action: 'borrow',
       token: tokenAddr,
       amount: amountBigInt,
-      interestRateMode,
-      recipient: recipient || walletAddress,
+      
+      toAddress: recipient || walletAddress,
     };
 
     if (dstChainId) {
-      borrowParams.dstChainId = dstChainId;
+      borrowParams.toChainId = dstChainId;
     }
 
     const intentData = await sodaxClient.moneyMarket.createBorrowIntent(
