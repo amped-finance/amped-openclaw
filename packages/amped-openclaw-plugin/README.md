@@ -299,7 +299,17 @@ await deactivate();
 
 ## Available Tools
 
-### Discovery Tools (7)
+### Wallet Management Tools (5)
+
+| Tool | Description |
+|------|-------------|
+| `amped_oc_list_wallets` | List all configured wallets with nicknames and addresses |
+| `amped_oc_add_wallet` | Add a new wallet with a nickname |
+| `amped_oc_rename_wallet` | Rename an existing wallet |
+| `amped_oc_remove_wallet` | Remove a wallet from configuration |
+| `amped_oc_set_default_wallet` | Set which wallet to use by default |
+
+### Discovery Tools (8)
 
 | Tool | Description |
 |------|-------------|
@@ -336,6 +346,64 @@ await deactivate();
 | `amped_oc_mm_withdraw` | Withdraw supplied tokens |
 | `amped_oc_mm_borrow` | Borrow tokens (cross-chain capable!) |
 | `amped_oc_mm_repay` | Repay borrowed tokens |
+
+## Wallet Management
+
+Manage wallets through natural language or tool calls:
+
+### Natural Language Examples
+
+```
+"What wallets do I have?"
+"Add a wallet called trading with address 0x... and private key 0x..."
+"Rename main to savings"
+"Make bankr my default wallet"
+"Remove the trading wallet"
+```
+
+### Multiple Wallet Support
+
+| Source | Default Nickname | Supported Chains |
+|--------|-----------------|------------------|
+| evm-wallet-skill | `main` | All SODAX chains |
+| Bankr | `bankr` | Ethereum, Base, Polygon |
+| Environment | Custom | All SODAX chains |
+
+### Using Wallets in Operations
+
+Specify a wallet nickname in any operation:
+
+```typescript
+// Swap using a specific wallet
+await agent.call('amped_oc_swap_execute', {
+  walletId: 'trading',  // Use the "trading" wallet
+  quote: quoteResult,
+  maxSlippageBps: 50
+});
+```
+
+Or in natural language:
+```
+"Swap 100 USDC to ETH using trading"
+"Check balance on bankr"
+```
+
+### Wallet Config File
+
+Configurations persist to `~/.openclaw/extensions/amped-openclaw/wallets.json`:
+
+```json
+{
+  "wallets": {
+    "trading": {
+      "source": "env",
+      "address": "0x...",
+      "privateKey": "0x..."
+    }
+  },
+  "default": "main"
+}
+```
 
 ## Usage Examples
 

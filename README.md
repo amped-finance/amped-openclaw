@@ -92,14 +92,69 @@ export AMPED_OC_MODE=execute
 export AMPED_OC_LIMITS_JSON='{"default": {"maxSlippageBps": 100}}'
 ```
 
-## Available Tools (18)
+## Available Tools (23)
 
 | Category | Tools |
 |----------|-------|
+| **Wallet Management** | `amped_oc_list_wallets`, `amped_oc_add_wallet`, `amped_oc_rename_wallet`, `amped_oc_remove_wallet`, `amped_oc_set_default_wallet` |
 | **Discovery** | `amped_oc_supported_chains`, `amped_oc_supported_tokens`, `amped_oc_wallet_address`, `amped_oc_money_market_reserves`, `amped_oc_money_market_positions`, `amped_oc_cross_chain_positions`, `amped_oc_user_intents` |
 | **Swap** | `amped_oc_swap_quote`, `amped_oc_swap_execute`, `amped_oc_swap_status`, `amped_oc_swap_cancel` |
 | **Bridge** | `amped_oc_bridge_discover`, `amped_oc_bridge_quote`, `amped_oc_bridge_execute` |
 | **Money Market** | `amped_oc_mm_supply`, `amped_oc_mm_withdraw`, `amped_oc_mm_borrow`, `amped_oc_mm_repay` |
+
+## Wallet Management
+
+Manage wallets through natural language:
+
+```
+"What wallets do I have?"
+"Add a wallet called trading with address 0x... and private key 0x..."
+"Rename main to savings"
+"Make bankr my default wallet"
+"Remove the trading wallet"
+```
+
+### Multiple Wallet Support
+
+The plugin supports multiple wallet sources with nicknames:
+
+| Source | Default Nickname | Description |
+|--------|-----------------|-------------|
+| evm-wallet-skill | `main` | Self-custody via `~/.evm-wallet.json` |
+| Bankr | `bankr` | Managed wallet via Bankr API |
+| Environment | Custom | From `AMPED_OC_WALLETS_JSON` |
+
+Use nicknames in operations:
+```
+"Swap 100 USDC to ETH using main"
+"Check balance on bankr"
+"Bridge 50 USDC using trading"
+```
+
+### Wallet Config File
+
+Custom wallet configurations persist to:
+```
+~/.openclaw/extensions/amped-openclaw/wallets.json
+```
+
+Example config:
+```json
+{
+  "wallets": {
+    "trading": {
+      "source": "env",
+      "address": "0x...",
+      "privateKey": "0x..."
+    },
+    "savings": {
+      "source": "evm-wallet-skill",
+      "path": "~/.evm-wallet-savings.json"
+    }
+  },
+  "default": "main"
+}
+```
 
 ## Cross-Chain Money Market
 
