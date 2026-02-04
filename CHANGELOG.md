@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-02-04
+
+### Added
+- **USD Portfolio Pricing** — Portfolio summary now displays USD values for all tokens
+  - New `priceService.ts` fetches prices from SODAX money market reserves
+  - Per-token, per-chain, and per-wallet USD totals
+  - 1-minute cache for efficient repeated queries
+- **Portfolio All Chains** — Query all configured chains by default (#30)
+- **Dynamic Config** — Enable SODAX dynamic config with hardcoded 20 bps partner fee (#26)
+- **Portfolio Summary Tool** — New `amped_oc_portfolio_summary` for unified balance view
+
+### Fixed
+- **POL Rebrand** — Updated Polygon native token symbol from MATIC to POL
+- **Position Token Metadata** — Join reserves metadata with user balances for proper token symbols (#35)
+- **Hub Chain Validation** — Block money market operations from hub chain (Sonic) (#33)
+- **Borrow Allowance Check** — Add allowance validation for borrow/withdraw on hub chain (#32)
+- **Money Market Tokens** — Use correct SDK method `getSupportedMoneyMarketTokensByChainId` (#31)
+- **User Intents Filter** — Filter events without intentState (#29)
+- **Partner Fee Integer** — Use integer bps (20) instead of decimal (0.2) (#28)
+- **Partner Fee Config** — Pass partnerFee to each service config (swaps, moneyMarket, bridge) (#27)
+- **Partner Address** — Pass partnerAddress to SDK constructor (#25)
+- **RPC Source** — Use evm-wallet-skill as primary RPC source (#25)
+- **Cross-Chain Borrow** — Resolve borrow token on destination chain for cross-chain MM (#21)
+- **Native Token Decimals** — Correct decimal handling for native tokens (#23)
+- **Chain ID Normalization** — Normalize chain IDs between SDK and wallet configs (#22)
+
+### Changed
+- Upgraded from 19 to 25 OpenClaw tools
+- SKILL.md now includes SDK gotchas and agent guidance
+
+### Documentation
+- Added agent gotchas section to SKILL.md
+- Moved SDK notes to SKILL.md for agent consumption
+- Added SODAX SDK gotcha for position data with token metadata
+- Added robust git install instructions for VPS/dev environments
+- Updated README with portfolio_summary tool documentation
+
+### Dependencies
+- `@sodax/sdk@1.1.0-beta-rc2`
+- `@sodax/wallet-sdk-core@1.1.0-beta-rc2`
+
 ## [0.1.0] - 2026-02-02
 
 ### Added
@@ -47,4 +88,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@sodax/types@1.0.4-beta`
 - `@sinclair/typebox@^0.32.0`
 
+[2.1.0]: https://github.com/amped-finance/amped-openclaw/compare/v0.1.0...v2.1.0
 [0.1.0]: https://github.com/amped-finance/amped-openclaw/releases/tag/v0.1.0
