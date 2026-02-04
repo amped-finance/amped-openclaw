@@ -13,6 +13,7 @@
 import { getSodaxClient } from '../sodax/client';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { getWalletManager } from '../wallet/walletManager';
+import { normalizeChainId } from '../wallet/types';
 
 /**
  * Position data for a single token on a single chain
@@ -126,30 +127,44 @@ export async function aggregateCrossChainPositions(
   // Get wallet
   const walletManager = getWalletManager();
   const wallet = await walletManager.resolve(walletId);
-  
-  if (!wallet) {
-    throw new Error(`Wallet not found: ${walletId}`);
-  }
+  const walletAddress = await wallet.getAddress();
 
-  // Get supported chains
+  // Get supported chains from SODAX
   const sodax = getSodaxClient();
-  const supportedChains = sodax.config.getSupportedSpokeChains();
+  const sodaxChains = sodax.config.getSupportedSpokeChains();
   
-  // Determine which chains to query
-  // SDK may return chain IDs as strings or objects with id property
-  const chainsToQuery = options.chainIds || supportedChains.map((c: any) => 
+  // Map SDK chains to string IDs
+  const allSodaxChains = sodaxChains.map((c: any) => 
     typeof c === 'string' ? c : c.id
   );
   
+  // Filter chains by what the wallet supports
+  // This is important for Bankr which only supports ethereum/polygon/base
+  const walletSupportedChains = wallet.supportedChains;
+  const filteredChains = allSodaxChains.filter((chainId: string) => 
+    wallet.supportsChain(normalizeChainId(chainId))
+  );
+  
+  // Determine which chains to query
+  const chainsToQuery = options.chainIds || filteredChains;
+  
+  console.log('[positionAggregator] Wallet chain filter', {
+    walletType: wallet.type,
+    walletSupports: walletSupportedChains,
+    sodaxChains: allSodaxChains,
+    filteredChains: filteredChains,
+    normalizedFiltered: filteredChains.map(normalizeChainId),
+  });
+  
   console.log('[positionAggregator] Querying positions across chains', {
     walletId,
-    address: wallet.address,
+    address: walletAddress,
     chains: chainsToQuery,
   });
 
   // Query positions from all chains in parallel
   const chainResults = await Promise.allSettled(
-    chainsToQuery.map(chainId => queryChainPositions(walletId, wallet.address, chainId))
+    chainsToQuery.map(chainId => queryChainPositions(walletId, walletAddress, chainId))
   );
 
   // Collect all positions
@@ -182,7 +197,7 @@ export async function aggregateCrossChainPositions(
   
   const view: CrossChainPositionView = {
     walletId,
-    address: wallet.address,
+    address: walletAddress,
     timestamp: new Date().toISOString(),
     summary,
     chainSummaries: chainSummaries.sort((a, b) => b.netWorthUsd - a.netWorthUsd),

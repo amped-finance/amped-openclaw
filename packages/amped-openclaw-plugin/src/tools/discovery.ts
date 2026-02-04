@@ -11,8 +11,9 @@
 
 import { Type, Static } from '@sinclair/typebox';
 import { getSodaxClient } from '../sodax/client';
+import { toSodaxChainId } from '../wallet/types';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
-import { getWalletManager, ResolvedWallet } from '../wallet/walletManager';
+import { getWalletManager, type IWalletBackend, type WalletInfo } from '../wallet';
 import { 
   aggregateCrossChainPositions, 
   formatHealthFactor,
@@ -139,6 +140,11 @@ const UserIntentsSchema = Type.Object({
   ),
 });
 
+/**
+ * Schema for amped_oc_list_wallets - List all configured wallets
+ */
+const ListWalletsSchema = Type.Object({});
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -147,6 +153,7 @@ type SupportedChainsParams = Static<typeof SupportedChainsSchema>;
 type SupportedTokensParams = Static<typeof SupportedTokensSchema>;
 type WalletAddressParams = Static<typeof WalletAddressSchema>;
 type MoneyMarketPositionsParams = Static<typeof MoneyMarketPositionsSchema>;
+type ListWalletsParams = Static<typeof ListWalletsSchema>;
 type MoneyMarketReservesParams = Static<typeof MoneyMarketReservesSchema>;
 type CrossChainPositionsParams = Static<typeof CrossChainPositionsSchema>;
 type UserIntentsParams = Static<typeof UserIntentsSchema>;
@@ -214,7 +221,8 @@ async function handleSupportedTokens(
   params: SupportedTokensParams
 ): Promise<unknown> {
   const sodax = getSodaxClient();
-  const { module, chainId } = params;
+  const { module, chainId: rawChainId } = params;
+    const chainId = toSodaxChainId(rawChainId);
 
   let tokens: Array<{
     address: string;
@@ -306,18 +314,14 @@ async function handleWalletAddress(
   const walletManager = getWalletManager();
   const wallet = await walletManager.resolve(walletId);
 
-  if (!wallet) {
-    throw new Error(`Wallet not found: ${walletId}. Available wallets: ${walletManager.getAvailableWalletIds().join(', ')}`);
-  }
+  const address = await wallet.getAddress();
 
   return {
     success: true,
-    walletId: wallet.id,
-    address: wallet.address,
-    source: wallet.source,
-    chains: wallet.chains,
-    mode: wallet.mode,
-    label: wallet.label,
+    walletId: wallet.nickname,
+    address,
+    type: wallet.type,
+    chains: [...wallet.supportedChains],
   };
 }
 
@@ -332,10 +336,7 @@ async function handleMoneyMarketPositions(
   // Get wallet from unified WalletManager
   const walletManager = getWalletManager();
   const wallet = await walletManager.resolve(walletId);
-
-  if (!wallet) {
-    throw new Error(`Wallet not found: ${walletId}`);
-  }
+  const walletAddress = await wallet.getAddress();
 
   // Get spoke provider for this wallet and chain
   const spokeProvider = await getSpokeProvider(walletId, chainId);
@@ -391,7 +392,7 @@ async function handleMoneyMarketPositions(
   return {
     success: true,
     walletId,
-    address: wallet.address,
+    address: walletAddress,
     chainId,
     positions,
     summary: {
@@ -628,10 +629,7 @@ async function handleUserIntents(
     // Get wallet address from unified WalletManager
     const walletManager = getWalletManager();
     const wallet = await walletManager.resolve(walletId);
-
-    if (!wallet) {
-      throw new Error(`Wallet not found: ${walletId}`);
-    }
+    const walletAddress = await wallet.getAddress();
 
     // Initialize API client
     const apiClient = getSodaxApiClient();
@@ -646,7 +644,7 @@ async function handleUserIntents(
 
     // Fetch intents
     const response = await apiClient.getUserIntents(
-      wallet.address,
+      walletAddress,
       { limit, offset },
       filters
     );
@@ -686,7 +684,7 @@ async function handleUserIntents(
     const result = {
       success: true,
       walletId,
-      address: wallet.address,
+      address: walletAddress,
       pagination: {
         total: response.total,
         offset: response.offset,
@@ -716,6 +714,69 @@ async function handleUserIntents(
     });
     throw new Error(`Failed to fetch user intents: ${errorMessage}`);
   }
+}
+
+// ============================================================================
+// List Wallets Tool
+// ============================================================================
+
+/**
+ * List all configured wallets with their nicknames, types, and supported chains
+ */
+async function handleListWallets(
+  _params: ListWalletsParams
+): Promise<unknown> {
+  console.log('[discovery:listWallets] Listing configured wallets');
+
+  const walletManager = getWalletManager();
+  const wallets = await walletManager.listWallets();
+
+  const formattedWallets = wallets.map(w => ({
+    nickname: w.nickname,
+    type: w.type,
+    address: w.address,
+    addressKnown: w.address !== '0x...',
+    supportedChains: w.chains,
+    isDefault: w.isDefault,
+    note: w.address === '0x...' && w.type === 'bankr' 
+      ? 'Address pending - will be fetched on first use' 
+      : undefined,
+  }));
+
+  const defaultWallet = await walletManager.getDefaultWalletName();
+
+  // Group by type for summary
+  const byType = {
+    'evm-wallet-skill': formattedWallets.filter(w => w.type === 'evm-wallet-skill'),
+    'bankr': formattedWallets.filter(w => w.type === 'bankr'),
+    'env': formattedWallets.filter(w => w.type === 'env'),
+  };
+
+  // Check if Bankr is configured but wallet not found
+  const bankrKeyPresent = !!process.env.BANKR_API_KEY;
+  const bankrWalletFound = byType.bankr.length > 0;
+
+  return {
+    success: true,
+    wallets: formattedWallets,
+    defaultWallet,
+    count: formattedWallets.length,
+    summary: {
+      selfCustody: byType['evm-wallet-skill'].length + byType.env.length,
+      bankrManaged: byType.bankr.length,
+    },
+    sources: {
+      evmWalletSkill: byType['evm-wallet-skill'].length > 0,
+      bankr: bankrWalletFound,
+      bankrKeyConfigured: bankrKeyPresent,
+      env: byType.env.length > 0,
+    },
+    hint: wallets.length === 0
+      ? 'No wallets configured. Install evm-wallet-skill: git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill'
+      : bankrKeyPresent && !bankrWalletFound
+        ? 'Bankr API key found but wallet not loaded. Try "Add my bankr wallet" to register it.'
+        : 'Use wallet nickname in operations, e.g., "swap 100 USDC to ETH using main"',
+  };
 }
 
 // ============================================================================
@@ -800,6 +861,20 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
     schema: UserIntentsSchema,
     handler: wrapHandler(handleUserIntents),
   });
+
+  // 8. amped_oc_list_wallets - List all configured wallets
+  agentTools.register({
+    name: 'amped_oc_list_wallets',
+    summary:
+      'List all configured wallets with their nicknames, types, addresses, and supported chains.',
+    description:
+      'Shows all available wallets from evm-wallet-skill (~/.evm-wallet.json), Bankr API, ' +
+      'and environment variables (AMPED_OC_WALLETS_JSON). Each wallet has a nickname that can be ' +
+      'used in operations like "swap 100 USDC using bankr" or "check balance on main". ' +
+      'Also shows which chains each wallet supports.',
+    schema: ListWalletsSchema,
+    handler: wrapHandler(handleListWallets),
+  });
 }
 
 // Export schemas for testing and reuse
@@ -811,6 +886,7 @@ export {
   MoneyMarketReservesSchema,
   CrossChainPositionsSchema,
   UserIntentsSchema,
+  ListWalletsSchema,
 };
 
 // Export handlers for testing
@@ -822,4 +898,5 @@ export {
   handleMoneyMarketReserves,
   handleCrossChainPositions,
   handleUserIntents,
+  handleListWallets,
 };

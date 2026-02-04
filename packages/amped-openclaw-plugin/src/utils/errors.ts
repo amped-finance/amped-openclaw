@@ -363,7 +363,7 @@ export function logError(error: AmpedOpenClawError | Error, context?: ErrorConte
   };
 
   // Log as JSON for structured logging systems
-  console.error(JSON.stringify(structuredLog));
+  console.error(JSON.stringify(structuredLog, (k, v) => typeof v === 'bigint' ? v.toString() : v));
 }
 
 /**

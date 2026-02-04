@@ -21,7 +21,7 @@ let sodaxClient: Sodax | null = null;
  */
 const PARTNER_ADDRESS: string | undefined =
   "0xd99C871c8130B03C8BB597A74fb5EAA7a46864Bb"; // Set your partner wallet address here, e.g., '0x1234...'
-const PARTNER_FEE_BPS: number | undefined = 10; // Set your partner fee in basis points, e.g., 10 = 0.1%
+const PARTNER_FEE_BPS: number | undefined = 20; // Set your partner fee in basis points, e.g., 10 = 0.1%
 
 /**
  * SODAX SDK Configuration options
@@ -51,14 +51,6 @@ async function initializeSodax(config?: SodaxConfig): Promise<Sodax> {
     await sodax.initialize();
   } else {
     console.log("[sodax:client] Using static configuration");
-  }
-
-  // Log partner configuration if set
-  if (PARTNER_ADDRESS) {
-    console.log("[sodax:client] Partner fee recipient configured:", {
-      address: PARTNER_ADDRESS,
-      feeBps: PARTNER_FEE_BPS || "default",
-    });
   }
 
   return sodax;

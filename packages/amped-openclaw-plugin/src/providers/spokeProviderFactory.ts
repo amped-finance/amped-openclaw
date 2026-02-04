@@ -1,22 +1,18 @@
 /**
  * Spoke Provider Factory
  *
- * Creates and caches spoke providers per (walletId, chainId) pair.
- * Uses EvmSpokeProvider for EVM chains and SonicSpokeProvider for Sonic hub chain.
+ * Creates spoke providers for SODAX operations.
+ * Supports both local key signing and Bankr API execution.
  * 
- * Now uses AmpedWalletProvider instead of wallet-sdk-core's EvmWalletProvider
- * to support all chains including LightLink and HyperEVM.
- * 
- * Supports pluggable wallet backends:
- * - localKey: Uses evm-wallet-skill local private keys (default)
- * - bankr: Uses Bankr Agent API for transaction execution
+ * Flow:
+ * 1. Resolve wallet by nickname using WalletManager
+ * 2. Check if wallet supports requested chain
+ * 3. For local wallets: use SDK's EvmWalletProvider
+ * 4. For Bankr wallets: use BankrWalletProvider (submits to Bankr API)
  */
 
-// Import our custom wallet provider instead of wallet-sdk-core
-import { AmpedWalletProvider, getDefaultRpcUrl } from '../wallet/providers';
-
-// Import backend configuration
-import { getBackendConfig, getBankrConfig } from '../wallet/backendConfig';
+// Official SDK wallet provider
+import { EvmWalletProvider } from '@sodax/wallet-sdk-core';
 
 // Import spoke providers and chain config from SDK
 import { 
@@ -28,8 +24,10 @@ import {
 // Import chain configuration from types
 import { spokeChainConfig, type SpokeChainId } from '@sodax/types';
 
-import { getWalletManager } from '../wallet/walletManager';
+// Import wallet management
+import { getWalletManager, type IWalletBackend, createBankrWalletProvider } from '../wallet';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
+import { BANKR_CHAIN_IDS, normalizeChainId, getBankrChainId } from '../wallet/types';
 
 // Cache for providers: Map<cacheKey, SpokeProvider>
 const providerCache = new Map<string, SpokeProvider>();
@@ -53,22 +51,11 @@ const CHAIN_ID_MAP: Record<string, SpokeChainId> = {
 } as Record<string, SpokeChainId>;
 
 /**
- * Get RPC URL for a chain from configuration
- * Tries evm-wallet-skill first, then falls back to built-in defaults
- *
- * @param chainId - The chain ID
- * @returns The RPC URL for the chain
- * @throws Error if RPC URL is not configured for the chain
+ * Get RPC URL for a chain
  */
 async function getRpcUrl(chainId: string): Promise<string> {
-  // Try skill adapter first (may have custom RPCs)
-  try {
-    const skillAdapter = getWalletAdapter();
-    return await skillAdapter.getRpcUrl(chainId);
-  } catch {
-    // Fall back to built-in defaults from our chain config
-    return getDefaultRpcUrl(chainId);
-  }
+  const skillAdapter = getWalletAdapter();
+  return skillAdapter.getRpcUrl(chainId);
 }
 
 /**
@@ -79,104 +66,52 @@ function getSdkChainId(chainId: string): SpokeChainId {
 }
 
 /**
- * Create a spoke provider using local key backend
+ * Validate that wallet supports the requested chain
  */
-async function createLocalKeySpokeProvider(
-  walletId: string,
-  chainId: string
-): Promise<SpokeProvider> {
-  const walletManager = getWalletManager();
-  const wallet = await walletManager.resolve(walletId);
-
-  if (!wallet) {
-    throw new Error(`Wallet not found: ${walletId}`);
+function validateChainSupport(wallet: IWalletBackend, chainId: string): void {
+  const normalizedForWallet = normalizeChainId(chainId);
+  if (!wallet.supportsChain(normalizedForWallet)) {
+    throw new Error(
+      `Wallet "${wallet.nickname}" doesn't support chain "${chainId}". ` +
+      `Supported chains: ${wallet.supportedChains.join(', ')}. ` +
+      `Try a different wallet.`
+    );
   }
-
-  if (!wallet.privateKey) {
-    throw new Error(`Wallet ${walletId} has no private key (required for execute mode)`);
-  }
-
-  const rpcUrl = await getRpcUrl(chainId);
-  const sdkChainId = getSdkChainId(chainId);
-
-  // Get chain config from SDK
-  const chainConfig = spokeChainConfig[sdkChainId];
-  if (!chainConfig) {
-    throw new Error(`Chain config not found for: ${sdkChainId}`);
-  }
-
-  // Create the wallet provider using AmpedWalletProvider with local key backend
-  const walletProvider = await AmpedWalletProvider.fromPrivateKey({
-    privateKey: wallet.privateKey as `0x${string}`,
-    chainId: sdkChainId,
-    rpcUrl: rpcUrl,
-  });
-
-  return createSpokeProviderFromWallet(walletProvider, chainId, sdkChainId, chainConfig, rpcUrl, walletId);
 }
 
 /**
- * Create a spoke provider using Bankr backend
+ * Create a spoke provider for local key signing
  */
-async function createBankrSpokeProviderInternal(
-  walletId: string,
-  chainId: string
-): Promise<SpokeProvider> {
-  const bankrConfig = getBankrConfig();
-  
-  if (!bankrConfig) {
-    throw new Error('Bankr backend selected but not configured. Set BANKR_API_KEY environment variable.');
-  }
-
-  // For Bankr, we need to get the user's Bankr wallet address
-  // This could come from querying Bankr API or from config
-  // For now, we'll use a placeholder that will be filled by the first API call
-  const userAddress = process.env.BANKR_WALLET_ADDRESS as `0x${string}` || '0x0000000000000000000000000000000000000000' as `0x${string}`;
-
-  const rpcUrl = await getRpcUrl(chainId);
-  const sdkChainId = getSdkChainId(chainId);
-
-  // Get chain config from SDK
-  const chainConfig = spokeChainConfig[sdkChainId];
-  if (!chainConfig) {
-    throw new Error(`Chain config not found for: ${sdkChainId}`);
-  }
-
-  // Create the wallet provider using AmpedWalletProvider with Bankr backend
-  const walletProvider = await AmpedWalletProvider.fromBankr({
-    bankrApiUrl: bankrConfig.apiUrl,
-    bankrApiKey: bankrConfig.apiKey,
-    userAddress: userAddress,
-    chainId: sdkChainId,
-    rpcUrl: rpcUrl,
-  });
-
-  console.log('[spokeProviderFactory] Creating provider with Bankr backend', {
-    walletId,
-    chainId,
-    sdkChainId,
-  });
-
-  return createSpokeProviderFromWallet(walletProvider, chainId, sdkChainId, chainConfig, rpcUrl, walletId);
-}
-
-/**
- * Create a spoke provider from an AmpedWalletProvider
- */
-function createSpokeProviderFromWallet(
-  walletProvider: any,
+async function createLocalSpokeProvider(
+  wallet: IWalletBackend,
   chainId: string,
-  sdkChainId: SpokeChainId,
-  chainConfig: any,
-  rpcUrl: string,
-  walletId: string
-): SpokeProvider {
+  rpcUrl: string
+): Promise<SpokeProvider> {
+  if (!wallet.getPrivateKey) {
+    throw new Error(`Wallet "${wallet.nickname}" does not support local signing`);
+  }
+
+  const privateKey = await wallet.getPrivateKey();
+  const sdkChainId = getSdkChainId(chainId);
+
+  // Get chain config from SDK
+  const chainConfig = spokeChainConfig[sdkChainId];
+  if (!chainConfig) {
+    throw new Error(`Chain config not found for: ${sdkChainId}. Available: ${Object.keys(spokeChainConfig).join(', ')}`);
+  }
+
+  // Create wallet provider using official SDK
+  const walletProvider = new EvmWalletProvider({
+    privateKey,
+    chainId: sdkChainId,
+    rpcUrl: rpcUrl as `http${string}`,
+  });
+
   // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
   if (chainId === SONIC_CHAIN_ID) {
     console.log('[spokeProviderFactory] Creating SonicSpokeProvider', {
-      walletId,
+      wallet: wallet.nickname,
       chainId,
-      backend: walletProvider.getBackendType(),
     });
 
     return new SonicSpokeProvider(
@@ -186,10 +121,9 @@ function createSpokeProviderFromWallet(
     );
   } else {
     console.log('[spokeProviderFactory] Creating EvmSpokeProvider', {
-      walletId,
+      wallet: wallet.nickname,
       chainId,
       sdkChainId,
-      backend: walletProvider.getBackendType(),
     });
 
     return new EvmSpokeProvider(
@@ -201,45 +135,25 @@ function createSpokeProviderFromWallet(
 }
 
 /**
- * Create a new spoke provider for the given wallet and chain
- * Automatically selects backend based on configuration
- *
- * @param walletId - The wallet identifier
- * @param chainId - The chain identifier
- * @returns A new spoke provider instance
+ * Create a spoke provider for Bankr wallet
+ * Uses BankrWalletProvider which submits transactions to Bankr API
  */
-async function createSpokeProvider(
-  walletId: string,
-  chainId: string
+async function createBankrSpokeProvider(
+  wallet: IWalletBackend,
+  chainId: string,
+  rpcUrl: string
 ): Promise<SpokeProvider> {
-  const config = getBackendConfig();
-
-  if (config.backend === 'bankr') {
-    return createBankrSpokeProviderInternal(walletId, chainId);
-  } else {
-    return createLocalKeySpokeProvider(walletId, chainId);
-  }
-}
-
-/**
- * Create a spoke provider with a Bankr backend (explicit)
- * 
- * This allows execution through Bankr's API instead of local keys.
- *
- * @param bankrConfig - Bankr backend configuration
- * @param chainId - The chain identifier
- * @returns A new spoke provider instance
- */
-export async function createBankrSpokeProvider(
-  bankrConfig: {
-    bankrApiUrl: string;
-    bankrApiKey: string;
-    userAddress: `0x${string}`;
-  },
-  chainId: string
-): Promise<SpokeProvider> {
-  const rpcUrl = await getRpcUrl(chainId);
   const sdkChainId = getSdkChainId(chainId);
+  
+  // Normalize chain ID for Bankr lookup (0x2105.base -> base)
+  const normalizedChainId = normalizeChainId(chainId);
+  const numericChainId = getBankrChainId(normalizedChainId);
+  
+  console.log('[spokeProviderFactory] Bankr chain resolution', {
+    input: chainId,
+    normalized: normalizedChainId,
+    numeric: numericChainId,
+  });
 
   // Get chain config from SDK
   const chainConfig = spokeChainConfig[sdkChainId];
@@ -247,66 +161,76 @@ export async function createBankrSpokeProvider(
     throw new Error(`Chain config not found for: ${sdkChainId}`);
   }
 
-  // Create the wallet provider using Bankr backend
-  const walletProvider = await AmpedWalletProvider.fromBankr({
-    bankrApiUrl: bankrConfig.bankrApiUrl,
-    bankrApiKey: bankrConfig.bankrApiKey,
-    userAddress: bankrConfig.userAddress,
-    chainId: sdkChainId,
-    rpcUrl: rpcUrl,
+  // Get Bankr API key from environment
+  const apiKey = process.env.BANKR_API_KEY;
+  if (!apiKey) {
+    throw new Error('BANKR_API_KEY environment variable not set');
+  }
+
+  // Get the Bankr wallet address (cached after first call)
+  const walletAddress = await wallet.getAddress();
+
+  // Create BankrWalletProvider which implements IEvmWalletProvider
+  const walletProvider = createBankrWalletProvider({
+    apiKey,
+    apiUrl: process.env.BANKR_API_URL,
+    chainId: numericChainId,
+    rpcUrl,
+    cachedAddress: walletAddress,
   });
 
-  // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
-  if (chainId === SONIC_CHAIN_ID) {
-    console.log('[spokeProviderFactory] Creating SonicSpokeProvider with Bankr backend', {
-      chainId,
-      userAddress: bankrConfig.userAddress,
-    });
+  console.log('[spokeProviderFactory] Creating EvmSpokeProvider with Bankr backend', {
+    wallet: wallet.nickname,
+    chainId,
+    sdkChainId,
+    address: walletAddress?.slice(0, 10) + '...',
+  });
 
-    return new SonicSpokeProvider(
-      walletProvider,
-      chainConfig as any,
-      rpcUrl
-    );
-  } else {
-    console.log('[spokeProviderFactory] Creating EvmSpokeProvider with Bankr backend', {
-      chainId,
-      sdkChainId,
-      userAddress: bankrConfig.userAddress,
-    });
-
-    return new EvmSpokeProvider(
-      walletProvider,
-      chainConfig as any,
-      rpcUrl
-    );
-  }
+  // Use standard EvmSpokeProvider with our BankrWalletProvider
+  // The SDK doesn't care how transactions are signed - it just calls the interface methods
+  return new EvmSpokeProvider(
+    walletProvider as any, // BankrWalletProvider implements IEvmWalletProvider
+    chainConfig as any,
+    rpcUrl
+  );
 }
 
 /**
- * Create a raw (read-only) spoke provider for prepare mode
- *
- * @param walletId - The wallet identifier
- * @param chainId - The chain identifier
- * @returns A spoke provider instance
+ * Create a spoke provider for the given wallet and chain
+ * 
+ * @param walletId - Wallet nickname (e.g., "main", "bankr", "trading")
+ * @param chainId - Chain identifier (e.g., "ethereum", "base")
  */
-async function createRawSpokeProvider(
+async function createSpokeProvider(
   walletId: string,
   chainId: string
 ): Promise<SpokeProvider> {
-  // For now, raw mode still needs a private key for the SDK
-  // In the future, we could use EvmRawSpokeProvider or SonicRawSpokeProvider
-  console.warn('[spokeProviderFactory] Raw mode requested but using full provider');
-  return createSpokeProvider(walletId, chainId);
+  // Get wallet from unified manager
+  const walletManager = getWalletManager();
+  const wallet = await walletManager.resolve(walletId);
+  
+  // Validate chain support
+  validateChainSupport(wallet, chainId);
+
+  const rpcUrl = await getRpcUrl(chainId);
+
+  // Route based on wallet type
+  if (wallet.type === 'bankr') {
+    // Use BankrWalletProvider for Bankr wallets
+    return createBankrSpokeProvider(wallet, chainId, rpcUrl);
+  }
+
+  // Local key signing (evm-wallet-skill or env)
+  return createLocalSpokeProvider(wallet, chainId, rpcUrl);
 }
 
 /**
  * Get a spoke provider for the given wallet and chain
  * Returns cached provider if available, otherwise creates a new one
  *
- * @param walletId - The wallet identifier (used for caching and wallet resolution)
+ * @param walletId - The wallet identifier/nickname
  * @param chainId - The chain identifier
- * @param raw - If true, attempts to create a read-only provider (may still require private key)
+ * @param raw - If true, still creates full provider (raw mode not yet supported)
  * @returns The spoke provider instance
  */
 export async function getSpokeProvider(
@@ -314,8 +238,7 @@ export async function getSpokeProvider(
   chainId: string,
   raw = false
 ): Promise<SpokeProvider> {
-  const config = getBackendConfig();
-  const cacheKey = `${walletId}:${chainId}:${config.backend}:${raw ? 'raw' : 'full'}`;
+  const cacheKey = `${walletId}:${chainId}`;
 
   // Check cache
   const cached = providerCache.get(cacheKey);
@@ -323,16 +246,12 @@ export async function getSpokeProvider(
     console.log('[spokeProviderFactory] Using cached provider', {
       walletId,
       chainId,
-      backend: config.backend,
-      raw,
     });
     return cached;
   }
 
   // Create new provider
-  const provider = raw
-    ? await createRawSpokeProvider(walletId, chainId)
-    : await createSpokeProvider(walletId, chainId);
+  const provider = await createSpokeProvider(walletId, chainId);
 
   // Cache the provider
   providerCache.set(cacheKey, provider);
@@ -358,13 +277,6 @@ export function getCacheStats(): { size: number; keys: string[] } {
     size: providerCache.size,
     keys: Array.from(providerCache.keys()),
   };
-}
-
-/**
- * Get current backend type being used
- */
-export function getCurrentBackend(): string {
-  return getBackendConfig().backend;
 }
 
 // Export the type for use in other modules

@@ -2,159 +2,101 @@
 
 [![npm version](https://img.shields.io/npm/v/amped-openclaw.svg)](https://www.npmjs.com/package/amped-openclaw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
-DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cross-chain swaps, bridging, and money market operations via the [SODAX SDK](https://docs.sodax.com).
-
-## Features
-
-- 🔁 **Cross-Chain Swaps** - Intent-based swaps via SODAX solver network
-- 🌉 **Token Bridging** - Bridge assets between chains  
-- 🏦 **Cross-Chain Money Market** - Supply on one chain, borrow to another
-- 📊 **Portfolio Analytics** - Unified view across all chains with risk metrics
-- 📜 **Intent History** - Query complete transaction history
-
-## Quick Install
+DeFi plugin for [OpenClaw](https://openclaw.ai). Swap, bridge, lend, and borrow across 12 chains through natural language.
 
 ```bash
 openclaw plugins install amped-openclaw
 ```
 
-Verify with `openclaw plugins list` — you should see "Amped DeFi" as loaded.
+Or browse on [ClawdHub](https://clawhub.ai/skills/amped-openclaw).
 
-## Prerequisites
+## Supported Chains
 
-- [OpenClaw](https://openclaw.ai) installed
-- Node.js >= 18.0.0
+Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, Kaia, Solana
 
-## Wallet Configuration
+## Capabilities
 
-The plugin automatically detects wallets from multiple sources (in order):
+- **Cross-chain swaps** — swap tokens between any supported chains
+- **Token bridging** — move assets across chains
+- **Cross-chain money market** — supply collateral on one chain, borrow on another
+- **Portfolio view** — balances and positions across all chains
 
-### Option 1: evm-wallet-skill (Recommended)
+## Example Commands
 
-If you use [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill), wallet is auto-detected from `~/.evm-wallet.json`.
-
-```bash
-# evm-wallet-skill stores wallet here automatically
-cat ~/.evm-wallet.json
+```
+"Swap 100 USDC to ETH on Base"
+"Bridge 50 USDC from Arbitrum to Solana"
+"Supply 1000 USDC on Ethereum and borrow 500 USDT to Polygon"
+"Show my portfolio"
 ```
 
-### Option 2: Bankr
+## Wallet Setup
 
-If you use [Bankr](https://bankr.bot) for agent wallets, set your API key:
+Quotes and discovery work without a wallet. Transactions require one of the following:
 
+### Option A: evm-wallet-skill (Recommended)
+
+**Easy install** — just ask your agent:
+> "Install evm-wallet-skill for me"
+
+**Via ClawdHub** (once [PR #5](https://github.com/surfer77/evm-wallet-skill/pull/5) is merged):
 ```bash
-export BANKR_API_KEY=your-bankr-api-key
+openclaw skills install evm-wallet-skill
 ```
 
-> ⚠️ Your Bankr API key must have **"Agent API" access enabled** in your Bankr dashboard.
-
-### Option 3: Environment Variables
-
+**Manual install** (use our fork with SODAX chain support):
 ```bash
-export AMPED_OC_WALLETS_JSON='{
-  "main": {
-    "address": "0xYourWalletAddress",
-    "privateKey": "0xYourPrivateKey"
-  }
-}'
-
-export AMPED_OC_RPC_URLS_JSON='{
-  "ethereum": "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
-  "arbitrum": "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
-  "sonic": "https://rpc.soniclabs.com"
-}'
+git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill
+cd ~/.openclaw/skills/evm-wallet-skill && npm install && node src/setup.js
 ```
 
-### Optional Settings
+Supports all 12 chains. The plugin auto-detects wallets from `~/.evm-wallet.json`.
+
+### Option B: Environment Variables
 
 ```bash
-# Operation mode: "execute" (default) or "simulate"
-export AMPED_OC_MODE=execute
-
-# Policy limits
-export AMPED_OC_LIMITS_JSON='{"default": {"maxSlippageBps": 100}}'
+export AMPED_OC_WALLETS_JSON='{"main":{"address":"0x...","privateKey":"0x..."}}'
 ```
 
-## Available Tools (18)
+### Option C: Bankr
+
+Tell the agent your API key: *"My Bankr API key is xyz"*
+
+To get a key: [bankr.bot](https://bankr.bot) → Settings → API Keys → Create with "Agent API" enabled.
+
+Bankr wallets support Ethereum, Base, Polygon, and Solana (as a receive destination for cross-chain swaps).
+
+## Tools
 
 | Category | Tools |
 |----------|-------|
-| **Discovery** | `amped_oc_supported_chains`, `amped_oc_supported_tokens`, `amped_oc_wallet_address`, `amped_oc_money_market_reserves`, `amped_oc_money_market_positions`, `amped_oc_cross_chain_positions`, `amped_oc_user_intents` |
-| **Swap** | `amped_oc_swap_quote`, `amped_oc_swap_execute`, `amped_oc_swap_status`, `amped_oc_swap_cancel` |
-| **Bridge** | `amped_oc_bridge_discover`, `amped_oc_bridge_quote`, `amped_oc_bridge_execute` |
-| **Money Market** | `amped_oc_mm_supply`, `amped_oc_mm_withdraw`, `amped_oc_mm_borrow`, `amped_oc_mm_repay` |
+| Swap | quote, execute, status, cancel |
+| Bridge | discover, quote, execute |
+| Money Market | supply, withdraw, borrow, repay |
+| Portfolio | balances, positions, intent history |
+| Wallets | add, rename, remove, set default |
 
-## Cross-Chain Money Market
-
-The standout feature: **Supply collateral on Chain A, borrow tokens on Chain B**
-
-```
-Supply USDC on Ethereum → Borrow USDT on Arbitrum
-```
-
-Your collateral stays on the source chain while borrowed tokens arrive on the destination chain.
-
-## Updating
+## Update
 
 ```bash
-openclaw plugins uninstall amped-openclaw
-openclaw plugins install amped-openclaw
-```
-
-## Uninstalling
-
-```bash
-openclaw plugins uninstall amped-openclaw
+openclaw plugins uninstall amped-openclaw && openclaw plugins install amped-openclaw
 ```
 
 ## Troubleshooting
 
-### "Cannot find module" errors
+**Plugin not loading?** Check `openclaw plugins list` and `~/.openclaw/logs/openclaw.log`
 
-Install dependencies in the extension directory:
-```bash
-cd ~/.openclaw/extensions/amped-openclaw
-npm install
-```
+**Module errors?** Run `npm install` in `~/.openclaw/extensions/amped-openclaw`
 
-### "plugin not found" error during install
+## Links
 
-The config has a stale entry. Remove it:
-```bash
-jq 'del(.plugins.entries["amped-openclaw"])' ~/.openclaw/openclaw.json > /tmp/oc.json && mv /tmp/oc.json ~/.openclaw/openclaw.json
-```
-
-Then reinstall.
-
-### Plugin not detecting wallet
-
-Check wallet sources:
-```bash
-# evm-wallet-skill wallet
-cat ~/.evm-wallet.json
-
-# Or set environment variable
-export AMPED_OC_WALLETS_JSON='{"main":{"address":"0x...","privateKey":"0x..."}}'
-```
-
-### Plugin not loading
-
-1. Check it's enabled: `openclaw plugins list`
-2. Check logs: `tail -100 ~/.openclaw/logs/openclaw.log`
-
-## Documentation
-
-- **[Plugin README](packages/amped-openclaw-plugin/README.md)** - Complete documentation
-- **[SODAX Docs](https://docs.sodax.com)** - SDK documentation
-
-## License
-
-[MIT](LICENSE)
+- [ClawdHub](https://clawhub.ai/skills/amped-openclaw) — discover and install
+- [Full Plugin Docs](packages/amped-openclaw-plugin/README.md)
+- [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill) (upstream) | [our fork](https://github.com/amped-finance/evm-wallet-skill)
 
 ---
 
 <p align="center">
-  Built with ❤️ by <a href="https://amped.finance">Amped Finance</a>
+  Built by <a href="https://amped.finance">Amped Finance</a>
 </p>

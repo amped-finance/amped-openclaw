@@ -26,6 +26,7 @@ import { getWalletManager } from '../wallet/walletManager';
 import { AgentTools } from "../types";
 import { serializeError } from '../utils/errorUtils';
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
+import { toSodaxChainId } from '../wallet/types';
 
 // ============================================================================
 // TypeBox Schemas
@@ -303,15 +304,16 @@ async function resolveWalletAndProvider(
   walletId: string,
   chainId: string
 ): Promise<{
-  wallet: { address: string; privateKey?: string };
+  walletAddress: string;
   spokeProvider: any;
 }> {
   const walletManager = getWalletManager();
   const wallet = await walletManager.resolve(walletId);
+  const walletAddress = await wallet.getAddress();
 
-  const spokeProvider = await getSpokeProvider(wallet.address, chainId);
+  const spokeProvider = await getSpokeProvider(walletId, chainId);
 
-  return { wallet, spokeProvider };
+  return { walletAddress, spokeProvider };
 }
 
 /**
@@ -324,16 +326,19 @@ async function prepareMoneyMarketOperation(
   amount: string,
   operation: "supply" | "withdraw" | "borrow" | "repay",
   policyId?: string
-): Promise<{ wallet: any; spokeProvider: any; policyResult: any; tokenAddr: string }> {
+): Promise<{ walletAddress: string; spokeProvider: any; policyResult: any; tokenAddr: string }> {
   // Ensure sodax client is initialized
   const _sodaxClient = getSodaxClient(); // Just verify it's ready
   void _sodaxClient;
 
+  // Normalize chain ID to SDK format for token resolution
+  const sdkChainId = toSodaxChainId(chainId);
+
   // Resolve token symbol to address
-  const tokenAddr = await resolveToken(chainId, token);
+  const tokenAddr = await resolveToken(sdkChainId, token);
 
   // Resolve wallet and create spoke provider
-  const { wallet, spokeProvider } = await resolveWalletAndProvider(walletId, chainId);
+  const { walletAddress, spokeProvider } = await resolveWalletAndProvider(walletId, chainId);
 
   // Policy check
   const policyEngine = new PolicyEngine();
@@ -353,8 +358,26 @@ async function prepareMoneyMarketOperation(
     );
   }
 
-  return { wallet, spokeProvider, policyResult, tokenAddr };
+  return { walletAddress, spokeProvider, policyResult, tokenAddr };
 }
+/**
+ * Resolves token and returns its decimals
+ * Falls back to 18 decimals if token info not found
+ */
+async function getTokenDecimals(
+  chainId: string,
+  token: string
+): Promise<number> {
+  try {
+    const sdkChainId = toSodaxChainId(chainId);
+    const tokenInfo = await getTokenInfo(sdkChainId, token);
+    return tokenInfo?.decimals ?? 18;
+  } catch {
+    // If token info lookup fails, fall back to 18 decimals
+    return 18;
+  }
+}
+
 
 /**
  * Checks and handles token approval if needed
@@ -440,7 +463,7 @@ async function handleSupply(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -449,8 +472,9 @@ async function handleSupply(
       policyId
     );
 
-    // Parse amount (would need actual token decimals in production)
-    const amountBigInt = parseTokenAmount(amount, 18);
+    // Parse amount with actual token decimals
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
 
     // Check allowance for supply
     const { approvalTxHash } = await ensureAllowance(
@@ -466,15 +490,16 @@ async function handleSupply(
 
     // Build supply parameters
     const supplyParams: any = {
+      action: 'supply',
       token: tokenAddr,
       amount: amountBigInt,
-      useAsCollateral,
-      recipient: recipient || wallet.address,
+      
+      toAddress: recipient || walletAddress,
     };
 
     // Add cross-chain parameters if applicable
     if (crossChain && dstChainId) {
-      supplyParams.dstChainId = dstChainId;
+      supplyParams.toChainId = toSodaxChainId(dstChainId);
       warnings.push(`Cross-chain supply: tokens supplied on ${chainId}, collateral recorded on ${dstChainId}`);
     }
 
@@ -492,7 +517,12 @@ async function handleSupply(
     
     const value = supplyResult.ok ? supplyResult.value : supplyResult;
     // SDK may return [spokeTxHash, hubTxHash] tuple
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
+    
+    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
+    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
 
     return {
       success: true,
@@ -554,7 +584,7 @@ async function handleWithdraw(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -563,22 +593,24 @@ async function handleWithdraw(
       policyId
     );
 
-    // Parse amount
-    const amountBigInt = parseTokenAmount(amount, 18);
+    // Parse amount with actual token decimals
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
 
     const sodaxClient = await getSodaxClient();
 
     // Build withdraw parameters
     const withdrawParams: any = {
+      action: 'withdraw',
       token: tokenAddr,
       amount: amountBigInt,
-      withdrawType,
-      recipient: recipient || wallet.address,
+      
+      toAddress: recipient || walletAddress,
     };
 
     // Add cross-chain parameters if applicable
     if (crossChain && dstChainId) {
-      withdrawParams.dstChainId = dstChainId;
+      withdrawParams.toChainId = toSodaxChainId(dstChainId);
       warnings.push(`Cross-chain withdraw: withdrawing from ${chainId}, receiving tokens on ${dstChainId}`);
     }
 
@@ -595,7 +627,12 @@ async function handleWithdraw(
     }
     
     const value = withdrawResult.ok ? withdrawResult.value : withdrawResult;
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
+    
+    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
+    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
 
     return {
       success: true,
@@ -664,7 +701,7 @@ async function handleBorrow(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -673,30 +710,41 @@ async function handleBorrow(
       policyId
     );
 
-    // Parse amount
-    const amountBigInt = parseTokenAmount(amount, 18);
+    // Parse amount with actual token decimals
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
 
     // Get user's positions to check health factor (best practice)
     const sodaxClient = await getSodaxClient();
     
+    // For cross-chain borrow, resolve token on DESTINATION chain
+    // SDK expects: getMoneyMarketToken(toChainId, params.token)
+    // So params.token must be the destination chain's token address
+    let borrowTokenAddr = tokenAddr;
+    if (crossChain && dstChainId) {
+      borrowTokenAddr = await resolveToken(dstChainId, token);
+      console.log('[mm:borrow] Cross-chain: resolved token on destination chain', {
+        srcChain: chainId,
+        dstChain: dstChainId,
+        srcTokenAddr: tokenAddr,
+        dstTokenAddr: borrowTokenAddr,
+      });
+    }
+
     // Build borrow parameters
     const borrowParams: any = {
-      token: tokenAddr,
+      action: 'borrow',
+      token: borrowTokenAddr,
       amount: amountBigInt,
-      interestRateMode,
-      recipient: recipient || wallet.address,
+      
+      toAddress: recipient || walletAddress,
     };
-
-    // Add optional parameters
-    if (referralCode) {
-      borrowParams.referralCode = referralCode;
-    }
 
     // KEY CROSS-CHAIN FEATURE:
     // If dstChainId is provided and different from chainId, the borrowed tokens
     // will be delivered to dstChainId instead of chainId where the borrow is initiated
     if (crossChain && dstChainId) {
-      borrowParams.dstChainId = dstChainId;
+      borrowParams.toChainId = toSodaxChainId(dstChainId);
       warnings.push(`Cross-chain borrow: Using collateral on ${chainId}, receiving borrowed tokens on ${dstChainId}`);
       warnings.push(`Ensure you have sufficient collateral on ${chainId} to support this borrow`);
     }
@@ -714,7 +762,12 @@ async function handleBorrow(
     }
     
     const value = borrowResult.ok ? borrowResult.value : borrowResult;
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
+    
+    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
+    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
 
     return {
       success: true,
@@ -776,7 +829,7 @@ async function handleRepay(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -785,8 +838,9 @@ async function handleRepay(
       policyId
     );
 
-    // Parse amount (use -1 for max repay if repayAll is true)
-    const amountBigInt = repayAll ? BigInt(-1) : parseTokenAmount(amount, 18);
+    // Parse amount with actual token decimals (use -1 for max repay if repayAll is true)
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = repayAll ? BigInt(-1) : parseTokenAmount(amount, decimals);
 
     // Check allowance for repay
     const { approvalTxHash } = await ensureAllowance(
@@ -802,14 +856,15 @@ async function handleRepay(
 
     // Build repay parameters
     const repayParams: any = {
+      action: 'repay',
       token: tokenAddr,
       amount: amountBigInt,
-      interestRateMode,
+      
     };
 
     // Add cross-chain parameters if applicable
     if (crossChain && collateralChainId) {
-      repayParams.collateralChainId = collateralChainId;
+      repayParams.toChainId = collateralChainId;
       warnings.push(`Cross-chain repay: Repaying debt on ${collateralChainId} using tokens from ${chainId}`);
     }
 
@@ -826,7 +881,12 @@ async function handleRepay(
     }
     
     const value = repayResult.ok ? repayResult.value : repayResult;
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
+    
+    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
+    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
 
     return {
       success: true,
@@ -873,22 +933,24 @@ async function handleCreateSupplyIntent(
   const { walletId, chainId, token, amount, useAsCollateral = true, dstChainId, recipient, raw = true } = params;
 
   try {
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId, chainId, token, amount, "supply"
     );
 
-    const amountBigInt = parseTokenAmount(amount, 18);
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
     const sodaxClient = await getSodaxClient();
 
     const supplyParams: any = {
+      action: 'supply',
       token: tokenAddr,
       amount: amountBigInt,
-      useAsCollateral,
-      recipient: recipient || wallet.address,
+      
+      toAddress: recipient || walletAddress,
     };
 
     if (dstChainId) {
-      supplyParams.dstChainId = dstChainId;
+      supplyParams.toChainId = toSodaxChainId(dstChainId);
     }
 
     const intentData = await sodaxClient.moneyMarket.createSupplyIntent(
@@ -924,22 +986,24 @@ async function handleCreateBorrowIntent(
   const { walletId, chainId, token, amount, interestRateMode = 2, dstChainId, recipient, raw = true } = params;
 
   try {
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId, chainId, token, amount, "borrow"
     );
 
-    const amountBigInt = parseTokenAmount(amount, 18);
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
     const sodaxClient = await getSodaxClient();
 
     const borrowParams: any = {
+      action: 'borrow',
       token: tokenAddr,
       amount: amountBigInt,
-      interestRateMode,
-      recipient: recipient || wallet.address,
+      
+      toAddress: recipient || walletAddress,
     };
 
     if (dstChainId) {
-      borrowParams.dstChainId = dstChainId;
+      borrowParams.toChainId = toSodaxChainId(dstChainId);
     }
 
     const intentData = await sodaxClient.moneyMarket.createBorrowIntent(

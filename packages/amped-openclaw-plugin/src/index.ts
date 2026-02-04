@@ -56,11 +56,15 @@ import {
 import {
   SupportedChainsSchema, SupportedTokensSchema, WalletAddressSchema,
   MoneyMarketReservesSchema, MoneyMarketPositionsSchema, CrossChainPositionsSchema,
-  UserIntentsSchema,
+  UserIntentsSchema, ListWalletsSchema,
   handleSupportedChains, handleSupportedTokens, handleWalletAddress,
   handleMoneyMarketReserves, handleMoneyMarketPositions, handleCrossChainPositions,
-  handleUserIntents
+  handleUserIntents, handleListWallets
 } from './tools/discovery';
+import {
+  AddWalletSchema, RenameWalletSchema, RemoveWalletSchema, SetDefaultWalletSchema,
+  handleAddWallet, handleRenameWallet, handleRemoveWallet, handleSetDefaultWallet
+} from './tools/walletManagement';
 
 /**
  * Plugin configuration schema (matches openclaw.plugin.json)
@@ -108,15 +112,28 @@ function validateEnvironment(): string[] {
   return missing;
 }
 
+
+/**
+ * Deep-clone an object while converting BigInt values to strings
+ * Prevents serialization errors when OpenClaw framework handles the details field
+ */
+function sanitizeBigInt(obj: unknown): unknown {
+  return JSON.parse(JSON.stringify(obj, (_, v) => 
+    typeof v === 'bigint' ? v.toString() : v
+  ));
+}
+
 /**
  * Helper to wrap a handler for OpenClaw's tool format
  */
 function wrapHandler(handler: (params: unknown) => Promise<unknown>) {
   return async (_toolCallId: string, params: unknown) => {
     const result = await handler(params);
+    // Sanitize BigInt values in details to prevent framework serialization errors
+    const sanitizedResult = sanitizeBigInt(result);
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      details: result,
+      content: [{ type: 'text' as const, text: JSON.stringify(result, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2) }],
+      details: sanitizedResult,
     };
   };
 }
@@ -147,8 +164,8 @@ export default {
     // Check for missing env vars
     const missing = validateEnvironment();
     if (missing.length > 0) {
-      console.warn(`[AmpedOpenClaw] Missing config: ${missing.join(', ')}`);
-      console.warn('[AmpedOpenClaw] Configure via plugin settings or environment variables');
+      // console.warn(`[AmpedOpenClaw] Missing config: ${missing.join(', ')}`);
+      // console.warn('[AmpedOpenClaw] Configure via plugin settings or environment variables');
     }
 
     // Initialize core components (async, non-blocking)
@@ -222,6 +239,42 @@ export default {
       description: 'Query user intent history from SODAX API',
       parameters: UserIntentsSchema,
       execute: wrapHandler(handleUserIntents),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_list_wallets',
+      description: 'List ALL configured wallets including evm-wallet-skill, Bankr, and env wallets. Shows nicknames, addresses, types, and supported chains. Use this when user asks "what wallets do I have" or "show my wallets".',
+      parameters: ListWalletsSchema,
+      execute: wrapHandler(handleListWallets),
+    });
+
+    // Register Wallet Management Tools
+    api.registerTool({
+      name: 'amped_oc_add_wallet',
+      description: 'Add a new wallet with a nickname (evm-wallet-skill, bankr, or env)',
+      parameters: AddWalletSchema,
+      execute: wrapHandler(handleAddWallet),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_rename_wallet',
+      description: 'Rename a wallet to a new nickname',
+      parameters: RenameWalletSchema,
+      execute: wrapHandler(handleRenameWallet),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_remove_wallet',
+      description: 'Remove a wallet from configuration (does not delete funds)',
+      parameters: RemoveWalletSchema,
+      execute: wrapHandler(handleRemoveWallet),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_set_default_wallet',
+      description: 'Set which wallet to use by default for operations',
+      parameters: SetDefaultWalletSchema,
+      execute: wrapHandler(handleSetDefaultWallet),
     });
 
     // Register Swap Tools
@@ -316,7 +369,7 @@ export default {
       },
     });
 
-    console.log('[AmpedOpenClaw] Plugin registered (18 tools)');
+    console.log('[AmpedOpenClaw] Plugin registered (23 tools)');
   },
 };
 
@@ -328,7 +381,8 @@ export type { SpokeProvider } from './providers/spokeProviderFactory';
 export { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/sdk';
 export { PolicyEngine } from './policy/policyEngine';
 export { WalletRegistry, getWalletRegistry } from './wallet/walletRegistry';
-export { WalletManager, getWalletManager, resetWalletManager, type ResolvedWallet, type WalletSource, type ChainType } from './wallet/walletManager';
+export { WalletManager, getWalletManager, resetWalletManager } from './wallet/walletManager';
+export type { IWalletBackend, WalletInfo, WalletBackendType } from './wallet/types';
 
 // Legacy exports for backward compatibility
 export async function activate() {
