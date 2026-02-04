@@ -130,7 +130,7 @@ function populateTokenCache(chainId: string): Token[] {
   
   try {
     const client = getSodaxClient();
-    const configService = (client as any).configService;
+    const configService = (client as any).config;
     
     if (configService?.getSupportedSwapTokensByChainId) {
       // Preferred method - returns readonly Token[]
