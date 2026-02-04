@@ -11,6 +11,7 @@ import { Type, Static } from '@sinclair/typebox';
 import { createPublicClient, http, formatUnits, type PublicClient, type Address } from 'viem';
 import { getWalletManager } from '../wallet';
 import { aggregateCrossChainPositions, formatHealthFactor, getHealthFactorStatus } from '../utils/positionAggregator';
+import { fetchTokenPrices, getTokenPriceBySymbol } from '../utils/priceService';
 import { 
   getViemChain, 
   getDefaultRpcUrl, 
@@ -231,8 +232,8 @@ async function getChainBalances(
 ): Promise<{
   chainId: string;
   chainName: string;
-  native: { symbol: string; balance: string };
-  tokens: Array<{ symbol: string; balance: string; address: string }>;
+  native: { symbol: string; balance: string; usdValue?: string };
+  tokens: Array<{ symbol: string; balance: string; address: string; usdValue?: string }>; chainTotalUsd?: string;
 }> {
   const client = createClient(chainId);
   const rpcUrl = getDefaultRpcUrl(chainId);
@@ -279,8 +280,9 @@ interface WalletBalanceResult {
   balances: Array<{
     chainId: string;
     chainName: string;
-    native: { symbol: string; balance: string };
-    tokens: Array<{ symbol: string; balance: string; address: string }>;
+    native: { symbol: string; balance: string; usdValue?: string };
+    tokens: Array<{ symbol: string; balance: string; address: string; usdValue?: string }>;
+    chainTotalUsd?: string;
   }>;
   moneyMarket?: {
     totalSupplyUsd: string;
@@ -289,6 +291,7 @@ interface WalletBalanceResult {
     healthFactor: string;
     healthStatus: { status: string; color: string };
   };
+  walletTotalUsd?: string;
 }
 
 /**
@@ -304,6 +307,14 @@ export async function handlePortfolioSummary(
     chains: chains || 'all',
     includeZeroBalances,
   });
+
+  // Fetch token prices from SODAX (cached, 1 min TTL)
+  let priceMap: Awaited<ReturnType<typeof fetchTokenPrices>> | null = null;
+  try {
+    priceMap = await fetchTokenPrices();
+  } catch (err) {
+    console.warn('[portfolio] Failed to fetch prices, USD values will be unavailable:', err);
+  }
 
   const walletManager = getWalletManager();
   const allWallets = await walletManager.listWallets();
@@ -339,6 +350,13 @@ export async function handlePortfolioSummary(
   const results: WalletBalanceResult[] = [];
   let totalValueUsd = 0;
 
+  // Helper to get USD price for a symbol
+  const getPrice = (symbol: string): number | null => {
+    if (!priceMap) return null;
+    const lower = symbol.toLowerCase();
+    return priceMap.bySymbol.get(lower) ?? priceMap.bySymbol.get('soda' + lower) ?? null;
+  };
+
   for (const wallet of walletsToQuery) {
     // Skip wallets without known addresses
     if (wallet.address === '0x...') {
@@ -373,6 +391,44 @@ export async function handlePortfolioSummary(
           (b) => parseFloat(b.native.balance) > 0 || b.tokens.length > 0
         );
 
+    // Add USD values to balances
+    let walletBalanceUsd = 0;
+    const balancesWithUsd = filteredBalances.map((chainBalance) => {
+      let chainTotalUsd = 0;
+
+      // Native token USD value
+      const nativePrice = getPrice(chainBalance.native.symbol);
+      const nativeBalance = parseFloat(chainBalance.native.balance);
+      const nativeUsdValue = nativePrice ? nativeBalance * nativePrice : null;
+      if (nativeUsdValue) chainTotalUsd += nativeUsdValue;
+
+      // Token USD values
+      const tokensWithUsd = chainBalance.tokens.map((token) => {
+        const price = getPrice(token.symbol);
+        const balance = parseFloat(token.balance);
+        const usdValue = price ? balance * price : null;
+        if (usdValue) chainTotalUsd += usdValue;
+        return {
+          ...token,
+          usdValue: usdValue ? `$${usdValue.toFixed(2)}` : undefined,
+        };
+      });
+
+      walletBalanceUsd += chainTotalUsd;
+
+      return {
+        chainId: chainBalance.chainId,
+        chainName: chainBalance.chainName,
+        native: {
+          symbol: chainBalance.native.symbol,
+          balance: chainBalance.native.balance,
+          usdValue: nativeUsdValue ? `$${nativeUsdValue.toFixed(2)}` : undefined,
+        },
+        tokens: tokensWithUsd,
+        chainTotalUsd: chainTotalUsd > 0 ? `$${chainTotalUsd.toFixed(2)}` : undefined,
+      };
+    });
+
     // Get money market positions (aggregate)
     let mmSummary: WalletBalanceResult['moneyMarket'] | undefined;
     try {
@@ -386,11 +442,14 @@ export async function handlePortfolioSummary(
           healthFactor: formatHealthFactor(positions.summary.healthFactor),
           healthStatus: hfStatus,
         };
-        totalValueUsd += positions.summary.netWorthUsd;
+        // MM net worth is already USD - add to wallet total
+        walletBalanceUsd += positions.summary.netWorthUsd;
       }
     } catch (err) {
       console.error(`[portfolio] Failed to get MM positions for ${wallet.nickname}:`, err);
     }
+
+    totalValueUsd += walletBalanceUsd;
 
     results.push({
       wallet: {
@@ -398,9 +457,10 @@ export async function handlePortfolioSummary(
         address: wallet.address,
         type: wallet.type,
       },
-      balances: filteredBalances,
+      balances: balancesWithUsd as WalletBalanceResult['balances'],
       moneyMarket: mmSummary,
-    });
+      walletTotalUsd: walletBalanceUsd > 0 ? `$${walletBalanceUsd.toFixed(2)}` : undefined,
+    } as WalletBalanceResult);
   }
 
   // Build summary
@@ -408,14 +468,13 @@ export async function handlePortfolioSummary(
     walletCount: results.length,
     chainsQueried: chainIdsToQuery.length,
     timestamp: new Date().toISOString(),
-    // Note: We don't have USD prices, so this is just MM value
-    estimatedTotalUsd: totalValueUsd > 0 ? `$${totalValueUsd.toFixed(2)}` : 'Price data unavailable',
+    estimatedTotalUsd: totalValueUsd > 0 ? `$${totalValueUsd.toFixed(2)}` : 'No positions',
+    priceSource: priceMap ? 'SODAX' : 'unavailable',
   };
 
   return {
     success: true,
     summary,
     wallets: results,
-    hint: 'Token balances shown without USD conversion. Money market positions include USD values from SODAX.',
   };
 }
