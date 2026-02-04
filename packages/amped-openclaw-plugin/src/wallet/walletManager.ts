@@ -13,8 +13,8 @@
  * 4. AMPED_OC_WALLETS_JSON env → named wallets
  */
 
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
 import type { Address } from 'viem';
 import type { IWalletBackend, WalletInfo, WalletsConfigFile, WalletConfig } from './types';
@@ -288,6 +288,217 @@ export class WalletManager {
    */
   getAvailableWalletIds(): string[] {
     return Array.from(this.wallets.keys());
+  }
+
+  /**
+   * Add a new wallet to the config file
+   */
+  async addWallet(nickname: string, config: WalletConfig): Promise<void> {
+    await this.initialize();
+    
+    const normalizedName = nickname.toLowerCase();
+    
+    // Check if wallet already exists
+    if (this.wallets.has(normalizedName)) {
+      throw new Error(`Wallet "${nickname}" already exists. Use rename to change it.`);
+    }
+    
+    // Create the backend to validate config
+    const backend = this.createBackendFromConfig(normalizedName, config);
+    if (!backend) {
+      throw new Error(`Failed to create wallet backend for "${nickname}"`);
+    }
+    
+    // Validate the backend works
+    const ready = await backend.isReady();
+    if (!ready) {
+      throw new Error(`Wallet "${nickname}" configuration is invalid or not accessible`);
+    }
+    
+    // Load existing config
+    const fileConfig = this.loadConfigFromFile();
+    
+    // Add new wallet
+    fileConfig.wallets[normalizedName] = config;
+    
+    // Save config
+    this.saveConfigToFile(fileConfig);
+    
+    // Register in memory
+    this.wallets.set(normalizedName, backend);
+    
+    console.log(`[WalletManager] Added wallet "${nickname}"`);
+  }
+
+  /**
+   * Rename a wallet
+   */
+  async renameWallet(currentNickname: string, newNickname: string): Promise<void> {
+    await this.initialize();
+    
+    const currentName = currentNickname.toLowerCase();
+    const newName = newNickname.toLowerCase();
+    
+    // Check source exists
+    if (!this.wallets.has(currentName)) {
+      throw new Error(`Wallet "${currentNickname}" not found`);
+    }
+    
+    // Check target doesn't exist
+    if (this.wallets.has(newName)) {
+      throw new Error(`Wallet "${newNickname}" already exists`);
+    }
+    
+    // Load config
+    const fileConfig = this.loadConfigFromFile();
+    
+    // Move wallet config
+    if (fileConfig.wallets[currentName]) {
+      fileConfig.wallets[newName] = fileConfig.wallets[currentName];
+      delete fileConfig.wallets[currentName];
+    } else {
+      // Wallet was auto-discovered, need to add it to config
+      const backend = this.wallets.get(currentName)!;
+      const config = await this.backendToConfig(backend);
+      fileConfig.wallets[newName] = config;
+    }
+    
+    // Update default if needed
+    if (fileConfig.default === currentName) {
+      fileConfig.default = newName;
+    }
+    if (this.defaultWallet === currentName) {
+      this.defaultWallet = newName;
+    }
+    
+    // Save config
+    this.saveConfigToFile(fileConfig);
+    
+    // Update in-memory
+    const backend = this.wallets.get(currentName)!;
+    this.wallets.delete(currentName);
+    this.wallets.set(newName, backend);
+    
+    console.log(`[WalletManager] Renamed wallet "${currentNickname}" to "${newNickname}"`);
+  }
+
+  /**
+   * Remove a wallet from config
+   */
+  async removeWallet(nickname: string): Promise<void> {
+    await this.initialize();
+    
+    const name = nickname.toLowerCase();
+    
+    if (!this.wallets.has(name)) {
+      throw new Error(`Wallet "${nickname}" not found`);
+    }
+    
+    // Load config
+    const fileConfig = this.loadConfigFromFile();
+    
+    // Remove from config
+    delete fileConfig.wallets[name];
+    
+    // Update default if needed
+    if (fileConfig.default === name) {
+      delete fileConfig.default;
+    }
+    if (this.defaultWallet === name) {
+      this.defaultWallet = null;
+      this.determineDefault();
+    }
+    
+    // Save config
+    this.saveConfigToFile(fileConfig);
+    
+    // Remove from memory
+    this.wallets.delete(name);
+    
+    console.log(`[WalletManager] Removed wallet "${nickname}"`);
+  }
+
+  /**
+   * Set the default wallet
+   */
+  async setDefaultWallet(nickname: string): Promise<void> {
+    await this.initialize();
+    
+    const name = nickname.toLowerCase();
+    
+    if (!this.wallets.has(name)) {
+      throw new Error(`Wallet "${nickname}" not found`);
+    }
+    
+    // Load config
+    const fileConfig = this.loadConfigFromFile();
+    
+    // Update default
+    fileConfig.default = name;
+    this.defaultWallet = name;
+    
+    // Save config
+    this.saveConfigToFile(fileConfig);
+    
+    console.log(`[WalletManager] Set default wallet to "${nickname}"`);
+  }
+
+  /**
+   * Load config from file (creates empty if doesn't exist)
+   */
+  private loadConfigFromFile(): WalletsConfigFile {
+    if (!existsSync(CONFIG_PATH)) {
+      return { wallets: {} };
+    }
+    
+    try {
+      const content = readFileSync(CONFIG_PATH, 'utf-8');
+      return JSON.parse(content) as WalletsConfigFile;
+    } catch {
+      return { wallets: {} };
+    }
+  }
+
+  /**
+   * Save config to file
+   */
+  private saveConfigToFile(config: WalletsConfigFile): void {
+    // Ensure directory exists
+    const dir = dirname(CONFIG_PATH);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    
+    writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+    console.log(`[WalletManager] Config saved to ${CONFIG_PATH}`);
+  }
+
+  /**
+   * Convert a backend to config (for saving auto-discovered wallets)
+   */
+  private async backendToConfig(backend: IWalletBackend): Promise<WalletConfig> {
+    const config: WalletConfig = {
+      source: backend.type,
+      chains: [...backend.supportedChains],
+    };
+    
+    // For evm-wallet-skill, just reference the default path
+    if (backend.type === 'evm-wallet-skill') {
+      config.path = EVM_WALLET_PATH;
+    }
+    
+    // For env backends, we need address (privateKey should NOT be saved)
+    if (backend.type === 'env') {
+      config.address = await backend.getAddress();
+      // Note: We don't save privateKey to config for security
+    }
+    
+    // For bankr, we need the API key
+    if (backend.type === 'bankr') {
+      config.apiKey = process.env.BANKR_API_KEY;
+    }
+    
+    return config;
   }
 
   /**

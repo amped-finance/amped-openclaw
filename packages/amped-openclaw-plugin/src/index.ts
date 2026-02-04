@@ -56,11 +56,15 @@ import {
 import {
   SupportedChainsSchema, SupportedTokensSchema, WalletAddressSchema,
   MoneyMarketReservesSchema, MoneyMarketPositionsSchema, CrossChainPositionsSchema,
-  UserIntentsSchema,
+  UserIntentsSchema, ListWalletsSchema,
   handleSupportedChains, handleSupportedTokens, handleWalletAddress,
   handleMoneyMarketReserves, handleMoneyMarketPositions, handleCrossChainPositions,
-  handleUserIntents
+  handleUserIntents, handleListWallets
 } from './tools/discovery';
+import {
+  AddWalletSchema, RenameWalletSchema, RemoveWalletSchema, SetDefaultWalletSchema,
+  handleAddWallet, handleRenameWallet, handleRemoveWallet, handleSetDefaultWallet
+} from './tools/walletManagement';
 
 /**
  * Plugin configuration schema (matches openclaw.plugin.json)
@@ -224,6 +228,42 @@ export default {
       execute: wrapHandler(handleUserIntents),
     });
 
+    api.registerTool({
+      name: 'amped_oc_list_wallets',
+      description: 'List all configured wallets with nicknames, types, and supported chains',
+      parameters: ListWalletsSchema,
+      execute: wrapHandler(handleListWallets),
+    });
+
+    // Register Wallet Management Tools
+    api.registerTool({
+      name: 'amped_oc_add_wallet',
+      description: 'Add a new wallet with a nickname (evm-wallet-skill, bankr, or env)',
+      parameters: AddWalletSchema,
+      execute: wrapHandler(handleAddWallet),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_rename_wallet',
+      description: 'Rename a wallet to a new nickname',
+      parameters: RenameWalletSchema,
+      execute: wrapHandler(handleRenameWallet),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_remove_wallet',
+      description: 'Remove a wallet from configuration (does not delete funds)',
+      parameters: RemoveWalletSchema,
+      execute: wrapHandler(handleRemoveWallet),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_set_default_wallet',
+      description: 'Set which wallet to use by default for operations',
+      parameters: SetDefaultWalletSchema,
+      execute: wrapHandler(handleSetDefaultWallet),
+    });
+
     // Register Swap Tools
     api.registerTool({
       name: 'amped_oc_swap_quote',
@@ -316,7 +356,7 @@ export default {
       },
     });
 
-    console.log('[AmpedOpenClaw] Plugin registered (18 tools)');
+    console.log('[AmpedOpenClaw] Plugin registered (23 tools)');
   },
 };
 
