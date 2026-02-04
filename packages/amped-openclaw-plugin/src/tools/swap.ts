@@ -655,7 +655,7 @@ function logStructured(entry: LogEntry): void {
     ...entry,
     timestamp: new Date().toISOString(),
     component: 'amped-openclaw-swap'
-  }));
+  }, (k, v) => typeof v === 'bigint' ? v.toString() : v));
 }
 
 // ============================================================================
