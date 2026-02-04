@@ -1,401 +1,321 @@
 /**
  * Unified Wallet Manager
- *
- * Provides unified wallet resolution with support for:
- * - Named wallets (user labels like "bankr", "trading", "default")
- * - Multiple wallet backends (Bankr API, local key, skill adapter)
- * - Cross-chain support (EVM + Solana via Bankr)
- *
- * Resolution Priority:
- * 1. Explicit wallet configuration in config.json "wallets" section
- * 2. Bankr backend (if walletBackend: "bankr" is set)
- * 3. Skill adapter (evm-wallet-skill / ~/.evm-wallet.json)
- * 4. AMPED_OC_WALLETS_JSON environment variable
- *
- * @module wallet/walletManager
+ * 
+ * Manages multiple wallet sources with nicknames:
+ * - evm-wallet-skill (main)
+ * - Bankr (bankr)
+ * - Environment variables (custom names)
+ * 
+ * Auto-discovery order:
+ * 1. wallets.json config file
+ * 2. ~/.evm-wallet.json (evm-wallet-skill) → "main"
+ * 3. BANKR_API_KEY env → "bankr"
+ * 4. AMPED_OC_WALLETS_JSON env → named wallets
  */
 
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import type { Address } from 'viem';
+import type { IWalletBackend, WalletInfo, WalletsConfigFile, WalletConfig } from './types';
+import { 
+  createEvmWalletSkillBackend, 
+  createBankrBackend, 
+  createEnvBackend,
+  loadWalletsFromEnv 
+} from './backends';
 
 /**
- * Supported chain types for wallet
+ * Config file path
  */
-export type ChainType = 'evm' | 'solana';
+const CONFIG_PATH = join(homedir(), '.openclaw', 'extensions', 'amped-openclaw', 'wallets.json');
+const EVM_WALLET_PATH = join(homedir(), '.evm-wallet.json');
 
 /**
- * Wallet source/backend type
+ * Singleton WalletManager instance
  */
-export type WalletSource = 'bankr' | 'localKey' | 'skill' | 'env';
+let instance: WalletManager | null = null;
 
 /**
- * Wallet execution mode
+ * Unified wallet manager
  */
-export type WalletMode = 'execute' | 'prepare';
-
-/**
- * Named wallet configuration in config.json
- */
-export interface NamedWalletConfig {
-  address?: string;
-  source: WalletSource;
-  chains?: ChainType[];
-  label?: string;
-}
-
-/**
- * Full plugin configuration schema
- */
-export interface PluginConfig {
-  walletBackend?: 'bankr' | 'localKey';
-  bankrApiKey?: string;
-  bankrApiUrl?: string;
-  bankrWalletAddress?: string;
-  wallets?: Record<string, NamedWalletConfig>;
-  defaultWallet?: string;
-}
-
-/**
- * Resolved wallet metadata returned by WalletManager
- */
-export interface ResolvedWallet {
-  id: string;
-  address: string;
-  source: WalletSource;
-  chains: ChainType[];
-  mode: WalletMode;
-  privateKey?: string;
-  label?: string;
-}
-
 export class WalletManager {
-  private config: PluginConfig;
-  private mode: WalletMode;
-  private skillWalletCache: Map<string, { address: string; privateKey?: string }> = new Map();
-  private envWalletCache: Map<string, { address: string; privateKey?: string }> = new Map();
+  private wallets = new Map<string, IWalletBackend>();
+  private defaultWallet: string | null = null;
+  private initialized = false;
 
-  constructor() {
-    this.config = this.loadConfig();
-    this.mode = (process.env.AMPED_OC_MODE as WalletMode) || 'execute';
-    this.loadSkillWallets();
-    this.loadEnvWallets();
-
-    console.log('[WalletManager] Initialized', {
-      backend: this.config.walletBackend || 'auto',
-      defaultWallet: this.config.defaultWallet || 'default',
-      namedWallets: Object.keys(this.config.wallets || {}),
-      skillWallets: Array.from(this.skillWalletCache.keys()),
-      envWallets: Array.from(this.envWalletCache.keys()),
-    });
-  }
-
-  private loadConfig(): PluginConfig {
-    const configPath = join(homedir(), '.openclaw', 'extensions', 'amped-openclaw', 'config.json');
-
-    if (!existsSync(configPath)) {
-      console.log('[WalletManager] No config.json found, using defaults');
-      return {};
-    }
-
-    try {
-      const content = readFileSync(configPath, 'utf-8');
-      const config = JSON.parse(content) as PluginConfig;
-      console.log('[WalletManager] Loaded config.json', {
-        walletBackend: config.walletBackend,
-        hasBankrKey: !!config.bankrApiKey,
-        bankrWalletAddress: config.bankrWalletAddress?.slice(0, 10) + '...',
-      });
-      return config;
-    } catch (error) {
-      console.warn('[WalletManager] Failed to load config.json:', error);
-      return {};
+  /**
+   * Initialize the wallet manager
+   * Auto-discovers wallets from all sources
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+    
+    console.log('[WalletManager] Initializing...');
+    
+    // 1. Load from config file if exists
+    await this.loadConfigFile();
+    
+    // 2. Auto-discover from environment
+    await this.autoDiscover();
+    
+    // 3. Set default
+    this.determineDefault();
+    
+    this.initialized = true;
+    
+    console.log(`[WalletManager] Initialized with ${this.wallets.size} wallet(s)`);
+    if (this.defaultWallet) {
+      console.log(`[WalletManager] Default wallet: ${this.defaultWallet}`);
     }
   }
 
-  private loadSkillWallets(): void {
+  /**
+   * Load wallets from config file
+   */
+  private async loadConfigFile(): Promise<void> {
+    if (!existsSync(CONFIG_PATH)) return;
+    
     try {
-      const walletPath = join(homedir(), '.evm-wallet.json');
-
-      if (!existsSync(walletPath)) {
-        return;
-      }
-
-      const content = readFileSync(walletPath, 'utf-8');
-      const walletData = JSON.parse(content);
-
-      if (walletData.privateKey) {
-        let address = walletData.address;
-
-        if (!address) {
-          try {
-            const { privateKeyToAccount } = require('viem/accounts');
-            const account = privateKeyToAccount(walletData.privateKey as `0x${string}`);
-            address = account.address;
-          } catch (e) {
-            console.warn('[WalletManager] Cannot derive address from private key');
-          }
+      const content = readFileSync(CONFIG_PATH, 'utf-8');
+      const config = JSON.parse(content) as WalletsConfigFile;
+      
+      for (const [name, walletConfig] of Object.entries(config.wallets)) {
+        const backend = this.createBackendFromConfig(name, walletConfig);
+        if (backend) {
+          this.wallets.set(name.toLowerCase(), backend);
+          console.log(`[WalletManager] Loaded wallet "${name}" from config`);
         }
+      }
+      
+      if (config.default) {
+        this.defaultWallet = config.default.toLowerCase();
+      }
+    } catch (error) {
+      console.warn(`[WalletManager] Failed to load config: ${error}`);
+    }
+  }
 
-        if (address) {
-          this.skillWalletCache.set('skill-default', {
-            address,
-            privateKey: walletData.privateKey,
+  /**
+   * Create backend from config entry
+   */
+  private createBackendFromConfig(name: string, config: WalletConfig): IWalletBackend | null {
+    try {
+      switch (config.source) {
+        case 'evm-wallet-skill':
+          return createEvmWalletSkillBackend({
+            nickname: name,
+            path: config.path,
+            chains: config.chains,
           });
-          console.log(`[WalletManager] Loaded skill wallet: ${address.slice(0, 10)}...`);
-        }
+          
+        case 'bankr':
+          if (!config.apiKey) {
+            console.warn(`[WalletManager] Bankr wallet "${name}" missing apiKey`);
+            return null;
+          }
+          return createBankrBackend({
+            nickname: name,
+            apiKey: config.apiKey,
+            apiUrl: config.apiUrl,
+          });
+          
+        case 'env':
+          return createEnvBackend({
+            nickname: name,
+            address: config.address,
+            privateKey: config.privateKey,
+            envVar: config.envVar,
+            chains: config.chains,
+          });
+          
+        default:
+          console.warn(`[WalletManager] Unknown wallet source: ${config.source}`);
+          return null;
       }
     } catch (error) {
-      // Silently ignore
+      console.warn(`[WalletManager] Failed to create backend for "${name}": ${error}`);
+      return null;
     }
   }
 
-  private loadEnvWallets(): void {
-    const walletsJson = process.env.AMPED_OC_WALLETS_JSON;
+  /**
+   * Auto-discover wallets from environment
+   */
+  private async autoDiscover(): Promise<void> {
+    // evm-wallet-skill (if not already configured)
+    if (!this.wallets.has('main') && existsSync(EVM_WALLET_PATH)) {
+      try {
+        const backend = createEvmWalletSkillBackend({ nickname: 'main' });
+        if (await backend.isReady()) {
+          this.wallets.set('main', backend);
+          console.log('[WalletManager] Auto-discovered: evm-wallet-skill → "main"');
+        }
+      } catch (error) {
+        console.debug(`[WalletManager] evm-wallet-skill not available: ${error}`);
+      }
+    }
+    
+    // Bankr (if API key present and not already configured)
+    const bankrApiKey = process.env.BANKR_API_KEY;
+    if (!this.wallets.has('bankr') && bankrApiKey) {
+      try {
+        const backend = createBankrBackend({
+          nickname: 'bankr',
+          apiKey: bankrApiKey,
+          apiUrl: process.env.BANKR_API_URL,
+        });
+        if (await backend.isReady()) {
+          this.wallets.set('bankr', backend);
+          console.log('[WalletManager] Auto-discovered: BANKR_API_KEY → "bankr"');
+        }
+      } catch (error) {
+        console.debug(`[WalletManager] Bankr not available: ${error}`);
+      }
+    }
+    
+    // Environment variable wallets
+    const envWallets = loadWalletsFromEnv();
+    for (const [name, backend] of envWallets) {
+      if (!this.wallets.has(name)) {
+        this.wallets.set(name, backend);
+        console.log(`[WalletManager] Auto-discovered: AMPED_OC_WALLETS_JSON → "${name}"`);
+      }
+    }
+  }
 
-    if (!walletsJson) {
+  /**
+   * Determine default wallet
+   */
+  private determineDefault(): void {
+    // If already set from config, verify it exists
+    if (this.defaultWallet && this.wallets.has(this.defaultWallet)) {
       return;
     }
+    
+    // Priority: main > first available
+    if (this.wallets.has('main')) {
+      this.defaultWallet = 'main';
+    } else if (this.wallets.size > 0) {
+      this.defaultWallet = Array.from(this.wallets.keys())[0];
+    } else {
+      this.defaultWallet = null;
+    }
+  }
 
-    try {
-      const wallets = JSON.parse(walletsJson) as Record<string, { address: string; privateKey?: string }>;
+  /**
+   * Resolve a wallet by nickname
+   * @param nickname Optional wallet nickname (uses default if not provided)
+   */
+  async resolve(nickname?: string): Promise<IWalletBackend> {
+    await this.initialize();
+    
+    const name = (nickname || this.defaultWallet)?.toLowerCase();
+    
+    if (!name) {
+      throw new Error(
+        'No wallet configured.\n\n' +
+        'To set up a wallet, install evm-wallet-skill:\n' +
+        '  git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill\n' +
+        '  cd ~/.openclaw/skills/evm-wallet-skill && npm install\n' +
+        '  node src/setup.js'
+      );
+    }
+    
+    const wallet = this.wallets.get(name);
+    if (!wallet) {
+      const available = Array.from(this.wallets.keys()).join(', ') || '(none)';
+      throw new Error(`Wallet "${name}" not found. Available wallets: ${available}`);
+    }
+    
+    return wallet;
+  }
 
-      for (const [id, config] of Object.entries(wallets)) {
-        this.envWalletCache.set(id, {
-          address: config.address,
-          privateKey: config.privateKey,
+  /**
+   * Check if a wallet exists
+   */
+  async has(nickname: string): Promise<boolean> {
+    await this.initialize();
+    return this.wallets.has(nickname.toLowerCase());
+  }
+
+  /**
+   * List all available wallets
+   */
+  async listWallets(): Promise<WalletInfo[]> {
+    await this.initialize();
+    
+    const wallets: WalletInfo[] = [];
+    
+    for (const [name, backend] of this.wallets) {
+      try {
+        const address = await backend.getAddress();
+        wallets.push({
+          nickname: name,
+          type: backend.type,
+          address,
+          chains: [...backend.supportedChains],
+          isDefault: name === this.defaultWallet,
         });
-      }
-
-      console.log(`[WalletManager] Loaded ${this.envWalletCache.size} wallet(s) from AMPED_OC_WALLETS_JSON`);
-    } catch (error) {
-      console.warn('[WalletManager] Failed to parse AMPED_OC_WALLETS_JSON:', error);
-    }
-  }
-
-  async resolve(walletId?: string): Promise<ResolvedWallet | null> {
-    const id = walletId || 'default';
-
-    console.log(`[WalletManager] Resolving wallet: ${id}`);
-
-    // 1. Check explicit named wallet configuration
-    const namedWallet = this.config.wallets?.[id];
-    if (namedWallet) {
-      return this.resolveNamedWallet(id, namedWallet);
-    }
-
-    // 2. Special handling for "bankr" ID
-    if (id === 'bankr') {
-      const bankrWallet = this.resolveBankrWallet();
-      if (bankrWallet) return bankrWallet;
-    }
-
-    // 3. Special handling for "default"
-    if (id === 'default') {
-      return this.resolveDefaultWallet();
-    }
-
-    // 4. Check env wallets
-    const envWallet = this.envWalletCache.get(id);
-    if (envWallet) {
-      return {
-        id,
-        address: envWallet.address,
-        source: 'env',
-        chains: ['evm'],
-        mode: this.mode,
-        privateKey: envWallet.privateKey,
-      };
-    }
-
-    // 5. Check skill wallets
-    const skillWallet = this.skillWalletCache.get(id) || this.skillWalletCache.get(`skill-${id}`);
-    if (skillWallet) {
-      return {
-        id,
-        address: skillWallet.address,
-        source: 'skill',
-        chains: ['evm'],
-        mode: this.mode,
-        privateKey: skillWallet.privateKey,
-      };
-    }
-
-    console.warn(`[WalletManager] Wallet not found: ${id}`);
-    return null;
-  }
-
-  private async resolveDefaultWallet(): Promise<ResolvedWallet | null> {
-    const defaultId = this.config.defaultWallet;
-
-    if (defaultId && defaultId !== 'default') {
-      const resolved = await this.resolve(defaultId);
-      if (resolved) {
-        return { ...resolved, id: 'default' };
+      } catch (error) {
+        // Skip wallets that fail to load
+        console.warn(`[WalletManager] Failed to get info for "${name}": ${error}`);
       }
     }
-
-    // If walletBackend is "bankr", default to Bankr wallet
-    if (this.config.walletBackend === 'bankr') {
-      const bankrWallet = this.resolveBankrWallet();
-      if (bankrWallet) {
-        return { ...bankrWallet, id: 'default' };
-      }
-    }
-
-    // Otherwise, try skill wallet
-    const skillWallet = this.skillWalletCache.get('skill-default');
-    if (skillWallet) {
-      return {
-        id: 'default',
-        address: skillWallet.address,
-        source: 'skill',
-        chains: ['evm'],
-        mode: this.mode,
-        privateKey: skillWallet.privateKey,
-      };
-    }
-
-    // Try first env wallet
-    const firstEnvWallet = Array.from(this.envWalletCache.entries())[0];
-    if (firstEnvWallet) {
-      return {
-        id: 'default',
-        address: firstEnvWallet[1].address,
-        source: 'env',
-        chains: ['evm'],
-        mode: this.mode,
-        privateKey: firstEnvWallet[1].privateKey,
-      };
-    }
-
-    console.warn('[WalletManager] No default wallet found');
-    return null;
+    
+    return wallets;
   }
 
-  private resolveBankrWallet(): ResolvedWallet | null {
-    if (!this.config.bankrWalletAddress || !this.config.bankrApiKey) {
-      return null;
-    }
-
-    return {
-      id: 'bankr',
-      address: this.config.bankrWalletAddress,
-      source: 'bankr',
-      chains: ['evm', 'solana'],
-      mode: this.mode,
-      label: 'Bankr Managed Wallet',
-    };
+  /**
+   * Get the default wallet nickname
+   */
+  async getDefaultWalletName(): Promise<string | null> {
+    await this.initialize();
+    return this.defaultWallet;
   }
 
-  private async resolveNamedWallet(id: string, config: NamedWalletConfig): Promise<ResolvedWallet | null> {
-    let address = config.address;
-    let privateKey: string | undefined;
-
-    switch (config.source) {
-      case 'bankr':
-        address = address || this.config.bankrWalletAddress;
-        if (!address) {
-          console.warn(`[WalletManager] Named wallet "${id}" uses bankr source but no address configured`);
-          return null;
-        }
-        break;
-
-      case 'skill':
-        const skillWallet = this.skillWalletCache.get('skill-default');
-        if (!skillWallet) {
-          console.warn(`[WalletManager] Named wallet "${id}" uses skill source but no skill wallet found`);
-          return null;
-        }
-        address = address || skillWallet.address;
-        privateKey = skillWallet.privateKey;
-        break;
-
-      case 'localKey':
-      case 'env':
-        const envWallet = this.envWalletCache.get(id);
-        if (envWallet) {
-          address = address || envWallet.address;
-          privateKey = envWallet.privateKey;
-        }
-        break;
-    }
-
-    if (!address) {
-      console.warn(`[WalletManager] Cannot resolve address for named wallet "${id}"`);
-      return null;
-    }
-
-    return {
-      id,
-      address,
-      source: config.source,
-      chains: config.chains || ['evm'],
-      mode: this.mode,
-      privateKey,
-      label: config.label,
-    };
+  /**
+   * Register a new wallet backend
+   */
+  registerWallet(nickname: string, backend: IWalletBackend): void {
+    this.wallets.set(nickname.toLowerCase(), backend);
+    console.log(`[WalletManager] Registered wallet: ${nickname}`);
   }
 
+  /**
+   * Get available wallet IDs (nicknames)
+   * Synchronous version - requires prior initialization
+   */
   getAvailableWalletIds(): string[] {
-    const ids = new Set<string>();
-
-    if (this.config.wallets) {
-      Object.keys(this.config.wallets).forEach(id => ids.add(id));
-    }
-
-    if (this.config.bankrWalletAddress && this.config.bankrApiKey) {
-      ids.add('bankr');
-    }
-
-    this.envWalletCache.forEach((_, id) => ids.add(id));
-
-    if (this.skillWalletCache.has('skill-default') && !ids.has('default')) {
-      ids.add('default');
-    }
-
-    return Array.from(ids);
+    return Array.from(this.wallets.keys());
   }
 
-  getBackend(): 'bankr' | 'localKey' {
-    return this.config.walletBackend || 'localKey';
-  }
-
-  isBankrConfigured(): boolean {
-    return !!this.config.bankrApiKey && !!this.config.bankrWalletAddress;
-  }
-
-  getBankrConfig(): { apiKey: string; apiUrl: string; walletAddress: string } | null {
-    if (!this.isBankrConfigured()) {
-      return null;
-    }
-
-    return {
-      apiKey: this.config.bankrApiKey!,
-      apiUrl: this.config.bankrApiUrl || 'https://api.bankr.bot',
-      walletAddress: this.config.bankrWalletAddress!,
-    };
-  }
-
-  reload(): void {
-    this.config = this.loadConfig();
-    this.skillWalletCache.clear();
-    this.envWalletCache.clear();
-    this.loadSkillWallets();
-    this.loadEnvWallets();
-    console.log('[WalletManager] Configuration reloaded');
+  /**
+   * Reset the manager (for testing)
+   */
+  reset(): void {
+    this.wallets.clear();
+    this.defaultWallet = null;
+    this.initialized = false;
   }
 }
 
-let walletManagerInstance: WalletManager | null = null;
-
+/**
+ * Get the singleton WalletManager instance
+ */
 export function getWalletManager(): WalletManager {
-  if (!walletManagerInstance) {
-    walletManagerInstance = new WalletManager();
+  if (!instance) {
+    instance = new WalletManager();
   }
-  return walletManagerInstance;
+  return instance;
 }
 
+/**
+ * Reset the singleton (for testing)
+ */
 export function resetWalletManager(): void {
-  walletManagerInstance = null;
+  if (instance) {
+    instance.reset();
+    instance = null;
+  }
 }

@@ -126,10 +126,7 @@ export async function aggregateCrossChainPositions(
   // Get wallet
   const walletManager = getWalletManager();
   const wallet = await walletManager.resolve(walletId);
-  
-  if (!wallet) {
-    throw new Error(`Wallet not found: ${walletId}`);
-  }
+  const walletAddress = await wallet.getAddress();
 
   // Get supported chains
   const sodax = getSodaxClient();
@@ -143,13 +140,13 @@ export async function aggregateCrossChainPositions(
   
   console.log('[positionAggregator] Querying positions across chains', {
     walletId,
-    address: wallet.address,
+    address: walletAddress,
     chains: chainsToQuery,
   });
 
   // Query positions from all chains in parallel
   const chainResults = await Promise.allSettled(
-    chainsToQuery.map(chainId => queryChainPositions(walletId, wallet.address, chainId))
+    chainsToQuery.map(chainId => queryChainPositions(walletId, walletAddress, chainId))
   );
 
   // Collect all positions
@@ -182,7 +179,7 @@ export async function aggregateCrossChainPositions(
   
   const view: CrossChainPositionView = {
     walletId,
-    address: wallet.address,
+    address: walletAddress,
     timestamp: new Date().toISOString(),
     summary,
     chainSummaries: chainSummaries.sort((a, b) => b.netWorthUsd - a.netWorthUsd),

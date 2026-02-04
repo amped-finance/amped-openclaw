@@ -321,9 +321,7 @@ async function handleBridgeExecute(
 
     // Step 1: Resolve wallet
     const wallet = await walletManager.resolve(walletId);
-    if (!wallet) {
-      throw new Error(`Wallet not found: ${walletId}`);
-    }
+    const walletAddress = await wallet.getAddress();
 
     // Step 2: Policy check
     const bridgeOp: BridgeOperation = {
@@ -409,7 +407,7 @@ async function handleBridgeExecute(
         from: fromToken,
         to: toToken,
         amount,
-        recipient: recipient || wallet.address,
+        recipient: recipient || walletAddress,
       },
       spokeProvider,
       timeout: timeoutMs,

@@ -328,7 +328,8 @@ export type { SpokeProvider } from './providers/spokeProviderFactory';
 export { EvmSpokeProvider, SonicSpokeProvider } from '@sodax/sdk';
 export { PolicyEngine } from './policy/policyEngine';
 export { WalletRegistry, getWalletRegistry } from './wallet/walletRegistry';
-export { WalletManager, getWalletManager, resetWalletManager, type ResolvedWallet, type WalletSource, type ChainType } from './wallet/walletManager';
+export { WalletManager, getWalletManager, resetWalletManager } from './wallet/walletManager';
+export type { IWalletBackend, WalletInfo, WalletBackendType } from './wallet/types';
 
 // Legacy exports for backward compatibility
 export async function activate() {

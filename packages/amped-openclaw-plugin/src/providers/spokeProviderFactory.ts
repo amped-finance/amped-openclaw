@@ -1,11 +1,14 @@
 /**
  * Spoke Provider Factory
  *
- * Creates and caches spoke providers per (walletId, chainId) pair.
- * Uses the official SDK's EvmWalletProvider from @sodax/wallet-sdk-core.
+ * Creates spoke providers for SODAX operations.
+ * Supports both local key signing and Bankr API execution.
  * 
- * Following the SDK demo implementation:
- * https://github.com/icon-project/sodax-frontend/blob/main/apps/node/src/swap.ts
+ * Flow:
+ * 1. Resolve wallet by nickname using WalletManager
+ * 2. Check if wallet supports requested chain
+ * 3. For local wallets: use SDK's EvmWalletProvider
+ * 4. For Bankr wallets: use BankrSpokeProvider wrapper
  */
 
 // Official SDK wallet provider
@@ -21,8 +24,8 @@ import {
 // Import chain configuration from types
 import { spokeChainConfig, type SpokeChainId } from '@sodax/types';
 
-// Import unified wallet manager (supports evm-wallet-skill, env vars, etc.)
-import { getWalletManager } from '../wallet/walletManager';
+// Import wallet management
+import { getWalletManager, type IWalletBackend } from '../wallet';
 import { getWalletAdapter } from '../wallet/skillWalletAdapter';
 
 // Cache for providers: Map<cacheKey, SpokeProvider>
@@ -62,26 +65,31 @@ function getSdkChainId(chainId: string): SpokeChainId {
 }
 
 /**
- * Create a spoke provider for the given wallet and chain
- * Uses the official SDK's EvmWalletProvider directly (like the demo)
+ * Validate that wallet supports the requested chain
  */
-async function createSpokeProvider(
-  walletId: string,
-  chainId: string
+function validateChainSupport(wallet: IWalletBackend, chainId: string): void {
+  if (!wallet.supportsChain(chainId)) {
+    throw new Error(
+      `Wallet "${wallet.nickname}" doesn't support chain "${chainId}". ` +
+      `Supported chains: ${wallet.supportedChains.join(', ')}. ` +
+      `Try a different wallet.`
+    );
+  }
+}
+
+/**
+ * Create a spoke provider for local key signing
+ */
+async function createLocalSpokeProvider(
+  wallet: IWalletBackend,
+  chainId: string,
+  rpcUrl: string
 ): Promise<SpokeProvider> {
-  // Get wallet from unified manager (supports evm-wallet-skill, env vars, etc.)
-  const walletManager = getWalletManager();
-  const wallet = await walletManager.resolve(walletId);
-  
-  if (!wallet) {
-    throw new Error(`Wallet not found: ${walletId}`);
+  if (!wallet.getPrivateKey) {
+    throw new Error(`Wallet "${wallet.nickname}" does not support local signing`);
   }
 
-  if (!wallet.privateKey) {
-    throw new Error(`Wallet ${walletId} has no private key (required for execute mode)`);
-  }
-
-  const rpcUrl = await getRpcUrl(chainId);
+  const privateKey = await wallet.getPrivateKey();
   const sdkChainId = getSdkChainId(chainId);
 
   // Get chain config from SDK
@@ -90,9 +98,9 @@ async function createSpokeProvider(
     throw new Error(`Chain config not found for: ${sdkChainId}. Available: ${Object.keys(spokeChainConfig).join(', ')}`);
   }
 
-  // Create wallet provider using official SDK (like the demo)
+  // Create wallet provider using official SDK
   const walletProvider = new EvmWalletProvider({
-    privateKey: wallet.privateKey as `0x${string}`,
+    privateKey,
     chainId: sdkChainId,
     rpcUrl: rpcUrl as `http${string}`,
   });
@@ -100,9 +108,8 @@ async function createSpokeProvider(
   // Use SonicSpokeProvider for Sonic hub chain, EvmSpokeProvider for others
   if (chainId === SONIC_CHAIN_ID) {
     console.log('[spokeProviderFactory] Creating SonicSpokeProvider', {
-      walletId,
+      wallet: wallet.nickname,
       chainId,
-      address: wallet.address?.slice(0, 10) + '...',
     });
 
     return new SonicSpokeProvider(
@@ -112,10 +119,9 @@ async function createSpokeProvider(
     );
   } else {
     console.log('[spokeProviderFactory] Creating EvmSpokeProvider', {
-      walletId,
+      wallet: wallet.nickname,
       chainId,
       sdkChainId,
-      address: wallet.address?.slice(0, 10) + '...',
     });
 
     return new EvmSpokeProvider(
@@ -127,10 +133,50 @@ async function createSpokeProvider(
 }
 
 /**
+ * Create a spoke provider for the given wallet and chain
+ * 
+ * @param walletId - Wallet nickname (e.g., "main", "bankr", "trading")
+ * @param chainId - Chain identifier (e.g., "ethereum", "base")
+ */
+async function createSpokeProvider(
+  walletId: string,
+  chainId: string
+): Promise<SpokeProvider> {
+  // Get wallet from unified manager
+  const walletManager = getWalletManager();
+  const wallet = await walletManager.resolve(walletId);
+  
+  // Validate chain support
+  validateChainSupport(wallet, chainId);
+
+  const rpcUrl = await getRpcUrl(chainId);
+
+  // Route based on wallet type
+  if (wallet.type === 'bankr') {
+    // For Bankr wallets, we cannot use the SDK's signing
+    // The SODAX SDK requires a wallet provider that can sign transactions
+    // Bankr doesn't expose private keys, so we need a different approach
+    //
+    // For now, throw an informative error. Full Bankr integration would require
+    // intercepting the SDK's transaction calls at a lower level.
+    throw new Error(
+      `Bankr wallet integration with SODAX SDK requires additional work.\n` +
+      `The SODAX SDK's EvmSpokeProvider expects to sign transactions locally,\n` +
+      `but Bankr keeps keys server-side.\n\n` +
+      `Workaround: Use a local wallet for SODAX operations.\n` +
+      `Available local wallets can be listed with "What wallets do I have?"`
+    );
+  }
+
+  // Local key signing (evm-wallet-skill or env)
+  return createLocalSpokeProvider(wallet, chainId, rpcUrl);
+}
+
+/**
  * Get a spoke provider for the given wallet and chain
  * Returns cached provider if available, otherwise creates a new one
  *
- * @param walletId - The wallet identifier (used for caching and wallet resolution)
+ * @param walletId - The wallet identifier/nickname
  * @param chainId - The chain identifier
  * @param raw - If true, still creates full provider (raw mode not yet supported)
  * @returns The spoke provider instance

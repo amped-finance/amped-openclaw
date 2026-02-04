@@ -290,9 +290,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     
     // 2. Resolve wallet
     const wallet = await walletManager.resolve(params.walletId);
-    if (!wallet) {
-      throw new Error(`Wallet not found: ${params.walletId}`);
-    }
+    const walletAddress = await wallet.getAddress();
     
     // 3. Policy check
     const policyCheck = await policyEngine.checkSwap({
@@ -368,8 +366,8 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     // 7. Execute swap
     const swapResult = await (sodaxClient as any).swaps.swap({
       intentParams: {
-        srcAddress: wallet.address,
-        dstAddress: params.quote.recipient || wallet.address,
+        srcAddress: walletAddress,
+        dstAddress: params.quote.recipient || walletAddress,
         srcChainId: params.quote.srcChainId,
         dstChainId: params.quote.dstChainId,
         srcToken: params.quote.srcToken,
@@ -545,11 +543,8 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
     const srcTokenInfo = await getTokenInfo(params.intent.srcChainId, srcTokenAddr);
     const dstTokenInfo = await getTokenInfo(params.intent.dstChainId, dstTokenAddr);
     
-    // Resolve wallet
-    const wallet = await walletManager.resolve(params.walletId);
-    if (!wallet) {
-      throw new Error(`Wallet not found: ${params.walletId}`);
-    }
+    // Resolve wallet (validates it exists)
+    await walletManager.resolve(params.walletId);
     
     // Get spoke provider for source chain
     const spokeProvider = await getSpokeProvider(

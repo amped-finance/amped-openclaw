@@ -303,15 +303,16 @@ async function resolveWalletAndProvider(
   walletId: string,
   chainId: string
 ): Promise<{
-  wallet: { address: string; privateKey?: string };
+  walletAddress: string;
   spokeProvider: any;
 }> {
   const walletManager = getWalletManager();
   const wallet = await walletManager.resolve(walletId);
+  const walletAddress = await wallet.getAddress();
 
-  const spokeProvider = await getSpokeProvider(wallet.address, chainId);
+  const spokeProvider = await getSpokeProvider(walletId, chainId);
 
-  return { wallet, spokeProvider };
+  return { walletAddress, spokeProvider };
 }
 
 /**
@@ -324,7 +325,7 @@ async function prepareMoneyMarketOperation(
   amount: string,
   operation: "supply" | "withdraw" | "borrow" | "repay",
   policyId?: string
-): Promise<{ wallet: any; spokeProvider: any; policyResult: any; tokenAddr: string }> {
+): Promise<{ walletAddress: string; spokeProvider: any; policyResult: any; tokenAddr: string }> {
   // Ensure sodax client is initialized
   const _sodaxClient = getSodaxClient(); // Just verify it's ready
   void _sodaxClient;
@@ -333,7 +334,7 @@ async function prepareMoneyMarketOperation(
   const tokenAddr = await resolveToken(chainId, token);
 
   // Resolve wallet and create spoke provider
-  const { wallet, spokeProvider } = await resolveWalletAndProvider(walletId, chainId);
+  const { walletAddress, spokeProvider } = await resolveWalletAndProvider(walletId, chainId);
 
   // Policy check
   const policyEngine = new PolicyEngine();
@@ -353,7 +354,7 @@ async function prepareMoneyMarketOperation(
     );
   }
 
-  return { wallet, spokeProvider, policyResult, tokenAddr };
+  return { walletAddress, spokeProvider, policyResult, tokenAddr };
 }
 
 /**
@@ -440,7 +441,7 @@ async function handleSupply(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -469,7 +470,7 @@ async function handleSupply(
       token: tokenAddr,
       amount: amountBigInt,
       useAsCollateral,
-      recipient: recipient || wallet.address,
+      recipient: recipient || walletAddress,
     };
 
     // Add cross-chain parameters if applicable
@@ -554,7 +555,7 @@ async function handleWithdraw(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -573,7 +574,7 @@ async function handleWithdraw(
       token: tokenAddr,
       amount: amountBigInt,
       withdrawType,
-      recipient: recipient || wallet.address,
+      recipient: recipient || walletAddress,
     };
 
     // Add cross-chain parameters if applicable
@@ -664,7 +665,7 @@ async function handleBorrow(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -684,7 +685,7 @@ async function handleBorrow(
       token: tokenAddr,
       amount: amountBigInt,
       interestRateMode,
-      recipient: recipient || wallet.address,
+      recipient: recipient || walletAddress,
     };
 
     // Add optional parameters
@@ -776,7 +777,7 @@ async function handleRepay(
 
   try {
     // Pre-operation checks
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId,
       chainId,
       token,
@@ -873,7 +874,7 @@ async function handleCreateSupplyIntent(
   const { walletId, chainId, token, amount, useAsCollateral = true, dstChainId, recipient, raw = true } = params;
 
   try {
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId, chainId, token, amount, "supply"
     );
 
@@ -884,7 +885,7 @@ async function handleCreateSupplyIntent(
       token: tokenAddr,
       amount: amountBigInt,
       useAsCollateral,
-      recipient: recipient || wallet.address,
+      recipient: recipient || walletAddress,
     };
 
     if (dstChainId) {
@@ -924,7 +925,7 @@ async function handleCreateBorrowIntent(
   const { walletId, chainId, token, amount, interestRateMode = 2, dstChainId, recipient, raw = true } = params;
 
   try {
-    const { wallet, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
+    const { walletAddress, spokeProvider, tokenAddr } = await prepareMoneyMarketOperation(
       walletId, chainId, token, amount, "borrow"
     );
 
@@ -935,7 +936,7 @@ async function handleCreateBorrowIntent(
       token: tokenAddr,
       amount: amountBigInt,
       interestRateMode,
-      recipient: recipient || wallet.address,
+      recipient: recipient || walletAddress,
     };
 
     if (dstChainId) {
