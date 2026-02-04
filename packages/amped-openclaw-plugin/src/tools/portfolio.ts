@@ -92,6 +92,9 @@ const MAJOR_TOKENS: Record<number, TokenConfig[]> = {
   [CHAIN_IDS.SONIC]: [
     { address: '0x29219dd400f2Bf60E5a23d13Be72B486D4038894', symbol: 'USDC', decimals: 6 },
   ],
+  [CHAIN_IDS.LIGHTLINK]: [
+    { address: '0xbCF8C1B03bBDDA88D579330BDF236B58F8bb2cFd', symbol: 'USDC', decimals: 6 },
+  ],
 };
 
 /**
@@ -140,6 +143,7 @@ const CHAIN_NAME_STRINGS: Record<number, string[]> = {
   [CHAIN_IDS.BSC]: ['bsc'],
   [CHAIN_IDS.AVALANCHE]: ['avalanche', 'avax'],
   [CHAIN_IDS.SONIC]: ['sonic'],
+  [CHAIN_IDS.LIGHTLINK]: ['lightlink'],
 };
 
 // ============================================================================
@@ -342,6 +346,7 @@ export async function handlePortfolioSummary(
     CHAIN_IDS.SONIC,
     CHAIN_IDS.BSC,
     CHAIN_IDS.AVALANCHE,
+    CHAIN_IDS.LIGHTLINK,
   ];
   const chainIdsToQuery = chains
     ? chains.map((c) => resolveChainId(c))
