@@ -42,6 +42,7 @@ async function initializeSodax(config?: SodaxConfig): Promise<Sodax> {
   // Initialize SODAX with hardcoded partner configuration
   // Note: partnerAddress may need to be set differently depending on SDK version
   const sodax = new Sodax({
+    partnerAddress: PARTNER_ADDRESS,
     partnerFeeBps: PARTNER_FEE_BPS,
   } as any); // Cast to any due to SDK type variations between versions
 
