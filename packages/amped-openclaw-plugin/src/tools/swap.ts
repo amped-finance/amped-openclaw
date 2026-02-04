@@ -20,6 +20,7 @@ import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
+import { toSodaxChainId } from '../wallet/types';
 
 // ============================================================================
 // SODAX API & Explorer Links
@@ -54,6 +55,22 @@ async function fetchIntentFromSodax(intentHash: string): Promise<any> {
     return await response.json();
   } catch {
     return null;
+  }
+}
+
+/**
+ * Ensure intent hash is in hex format (0x prefixed)
+ */
+function toHexIntentHash(hash: unknown): string | undefined {
+  if (!hash) return undefined;
+  const str = String(hash);
+  // Already hex format
+  if (str.startsWith('0x')) return str;
+  // Convert decimal BigInt string to hex
+  try {
+    return '0x' + BigInt(str).toString(16);
+  } catch {
+    return str; // Return as-is if conversion fails
   }
 }
 
@@ -272,9 +289,9 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     // Build SDK-compatible request with snake_case parameters
     const quoteRequest = {
       token_src: srcTokenAddr,
-      token_src_blockchain_id: params.srcChainId,
+      token_src_blockchain_id: toSodaxChainId(params.srcChainId),
       token_dst: dstTokenAddr,
-      token_dst_blockchain_id: params.dstChainId,
+      token_dst_blockchain_id: toSodaxChainId(params.dstChainId),
       amount: rawAmount,
       quote_type: params.type
     };
@@ -440,8 +457,8 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const intentParams = {
       srcAddress: walletAddress,
       dstAddress: params.quote.recipient || walletAddress,
-      srcChain: params.quote.srcChainId,
-      dstChain: params.quote.dstChainId,
+      srcChain: toSodaxChainId(params.quote.srcChainId),
+      dstChain: toSodaxChainId(params.quote.dstChainId),
       inputToken: srcTokenAddr,
       outputToken: dstTokenAddr,
       inputAmount: inputAmountRaw,
@@ -523,8 +540,8 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
     
     // Extract internal tracking info
-    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.intent_hash || "unknown";
-    const intentHash = (solverResponse as any)?.intent_hash || intent?.intentId?.toString();
+    const srcTxHash = deliveryInfo?.srcTxHash;
+    const intentHash = toHexIntentHash((solverResponse as any)?.intent_hash) || toHexIntentHash(intent?.intentId);
     
     // Poll for delivery confirmation (wait up to 60s)
     let deliveryResult: { delivered: boolean; deliveryExplorer?: string } = { delivered: false };
@@ -537,12 +554,14 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const result = {
       status: deliveryResult.delivered ? 'delivered' : 'submitted',
       message: deliveryResult.delivered 
-        ? 'Swap completed and delivered to destination' 
-        : 'Swap submitted, awaiting delivery',
+        ? 'Swap completed! Funds delivered to destination.' 
+        : 'Swap submitted, awaiting cross-chain delivery...',
       // User-friendly tracking link
       sodaxScanUrl: intentHash ? getSodaxScanUrl(intentHash) : undefined,
-      // Destination chain delivery explorer (only when delivered)
-      deliveryExplorer: deliveryResult.deliveryExplorer,
+      // Source chain: where user initiated the swap
+      // Destination chain: where user RECEIVED funds
+      initiationTx: srcTxHash ? getExplorerLink(params.quote.srcChainId, srcTxHash) : undefined,
+      receiptTx: deliveryResult.deliveryExplorer,
     };
     
     logStructured({

@@ -124,21 +124,30 @@ Cross-chain and same-chain token swaps via SODAX's intent-based solver network.
 
 ### Bridge Tools
 
-Bridge tokens between spoke chains and the Sonic hub chain.
+Bridge tokens between chains via the swap infrastructure.
+
+> **Note:** In SODAX, bridges and cross-chain swaps use the same underlying intent-based messaging system. The `amped_oc_bridge_execute` tool internally delegates to the swap infrastructure, which provides better routing and reliability.
+>
+> **Recommendation:** Use cross-chain swaps (`amped_oc_swap_quote` + `amped_oc_swap_execute`) directly for bridging. You can swap USDC on one chain directly to native tokens (ETH, AVAX, POL, etc.) on another chain in a single operation.
 
 | Tool | Purpose |
 |------|---------|
 | `amped_oc_bridge_discover` | Discover bridgeable tokens between two chains |
 | `amped_oc_bridge_quote` | Check bridgeability, limits, and max bridgeable amount |
-| `amped_oc_bridge_execute` | Execute the bridge operation (handles allowance, approval, and execution) |
+| `amped_oc_bridge_execute` | Execute bridge (delegates to swap infrastructure) |
 
-**When to use bridging:**
-- Moving the same token from one chain to another (e.g., USDC on Ethereum → USDC on Sonic)
+**When to use bridging/cross-chain swaps:**
+- Moving tokens from one chain to another (e.g., USDC on Base → ETH on Arbitrum)
+- Getting native gas tokens on a new chain (e.g., USDC → POL on Polygon)
 - Transferring assets to/from the Sonic hub chain
 
-**When NOT to use bridging:**
-- Exchanging different tokens (use swap tools instead)
-- Complex DeFi operations (use money market tools instead)
+**Preferred approach for gas distribution:**
+```
+// Get gas tokens on multiple chains from a single source
+→ amped_oc_swap_quote(srcChainId="base", dstChainId="polygon", srcToken="USDC", dstToken="POL", amount="0.5", ...)
+→ amped_oc_swap_execute(quote)
+// Result: 0.5 USDC on Base → ~4 POL on Polygon
+```
 
 ### Money Market Tools
 

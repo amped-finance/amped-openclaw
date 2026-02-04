@@ -11,6 +11,7 @@
 
 import { Type, Static } from '@sinclair/typebox';
 import { getSodaxClient } from '../sodax/client';
+import { toSodaxChainId } from '../wallet/types';
 import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { getWalletManager, type IWalletBackend, type WalletInfo } from '../wallet';
 import { 
@@ -220,7 +221,8 @@ async function handleSupportedTokens(
   params: SupportedTokensParams
 ): Promise<unknown> {
   const sodax = getSodaxClient();
-  const { module, chainId } = params;
+  const { module, chainId: rawChainId } = params;
+    const chainId = toSodaxChainId(rawChainId);
 
   let tokens: Array<{
     address: string;
