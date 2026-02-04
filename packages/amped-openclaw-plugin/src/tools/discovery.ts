@@ -669,16 +669,20 @@ async function handleUserIntents(
       },
       deadline: new Date(parseInt(intent.intent.deadline) * 1000).toISOString(),
       allowPartialFill: intent.intent.allowPartialFill,
-      events: intent.events.map(event => ({
-        type: event.eventType,
-        txHash: event.txHash,
-        blockNumber: event.blockNumber,
-        state: {
-          remainingInput: event.intentState.remainingInput,
-          receivedOutput: event.intentState.receivedOutput,
-          pendingPayment: event.intentState.pendingPayment,
-        },
-      })),
+      events: intent.events
+        .filter((event): event is typeof event & { intentState: NonNullable<typeof event.intentState> } => 
+          event.intentState != null
+        )
+        .map(event => ({
+          type: event.eventType,
+          txHash: event.txHash,
+          blockNumber: event.blockNumber,
+          state: {
+            remainingInput: event.intentState.remainingInput,
+            receivedOutput: event.intentState.receivedOutput,
+            pendingPayment: event.intentState.pendingPayment,
+          },
+        })),
     }));
 
     const result = {
