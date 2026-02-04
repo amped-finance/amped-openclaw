@@ -112,15 +112,28 @@ function validateEnvironment(): string[] {
   return missing;
 }
 
+
+/**
+ * Deep-clone an object while converting BigInt values to strings
+ * Prevents serialization errors when OpenClaw framework handles the details field
+ */
+function sanitizeBigInt(obj: unknown): unknown {
+  return JSON.parse(JSON.stringify(obj, (_, v) => 
+    typeof v === 'bigint' ? v.toString() : v
+  ));
+}
+
 /**
  * Helper to wrap a handler for OpenClaw's tool format
  */
 function wrapHandler(handler: (params: unknown) => Promise<unknown>) {
   return async (_toolCallId: string, params: unknown) => {
     const result = await handler(params);
+    // Sanitize BigInt values in details to prevent framework serialization errors
+    const sanitizedResult = sanitizeBigInt(result);
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(result, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2) }],
-      details: result,
+      details: sanitizedResult,
     };
   };
 }
