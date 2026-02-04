@@ -20,6 +20,46 @@ import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
+
+// ============================================================================
+// SODAX API & Explorer Links
+// ============================================================================
+
+const SODAX_CANARY_API = 'https://canary-api.sodax.com/v1/be';
+
+// Chain ID to block explorer mapping
+const CHAIN_EXPLORERS: Record<string, string> = {
+  'ethereum': 'https://etherscan.io/tx/',
+  'base': 'https://basescan.org/tx/',
+  'arbitrum': 'https://arbiscan.io/tx/',
+  'optimism': 'https://optimistic.etherscan.io/tx/',
+  'polygon': 'https://polygonscan.com/tx/',
+  'sonic': 'https://sonicscan.org/tx/',
+  'avalanche': 'https://snowtrace.io/tx/',
+  'bsc': 'https://bscscan.com/tx/',
+  'solana': 'https://solscan.io/tx/',
+};
+
+function getExplorerLink(chainId: string, txHash: string): string | undefined {
+  // Normalize chain ID (remove 0x prefix and suffix if present)
+  const normalizedChainId = chainId.replace(/^0x[\da-f]+\./, '').toLowerCase();
+  const explorer = CHAIN_EXPLORERS[normalizedChainId];
+  return explorer ? `${explorer}${txHash}` : undefined;
+}
+
+async function fetchIntentFromSodax(intentHash: string): Promise<any> {
+  try {
+    const response = await fetch(`${SODAX_CANARY_API}/intent/${intentHash}`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function getSodaxIntentApiUrl(intentHash: string): string {
+  return `${SODAX_CANARY_API}/intent/${intentHash}`;
+}
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 
 // ============================================================================
@@ -420,12 +460,18 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     // SDK may return [response, intent, deliveryInfo] tuple
     const [response, intent] = Array.isArray(value) ? value : [value, undefined];
     
+    const spokeTxHash = response?.spokeTxHash || response?.txHash || String(response);
+    const intentHashResult = intent?.intentHash || response?.intentHash;
+    
     const result = {
-      spokeTxHash: response?.spokeTxHash || response?.txHash || String(response),
+      spokeTxHash,
       hubTxHash: response?.hubTxHash,
-      intentHash: intent?.intentHash || response?.intentHash,
+      intentHash: intentHashResult,
       status: response?.status || 'pending',
-      message: 'Swap executed successfully'
+      message: 'Swap executed successfully',
+      // SODAX intent tracking links
+      intentApiUrl: intentHashResult ? getSodaxIntentApiUrl(intentHashResult) : undefined,
+      creationTxExplorer: getExplorerLink(params.quote.srcChainId, spokeTxHash),
     };
     
     logStructured({
@@ -507,17 +553,39 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       throw new Error('Unable to retrieve swap status');
     }
     
+    // Extract key fields
+    const intentHashValue = params.intentHash || (status as any).intentHash;
+    const spokeTxHashValue = params.txHash || (status as any).spokeTxHash;
+    const hubTxHashValue = (status as any).hubTxHash;
+    
+    // Try to fetch additional details from SODAX API
+    let sodaxIntentData: any = null;
+    let fulfillmentTxHash: string | undefined;
+    
+    if (intentHashValue) {
+      sodaxIntentData = await fetchIntentFromSodax(intentHashValue);
+      // Extract fulfillment tx from events if available
+      const filledEvent = sodaxIntentData?.events?.find((e: any) => e.eventType === 'intent-filled');
+      fulfillmentTxHash = filledEvent?.txHash;
+    }
+    
     const result: Record<string, unknown> = {
       status: (status as any).status || status,
-      intentHash: params.intentHash || (status as any).intentHash,
-      spokeTxHash: params.txHash || (status as any).spokeTxHash,
-      hubTxHash: (status as any).hubTxHash,
+      intentHash: intentHashValue,
+      spokeTxHash: spokeTxHashValue,
+      hubTxHash: hubTxHashValue,
       filledAmount: (status as any).filledAmount,
       error: (status as any).error,
-      createdAt: (intent as any)?.createdAt,
-      expiresAt: (intent as any)?.deadline
+      createdAt: (intent as any)?.createdAt || sodaxIntentData?.createdAt,
+      expiresAt: (intent as any)?.deadline,
+      // SODAX tracking links
+      intentApiUrl: intentHashValue ? getSodaxIntentApiUrl(intentHashValue) : undefined,
+      creationTxExplorer: spokeTxHashValue ? getExplorerLink(sodaxIntentData?.chainId?.toString() || 'base', spokeTxHashValue) : undefined,
+      fulfillmentTxHash,
+      fulfillmentTxExplorer: fulfillmentTxHash && sodaxIntentData ? getExplorerLink(sodaxIntentData.intent?.dstChain?.toString() || 'sonic', fulfillmentTxHash) : undefined,
+      // Include open status from SODAX
+      open: sodaxIntentData?.open,
     };
-    
     logStructured({
       requestId,
       opType: 'swap_status',
