@@ -1,6 +1,6 @@
 {
   "name": "amped-openclaw",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Amped OpenClaw plugin for DeFi operations via SODAX SDK",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

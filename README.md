@@ -65,6 +65,10 @@ export BANKR_API_KEY=your-bankr-api-key
 
 > ⚠️ Your Bankr API key must have **"Agent API" access enabled** in your Bankr dashboard.
 
+**Bankr Supported Chains:** Ethereum, Base, Polygon only.
+
+For other chains (Sonic, Arbitrum, Optimism, etc.), use evm-wallet-skill or environment variables.
+
 ### Option 3: Environment Variables
 
 ```bash
@@ -118,11 +122,13 @@ Manage wallets through natural language:
 
 The plugin supports multiple wallet sources with nicknames:
 
-| Source | Default Nickname | Description |
-|--------|-----------------|-------------|
-| evm-wallet-skill | `main` | Self-custody via `~/.evm-wallet.json` |
-| Bankr | `bankr` | Managed wallet via Bankr API |
-| Environment | Custom | From `AMPED_OC_WALLETS_JSON` |
+| Source | Default Nickname | Supported Chains |
+|--------|-----------------|------------------|
+| evm-wallet-skill | `main` | All SODAX chains (Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, etc.) |
+| Bankr | `bankr` | Ethereum, Base, Polygon only |
+| Environment | Custom | All SODAX chains |
+
+> 💡 The plugin automatically handles chain ID format differences between SODAX (`0x2105.base`) and Bankr (`base`).
 
 Use nicknames in operations:
 ```
@@ -171,6 +177,26 @@ Your collateral stays on the source chain while borrowed tokens arrive on the de
 ```bash
 openclaw plugins uninstall amped-openclaw
 openclaw plugins install amped-openclaw
+```
+
+## Installing from Git (Latest)
+
+For the newest features before npm publish:
+
+```bash
+# Clone and build
+git clone https://github.com/amped-finance/amped-openclaw.git /tmp/amped-openclaw
+cd /tmp/amped-openclaw/packages/amped-openclaw-plugin
+npm install && npm run build
+
+# Install to OpenClaw
+mkdir -p ~/.openclaw/extensions/amped-openclaw
+cp -r dist openclaw.plugin.json index.js package.json ~/.openclaw/extensions/amped-openclaw/
+cd ~/.openclaw/extensions/amped-openclaw && npm install --production
+
+# Enable and restart
+openclaw plugins enable amped-openclaw
+openclaw gateway restart
 ```
 
 ## Uninstalling
