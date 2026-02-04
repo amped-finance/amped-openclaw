@@ -222,6 +222,14 @@ export async function aggregateCrossChainPositions(
 
 /**
  * Query positions for a single chain
+ * 
+ * IMPORTANT: getUserReservesHumanized() only returns raw balances without token metadata.
+ * To get token symbols/names, we must:
+ * 1. Fetch getReservesHumanized() for token metadata
+ * 2. Format with formatReservesUSD(buildReserveDataWithPrice())
+ * 3. Join with formatUserSummary(buildUserSummaryRequest())
+ * 
+ * Reference: sodax-frontend/packages/dapp-kit/src/hooks/mm/useUserFormattedSummary.ts
  */
 async function queryChainPositions(
   _walletId: string,
@@ -233,46 +241,79 @@ async function queryChainPositions(
     const spokeProvider = await getSpokeProvider(address, chainId);
     const sodax = getSodaxClient();
 
-    // Get user reserves in humanized format
-    const userReservesResult = await sodax.moneyMarket.data.getUserReservesHumanized(spokeProvider);
+    // Step 1: Fetch reserves with token metadata (symbols, names, decimals)
+    // This is the key fix - getUserReservesHumanized alone doesn't include token metadata
+    const reserves = await sodax.moneyMarket.data.getReservesHumanized();
+    
+    // Step 2: Format reserves with USD prices
+    const formattedReserves = sodax.moneyMarket.data.formatReservesUSD(
+      sodax.moneyMarket.data.buildReserveDataWithPrice(reserves)
+    );
+    
+    // Step 3: Fetch user-specific balances
+    const userReserves = await sodax.moneyMarket.data.getUserReservesHumanized(spokeProvider);
+    
+    // Step 4: Join reserves metadata with user balances via formatUserSummary
+    const userSummary = sodax.moneyMarket.data.formatUserSummary(
+      sodax.moneyMarket.data.buildUserSummaryRequest(reserves, formattedReserves, userReserves)
+    );
 
-    // SDK may return { userReserves: [...] } or just array
-    const reservesData = (userReservesResult as any).userReserves || userReservesResult;
-    const userReserves = Array.isArray(reservesData) ? reservesData : [];
+    // Extract user reserves from the formatted summary
+    // The formatted summary has userReservesData with proper token metadata
+    const userReservesData = (userSummary as any).userReservesData || [];
 
     // Convert to TokenPosition format
-    const positions: TokenPosition[] = userReserves.map((reserve: any) => ({
-      chainId,
-      token: {
-        address: reserve.token?.address || reserve.underlyingAsset || '',
-        symbol: reserve.token?.symbol || reserve.symbol || '',
-        name: reserve.token?.name || reserve.name || '',
-        decimals: reserve.token?.decimals || reserve.decimals || 18,
-        logoURI: reserve.token?.logoURI || reserve.logoURI,
-      },
-      supply: {
-        balance: reserve.supply?.balance || reserve.scaledATokenBalance || '0',
-        balanceUsd: reserve.supply?.balanceUsd || '0',
-        balanceRaw: reserve.supply?.balanceRaw || '0',
-        apy: reserve.supply?.apy || 0,
-        isCollateral: reserve.supply?.isCollateral ?? reserve.usageAsCollateralEnabledOnUser ?? false,
-      },
-      borrow: {
-        balance: reserve.borrow?.balance || reserve.scaledVariableDebt || '0',
-        balanceUsd: reserve.borrow?.balanceUsd || '0',
-        balanceRaw: reserve.borrow?.balanceRaw || '0',
-        apy: reserve.borrow?.apy || 0,
-      },
-      loanToValue: reserve.loanToValue || 0,
-      liquidationThreshold: reserve.liquidationThreshold || 0,
-    }));
+    const positions: TokenPosition[] = userReservesData.map((reserve: any) => {
+      // Get supply balance (underlyingBalance is the human-readable supply amount)
+      const supplyBalance = reserve.underlyingBalance || '0';
+      const supplyBalanceUsd = reserve.underlyingBalanceUSD || '0';
+      
+      // Get borrow balance (variableBorrows is the human-readable borrow amount)
+      const borrowBalance = reserve.variableBorrows || reserve.totalBorrows || '0';
+      const borrowBalanceUsd = reserve.variableBorrowsUSD || reserve.totalBorrowsUSD || '0';
+      
+      // Get APY values (formatted reserves have these)
+      const supplyApy = parseFloat(reserve.reserve?.supplyAPY || '0') * 100;
+      const borrowApy = parseFloat(reserve.reserve?.variableBorrowAPY || '0') * 100;
+      
+      return {
+        chainId,
+        token: {
+          address: reserve.underlyingAsset || reserve.reserve?.underlyingAsset || '',
+          symbol: reserve.reserve?.symbol || '',
+          name: reserve.reserve?.name || '',
+          decimals: reserve.reserve?.decimals || 18,
+          logoURI: reserve.reserve?.iconSymbol || undefined,
+        },
+        supply: {
+          balance: supplyBalance,
+          balanceUsd: supplyBalanceUsd,
+          balanceRaw: reserve.scaledATokenBalance || '0',
+          apy: supplyApy,
+          isCollateral: reserve.usageAsCollateralEnabledOnUser ?? false,
+        },
+        borrow: {
+          balance: borrowBalance,
+          balanceUsd: borrowBalanceUsd,
+          balanceRaw: reserve.scaledVariableDebt || '0',
+          apy: borrowApy,
+        },
+        loanToValue: parseFloat(reserve.reserve?.baseLTVasCollateral || '0') / 10000,
+        liquidationThreshold: parseFloat(reserve.reserve?.reserveLiquidationThreshold || '0') / 10000,
+      };
+    });
+
+    // Filter out positions with zero balance (unless explicitly requested)
+    const activePositions = positions.filter(p => 
+      parseFloat(p.supply.balance) > 0 || parseFloat(p.borrow.balance) > 0
+    );
 
     // Calculate chain summary
-    const supplyUsd = positions.reduce((sum, p) => sum + parseFloat(p.supply.balanceUsd || '0'), 0);
-    const borrowUsd = positions.reduce((sum, p) => sum + parseFloat(p.borrow.balanceUsd || '0'), 0);
+    const supplyUsd = activePositions.reduce((sum, p) => sum + parseFloat(p.supply.balanceUsd || '0'), 0);
+    const borrowUsd = activePositions.reduce((sum, p) => sum + parseFloat(p.borrow.balanceUsd || '0'), 0);
     
     // Calculate health factor for this chain
-    const healthFactor = calculateChainHealthFactor(positions);
+    const healthFactor = calculateChainHealthFactor(activePositions);
 
     const summary: ChainPositionSummary = {
       chainId,
@@ -280,10 +321,12 @@ async function queryChainPositions(
       borrowUsd,
       netWorthUsd: supplyUsd - borrowUsd,
       healthFactor,
-      positionCount: positions.length,
+      positionCount: activePositions.length,
     };
 
-    return { positions, summary };
+    console.log(`[positionAggregator] Chain ${chainId}: ${activePositions.length} positions, supply=$${supplyUsd.toFixed(2)}, borrow=$${borrowUsd.toFixed(2)}`);
+
+    return { positions: activePositions, summary };
   } catch (error) {
     console.error(`[positionAggregator] Error querying ${chainId}:`, error);
     throw error;
