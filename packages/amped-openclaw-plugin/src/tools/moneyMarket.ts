@@ -327,6 +327,20 @@ async function prepareMoneyMarketOperation(
   operation: "supply" | "withdraw" | "borrow" | "repay",
   policyId?: string
 ): Promise<{ walletAddress: string; spokeProvider: any; policyResult: any; tokenAddr: string }> {
+  // ============================================================================
+  // Hub Chain Validation
+  // ============================================================================
+  // SODAX architecture: Money market operations must be initiated from spoke chains,
+  // not the hub chain (Sonic). The hub chain is the settlement layer where contracts
+  // live, but users interact via spoke chains that relay operations to the hub.
+  // Reference: sodax-tests/tests/crossChainSdk.test.ts explicitly omits SONIC_MAINNET_CHAIN_ID
+  const isHubChainSource = chainId.toLowerCase() === 'sonic' || chainId === '146';
+  if (isHubChainSource) {
+    throw new Error(
+      `Money market operations cannot be initiated from the hub chain (Sonic). ` +
+      `Please use a spoke chain (base, arbitrum, ethereum, optimism, avalanche, bsc, polygon) as the source chain.`
+    );
+  }
   // Ensure sodax client is initialized
   const _sodaxClient = getSodaxClient(); // Just verify it's ready
   void _sodaxClient;

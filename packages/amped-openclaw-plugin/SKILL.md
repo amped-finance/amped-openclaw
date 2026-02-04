@@ -69,6 +69,8 @@ export BANKR_API_KEY=your-bankr-api-key
 | `amped_oc_mm_borrow` | Borrow tokens (cross-chain capable!) |
 | `amped_oc_mm_repay` | Repay borrowed tokens |
 
+> **Note:** Money market operations must be initiated from **spoke chains** (base, arbitrum, ethereum, optimism, etc.), not the hub chain (Sonic). Sonic serves as the settlement layer but cannot be the source chain for MM operations.
+
 ### Wallet Management
 | Tool | Description |
 |------|-------------|
