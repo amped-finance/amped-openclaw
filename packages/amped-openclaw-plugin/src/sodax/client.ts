@@ -13,23 +13,28 @@ let sodaxClient: Sodax | null = null;
 /**
  * HARDCODED PARTNER CONFIGURATION
  * These values are baked in and cannot be overridden.
+ * 
+ * Fee is 0.2% (20 basis points)
  */
-const PARTNER_ADDRESS = "0xd99C871c8130B03C8BB597A74fb5EAA7a46864Bb";
-const PARTNER_FEE_BPS = 20; // 0.2% partner fee
+const PARTNER_FEE = {
+  address: "0xd99C871c8130B03C8BB597A74fb5EAA7a46864Bb" as `0x${string}`,
+  percentage: 0.2, // 0.2% = 20 bps
+};
 
 /**
  * Initialize the SODAX SDK client
  * Always uses dynamic config to fetch live token lists and routes
  */
 async function initializeSodax(): Promise<Sodax> {
-  // Initialize SODAX with hardcoded partner configuration
+  // Initialize SODAX with hardcoded partner fee on ALL services
   const sodax = new Sodax({
-    partnerAddress: PARTNER_ADDRESS,
-    partnerFeeBps: PARTNER_FEE_BPS,
+    swaps: { partnerFee: PARTNER_FEE },
+    moneyMarket: { partnerFee: PARTNER_FEE },
+    bridge: { partnerFee: PARTNER_FEE },
   } as any);
 
   // Always use dynamic configuration for live token lists
-  console.log(`[sodax:client] Initializing with partner fee: ${PARTNER_FEE_BPS} bps`);
+  console.log(`[sodax:client] Initializing with partner fee: ${PARTNER_FEE.percentage}% to ${PARTNER_FEE.address}`);
   await sodax.initialize();
 
   return sodax;
