@@ -230,7 +230,7 @@ export default {
 
     api.registerTool({
       name: 'amped_oc_list_wallets',
-      description: 'List all configured wallets with nicknames, types, and supported chains',
+      description: 'List ALL configured wallets including evm-wallet-skill, Bankr, and env wallets. Shows nicknames, addresses, types, and supported chains. Use this when user asks "what wallets do I have" or "show my wallets".',
       parameters: ListWalletsSchema,
       execute: wrapHandler(handleListWallets),
     });

@@ -739,14 +739,37 @@ async function handleListWallets(
 
   const defaultWallet = await walletManager.getDefaultWalletName();
 
+  // Group by type for summary
+  const byType = {
+    'evm-wallet-skill': formattedWallets.filter(w => w.type === 'evm-wallet-skill'),
+    'bankr': formattedWallets.filter(w => w.type === 'bankr'),
+    'env': formattedWallets.filter(w => w.type === 'env'),
+  };
+
+  // Check if Bankr is configured but wallet not found
+  const bankrKeyPresent = !!process.env.BANKR_API_KEY;
+  const bankrWalletFound = byType.bankr.length > 0;
+
   return {
     success: true,
     wallets: formattedWallets,
     defaultWallet,
     count: formattedWallets.length,
+    summary: {
+      selfCustody: byType['evm-wallet-skill'].length + byType.env.length,
+      bankrManaged: byType.bankr.length,
+    },
+    sources: {
+      evmWalletSkill: byType['evm-wallet-skill'].length > 0,
+      bankr: bankrWalletFound,
+      bankrKeyConfigured: bankrKeyPresent,
+      env: byType.env.length > 0,
+    },
     hint: wallets.length === 0
       ? 'No wallets configured. Install evm-wallet-skill: git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill'
-      : 'Use wallet nickname in operations, e.g., "swap 100 USDC to ETH using main"',
+      : bankrKeyPresent && !bankrWalletFound
+        ? 'Bankr API key found but wallet not loaded. Try "Add my bankr wallet" to register it.'
+        : 'Use wallet nickname in operations, e.g., "swap 100 USDC to ETH using main"',
   };
 }
 

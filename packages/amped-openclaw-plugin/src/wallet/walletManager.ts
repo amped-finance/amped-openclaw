@@ -159,18 +159,22 @@ export class WalletManager {
     // Bankr (if API key present and not already configured)
     const bankrApiKey = process.env.BANKR_API_KEY;
     if (!this.wallets.has('bankr') && bankrApiKey) {
+      console.log('[WalletManager] Found BANKR_API_KEY, attempting to add Bankr wallet...');
       try {
         const backend = createBankrBackend({
           nickname: 'bankr',
           apiKey: bankrApiKey,
           apiUrl: process.env.BANKR_API_URL,
         });
-        if (await backend.isReady()) {
+        const ready = await backend.isReady();
+        if (ready) {
           this.wallets.set('bankr', backend);
           console.log('[WalletManager] Auto-discovered: BANKR_API_KEY → "bankr"');
+        } else {
+          console.warn('[WalletManager] Bankr API key present but connectivity check failed');
         }
       } catch (error) {
-        console.debug(`[WalletManager] Bankr not available: ${error}`);
+        console.warn(`[WalletManager] Bankr auto-discovery failed: ${error}`);
       }
     }
     

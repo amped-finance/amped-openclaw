@@ -83,18 +83,24 @@ export class BankrBackend implements IWalletBackend {
     // Query Bankr for the wallet address
     console.log('[BankrBackend] Fetching wallet address from Bankr...');
     
-    const response = await this.submitAndWait('What is my wallet address?');
-    
-    // Extract address from response
-    const addressMatch = response.match(/0x[a-fA-F0-9]{40}/);
-    if (!addressMatch) {
-      throw new Error('[BankrBackend] Could not determine wallet address from Bankr');
+    try {
+      const response = await this.submitAndWait('What is my EVM wallet address?');
+      
+      // Extract address from response
+      const addressMatch = response.match(/0x[a-fA-F0-9]{40}/);
+      if (!addressMatch) {
+        console.warn('[BankrBackend] Could not parse address from response:', response.slice(0, 100));
+        throw new Error('[BankrBackend] Could not determine wallet address from Bankr');
+      }
+      
+      this.cachedAddress = addressMatch[0] as Address;
+      console.log(`[BankrBackend] Wallet address: ${this.cachedAddress}`);
+      
+      return this.cachedAddress;
+    } catch (error) {
+      console.error('[BankrBackend] Failed to get address:', error);
+      throw error;
     }
-    
-    this.cachedAddress = addressMatch[0] as Address;
-    console.log(`[BankrBackend] Wallet address: ${this.cachedAddress}`);
-    
-    return this.cachedAddress;
   }
 
   supportsChain(chainId: string): boolean {
