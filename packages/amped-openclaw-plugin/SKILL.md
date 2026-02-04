@@ -204,3 +204,75 @@ Ethereum, Arbitrum, Base, Optimism, Avalanche, BSC, Polygon, Sonic (hub), LightL
 - **GitHub:** https://github.com/amped-finance/amped-openclaw
 - **SODAX Docs:** https://docs.sodax.com
 - **Discord:** https://discord.gg/amped
+
+---
+
+## 🧠 Agent Gotchas
+
+### Bankr Wallet Limitations
+
+**Bankr wallets have restricted chain support:**
+
+| Chain | As Source | As Destination |
+|-------|-----------|----------------|
+| Ethereum | ✅ | ✅ |
+| Base | ✅ | ✅ |
+| Polygon | ✅ | ✅ |
+| Solana | ❌ | ✅ (receive only) |
+| Arbitrum | ❌ | ❌ |
+| Optimism | ❌ | ❌ |
+| Other chains | ❌ | ❌ |
+
+**Example:** Cross-chain swap from Base to Solana works with Bankr:
+```typescript
+await agent.call('amped_oc_swap_execute', {
+  walletId: 'bankr',
+  srcChainId: 'base',      // ✅ Bankr supports as source
+  dstChainId: 'solana',    // ✅ Solana OK as destination
+  recipient: '8qguBqM4UHQ...',  // Solana base58 address
+  ...
+});
+```
+
+**Will fail:** Trying to swap FROM Arbitrum using Bankr wallet.
+
+### Intent-Based Settlement
+
+Swaps and bridges use **intent-based execution**:
+- Transactions are NOT instant
+- Settlement typically takes **30-60 seconds**
+- Use `amped_oc_swap_status` to check completion
+- The `sodaxScanUrl` in responses shows full intent lifecycle
+
+**Don't assume completion** just because the tool returned success — that means the intent was submitted, not settled.
+
+### Solana Address Format
+
+Solana addresses use **base58 encoding**, not hex:
+- ✅ Correct: `8qguBqM4UHQNHgBm18NLPeonSSFEB3RWBdbih6FXhwZu`
+- ❌ Wrong: `0x8qguBqM4UHQ...`
+
+When specifying a Solana recipient for cross-chain swaps, use the base58 format.
+
+### Slippage in Volatile Markets
+
+Default slippage (50 bps / 0.5%) may cause reverts during high volatility:
+- Normal conditions: 50 bps is fine
+- Volatile markets: Consider 100-200 bps
+- Very volatile: Up to 300 bps
+
+```typescript
+await agent.call('amped_oc_swap_quote', {
+  ...
+  slippageBps: 150  // 1.5% for volatile conditions
+});
+```
+
+### Token Decimals
+
+The plugin handles decimals automatically, but be aware:
+- **USDC, USDT**: 6 decimals
+- **Most ERC20s**: 18 decimals
+- **Native tokens (ETH, MATIC)**: 18 decimals
+
+When displaying amounts, the plugin returns human-readable values (e.g., "100.5" not "100500000").
