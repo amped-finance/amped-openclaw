@@ -539,7 +539,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
     
     // Extract internal tracking info
-    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.intent_hash || "unknown";
+    const srcTxHash = deliveryInfo?.srcTxHash;
     const intentHash = toHexIntentHash((solverResponse as any)?.intent_hash) || toHexIntentHash(intent?.intentId);
     
     // Poll for delivery confirmation (wait up to 60s)
@@ -553,12 +553,14 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const result = {
       status: deliveryResult.delivered ? 'delivered' : 'submitted',
       message: deliveryResult.delivered 
-        ? 'Swap completed and delivered to destination' 
-        : 'Swap submitted, awaiting delivery',
+        ? 'Swap completed! Funds delivered to destination.' 
+        : 'Swap submitted, awaiting cross-chain delivery...',
       // User-friendly tracking link
       sodaxScanUrl: intentHash ? getSodaxScanUrl(intentHash) : undefined,
-      // Destination chain delivery explorer (only when delivered)
-      deliveryExplorer: deliveryResult.deliveryExplorer,
+      // Source chain: where user initiated the swap
+      // Destination chain: where user RECEIVED funds
+      initiationTx: srcTxHash ? getExplorerLink(params.quote.srcChainId, srcTxHash) : undefined,
+      receiptTx: deliveryResult.deliveryExplorer,
     };
     
     logStructured({
