@@ -50,11 +50,11 @@ export AMPED_OC_WALLETS_JSON='{"main":{"address":"0x...","privateKey":"0x..."}}'
 
 ### Option C: Bankr
 
-```bash
-export BANKR_API_KEY=your-key  # Requires "Agent API" access enabled
-```
+Tell the agent your API key: *"My Bankr API key is xyz"*
 
-Limited to Ethereum, Base, and Polygon.
+To get a key: [bankr.bot](https://bankr.bot) → Settings → API Keys → Create with "Agent API" enabled.
+
+Bankr wallets support Ethereum, Base, Polygon, and Solana (as a receive destination for cross-chain swaps).
 
 ## Tools
 
