@@ -10,7 +10,16 @@
 
 import type { Address, Hash } from 'viem';
 import type { IWalletBackend, RawTransaction } from '../types';
-import { BANKR_SUPPORTED_CHAINS, getBankrChainId, normalizeChainId, isBankrSupportedChain } from '../types';
+import { BANKR_SUPPORTED_CHAINS, isBankrSupportedChain } from '../types';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { homedir } from 'os';
+
+/**
+ * Disk cache path for bankr address
+ */
+const BANKR_CACHE_DIR = join(homedir(), '.openclaw', 'cache');
+const getBankrCachePath = (nickname: string) => join(BANKR_CACHE_DIR, `bankr-${nickname}-address.json`);
 
 /**
  * Bankr API response types
@@ -73,8 +82,47 @@ export class BankrBackend implements IWalletBackend {
     this.apiUrl = config.apiUrl || 'https://api.bankr.bot';
     this.apiKey = config.apiKey;
     
+    // Try to load cached address from disk
+    this.loadCachedAddress();
+    
     console.log(`[BankrBackend] Initialized as "${this.nickname}"`);
     console.log(`[BankrBackend] Supported chains: ${this.supportedChains.join(', ')}`);
+    if (this.cachedAddress) {
+      console.log(`[BankrBackend] Loaded cached address: ${this.cachedAddress}`);
+    }
+  }
+
+  /**
+   * Load cached address from disk
+   */
+  private loadCachedAddress(): void {
+    const cachePath = getBankrCachePath(this.nickname);
+    if (existsSync(cachePath)) {
+      try {
+        const data = JSON.parse(readFileSync(cachePath, 'utf-8'));
+        if (data.address && data.address.match(/^0x[a-fA-F0-9]{40}$/)) {
+          this.cachedAddress = data.address as Address;
+        }
+      } catch (e) {
+        console.warn(`[BankrBackend] Failed to load cached address: ${e}`);
+      }
+    }
+  }
+
+  /**
+   * Save address to disk cache
+   */
+  private saveCachedAddress(address: Address): void {
+    const cachePath = getBankrCachePath(this.nickname);
+    try {
+      if (!existsSync(BANKR_CACHE_DIR)) {
+        mkdirSync(BANKR_CACHE_DIR, { recursive: true });
+      }
+      writeFileSync(cachePath, JSON.stringify({ address, timestamp: Date.now() }));
+      console.log(`[BankrBackend] Cached address to ${cachePath}`);
+    } catch (e) {
+      console.warn(`[BankrBackend] Failed to cache address: ${e}`);
+    }
   }
 
   async getAddress(): Promise<Address> {
@@ -94,6 +142,10 @@ export class BankrBackend implements IWalletBackend {
       }
       
       this.cachedAddress = addressMatch[0] as Address;
+      
+      // Save to disk for next time
+      this.saveCachedAddress(this.cachedAddress);
+      
       console.log(`[BankrBackend] Wallet address: ${this.cachedAddress}`);
       
       return this.cachedAddress;

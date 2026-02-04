@@ -118,7 +118,9 @@ export const BANKR_CHAIN_IDS: Record<string, number> = {
 export const BANKR_SUPPORTED_CHAINS = ['ethereum', 'polygon', 'base'] as const;
 
 /**
- * All SODAX-supported chains
+ * All SODAX-supported EVM chains
+ * NOTE: Keep in sync with SODAX SDK supported chains
+ * Non-EVM chains (solana, sui, stellar, injective) are excluded
  */
 export const SODAX_SUPPORTED_CHAINS = [
   'ethereum',
@@ -129,6 +131,9 @@ export const SODAX_SUPPORTED_CHAINS = [
   'sonic',
   'avalanche',
   'bsc',
+  'lightlink',
+  'hyper',
+  'kaia',
 ] as const;
 
 /**
@@ -144,11 +149,13 @@ export const SODAX_TO_SIMPLE_CHAIN: Record<string, string> = {
   '0xa.optimism': 'optimism',
   '0x38.bsc': 'bsc',
   '0xa86a.avax': 'avalanche',
+  '0x2019.kaia': 'kaia',
   // These don't have prefixes in SODAX
   'ethereum': 'ethereum',
   'sonic': 'sonic',
   'lightlink': 'lightlink',
   'hyper': 'hyperevm',
+  'kaia': 'kaia',
 };
 
 /**
@@ -162,6 +169,7 @@ export const SIMPLE_TO_SODAX_CHAIN: Record<string, string> = {
   'optimism': '0xa.optimism',
   'bsc': '0x38.bsc',
   'avalanche': '0xa86a.avax',
+  'kaia': '0x2019.kaia',
   // No prefix needed
   'ethereum': 'ethereum',
   'sonic': 'sonic',

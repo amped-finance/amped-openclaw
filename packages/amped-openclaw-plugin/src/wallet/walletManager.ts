@@ -256,7 +256,7 @@ export class WalletManager {
         // Add timeout for slow backends (like Bankr)
         const addressPromise = backend.getAddress();
         const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 10000)
+          setTimeout(() => reject(new Error('Timeout')), 30000)
         );
         
         const address = await Promise.race([addressPromise, timeoutPromise]);
