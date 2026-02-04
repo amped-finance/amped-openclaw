@@ -65,6 +65,10 @@ import {
   AddWalletSchema, RenameWalletSchema, RemoveWalletSchema, SetDefaultWalletSchema,
   handleAddWallet, handleRenameWallet, handleRemoveWallet, handleSetDefaultWallet
 } from './tools/walletManagement';
+import {
+  PortfolioSummarySchema,
+  handlePortfolioSummary
+} from './tools/portfolio';
 
 /**
  * Plugin configuration schema (matches openclaw.plugin.json)
@@ -246,6 +250,13 @@ export default {
       description: 'List ALL configured wallets including evm-wallet-skill, Bankr, and env wallets. Shows nicknames, addresses, types, and supported chains. Use this when user asks "what wallets do I have" or "show my wallets".',
       parameters: ListWalletsSchema,
       execute: wrapHandler(handleListWallets),
+    });
+
+    api.registerTool({
+      name: 'amped_oc_portfolio_summary',
+      description: 'Get a comprehensive portfolio summary including wallet balances (native + major tokens) across chains and money market positions. Use when user asks for "portfolio", "balances", or "summary of positions".',
+      parameters: PortfolioSummarySchema,
+      execute: wrapHandler(handlePortfolioSummary),
     });
 
     // Register Wallet Management Tools
