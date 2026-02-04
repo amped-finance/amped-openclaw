@@ -18,7 +18,7 @@ let sodaxClient: Sodax | null = null;
  */
 const PARTNER_FEE = {
   address: "0xd99C871c8130B03C8BB597A74fb5EAA7a46864Bb" as `0x${string}`,
-  percentage: 0.2, // 0.2% = 20 bps
+  percentage: 20, // 0.2% = 20 bps
 };
 
 /**
