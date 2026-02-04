@@ -142,7 +142,7 @@ export async function aggregateCrossChainPositions(
   // This is important for Bankr which only supports ethereum/polygon/base
   const walletSupportedChains = wallet.supportedChains;
   const filteredChains = allSodaxChains.filter((chainId: string) => 
-    wallet.supportsChain(chainId)
+    wallet.supportsChain(normalizeChainId(chainId))
   );
   
   // Determine which chains to query
