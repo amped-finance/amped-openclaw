@@ -499,7 +499,7 @@ async function handleSupply(
 
     // Add cross-chain parameters if applicable
     if (crossChain && dstChainId) {
-      supplyParams.toChainId = dstChainId;
+      supplyParams.toChainId = toSodaxChainId(dstChainId);
       warnings.push(`Cross-chain supply: tokens supplied on ${chainId}, collateral recorded on ${dstChainId}`);
     }
 
@@ -610,7 +610,7 @@ async function handleWithdraw(
 
     // Add cross-chain parameters if applicable
     if (crossChain && dstChainId) {
-      withdrawParams.toChainId = dstChainId;
+      withdrawParams.toChainId = toSodaxChainId(dstChainId);
       warnings.push(`Cross-chain withdraw: withdrawing from ${chainId}, receiving tokens on ${dstChainId}`);
     }
 
@@ -732,7 +732,7 @@ async function handleBorrow(
     // If dstChainId is provided and different from chainId, the borrowed tokens
     // will be delivered to dstChainId instead of chainId where the borrow is initiated
     if (crossChain && dstChainId) {
-      borrowParams.toChainId = dstChainId;
+      borrowParams.toChainId = toSodaxChainId(dstChainId);
       warnings.push(`Cross-chain borrow: Using collateral on ${chainId}, receiving borrowed tokens on ${dstChainId}`);
       warnings.push(`Ensure you have sufficient collateral on ${chainId} to support this borrow`);
     }
@@ -938,7 +938,7 @@ async function handleCreateSupplyIntent(
     };
 
     if (dstChainId) {
-      supplyParams.toChainId = dstChainId;
+      supplyParams.toChainId = toSodaxChainId(dstChainId);
     }
 
     const intentData = await sodaxClient.moneyMarket.createSupplyIntent(
@@ -991,7 +991,7 @@ async function handleCreateBorrowIntent(
     };
 
     if (dstChainId) {
-      borrowParams.toChainId = dstChainId;
+      borrowParams.toChainId = toSodaxChainId(dstChainId);
     }
 
     const intentData = await sodaxClient.moneyMarket.createBorrowIntent(
