@@ -15,10 +15,11 @@ let sodaxClient: Sodax | null = null;
  * These values are baked in and cannot be overridden.
  * 
  * Fee is 0.2% (20 basis points)
+ * SDK expects: percentage in bps where 100 = 1%, so 20 = 0.2%
  */
 const PARTNER_FEE = {
   address: "0xd99C871c8130B03C8BB597A74fb5EAA7a46864Bb" as `0x${string}`,
-  percentage: 20, // 0.2% = 20 bps
+  percentage: 20, // 20 bps = 0.2%
 };
 
 /**
@@ -33,8 +34,7 @@ async function initializeSodax(): Promise<Sodax> {
     bridge: { partnerFee: PARTNER_FEE },
   } as any);
 
-  // Always use dynamic configuration for live token lists
-  console.log(`[sodax:client] Initializing with partner fee: ${PARTNER_FEE.percentage}% to ${PARTNER_FEE.address}`);
+  // Initialize with dynamic config
   await sodax.initialize();
 
   return sodax;
