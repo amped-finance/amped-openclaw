@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ErrorCode, AmpedOpenClawError } from '../utils/errors';
+import { normalizeChainId } from './types';
 
 // Try to import viem for address derivation
 let privateKeyToAccount: ((key: `0x${string}`) => { address: string }) | null = null;
@@ -269,7 +270,7 @@ export class EvmWalletSkillAdapter {
    * Get RPC URL - tries skill first, then legacy config
    */
   async getRpcUrl(chainId: string | number): Promise<string> {
-    const key = String(chainId).toLowerCase();
+    const key = normalizeChainId(String(chainId)).toLowerCase();
 
     // Try skill RPCs
     if (this.skillRpcs.has(key)) {
