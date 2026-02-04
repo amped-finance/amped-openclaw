@@ -104,9 +104,33 @@ tail -f ~/.openclaw/logs/openclaw.log
 
 ## Configuration
 
+### Wallet Setup (Optional)
+
+The plugin works without a wallet for **read-only operations** (quotes, balances, discovery). To execute transactions, configure a wallet using one of the options below.
+
+> **No wallet configured?** The agent will prompt you to install [evm-wallet-skill](https://github.com/amped-finance/evm-wallet-skill) when you try to execute a transaction.
+
 ### 🔌 evm-wallet-skill Integration (Recommended)
 
-This plugin **automatically integrates** with [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill)! If you're already using that skill, no additional wallet configuration is needed.
+Install [evm-wallet-skill](https://github.com/amped-finance/evm-wallet-skill) for self-sovereign wallet management:
+
+```bash
+git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill
+cd ~/.openclaw/skills/evm-wallet-skill && npm install
+node src/setup.js  # Generate a new wallet
+```
+
+The plugin automatically detects wallets from `~/.evm-wallet.json`.
+
+**Supported chains:** Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, MegaETH, and more.
+
+**Add custom chains via natural language:**
+> "Add Berachain with chain ID 80094 and RPC https://rpc.berachain.com"
+
+Or directly:
+```bash
+node src/add-chain.js berachain 80094 https://rpc.berachain.com --native-token BERA
+```
 
 The plugin will automatically detect and use:
 - `EVM_WALLETS_JSON` or `WALLET_CONFIG_JSON`

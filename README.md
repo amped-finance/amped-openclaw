@@ -27,30 +27,31 @@ Verify with `openclaw plugins list` — you should see "Amped DeFi" as loaded.
 - [OpenClaw](https://openclaw.ai) installed
 - Node.js >= 18.0.0
 
-## Wallet Configuration
+## Wallet Setup (Optional)
 
-The plugin automatically detects wallets from multiple sources (in order):
+The plugin works without a wallet for read-only operations (quotes, balances, discovery). To execute transactions, configure a wallet using one of these options:
+
+> **No wallet configured?** The agent will prompt you to set one up when you try to execute a transaction.
 
 ### Option 1: evm-wallet-skill (Recommended)
 
-Install our enhanced [evm-wallet-skill](https://github.com/amped-finance/evm-wallet-skill) with support for all SODAX chains:
+Install [evm-wallet-skill](https://github.com/amped-finance/evm-wallet-skill) for self-sovereign wallet management:
 
 ```bash
-# Install via clawdhub
-clawdhub install amped-finance/evm-wallet-skill
-
-# Or clone directly
 git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill
 cd ~/.openclaw/skills/evm-wallet-skill && npm install
+node src/setup.js  # Generate a new wallet
 ```
 
 The plugin auto-detects wallets from `~/.evm-wallet.json`.
 
-**Supported chains:** Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, and more.
+**Supported chains:** Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, MegaETH, and more.
 
-**Add custom chains:**
+**Add custom chains via natural language:**
+> "Add Berachain with chain ID 80094 and RPC https://rpc.berachain.com"
+
+Or directly:
 ```bash
-# Ask your agent to add a chain, or run directly:
 node src/add-chain.js berachain 80094 https://rpc.berachain.com --native-token BERA
 ```
 
