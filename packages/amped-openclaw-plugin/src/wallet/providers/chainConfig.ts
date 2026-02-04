@@ -108,6 +108,11 @@ const CHAIN_CONFIG: Record<number, Chain> = {
 /**
  * Default RPC URLs for all supported chains
  */
+/**
+ * FALLBACK RPC URLs for all supported chains
+ * Primary RPCs should come from evm-wallet-skill (chains.js)
+ * @see https://github.com/amped-finance/evm-wallet-skill
+ */
 export const DEFAULT_RPC_URLS: Record<number, string> = {
   [CHAIN_IDS.ETHEREUM]: 'https://ethereum.publicnode.com',
   [CHAIN_IDS.ARBITRUM]: 'https://arb1.arbitrum.io/rpc',

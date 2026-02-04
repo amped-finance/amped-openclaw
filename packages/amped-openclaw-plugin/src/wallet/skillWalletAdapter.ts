@@ -28,10 +28,10 @@ try {
 }
 
 /**
- * Default public RPC URLs for SODAX-supported chains
- * These are used when no custom RPCs are configured
+ * FALLBACK RPC URLs - primary RPCs come from evm-wallet-skill
+ * These are only used when evm-wallet-skill does not provide an RPC
  */
-const DEFAULT_RPCS: Record<string, string> = {
+const FALLBACK_RPCS: Record<string, string> = {
   // SODAX supported spoke chains
   ethereum: 'https://ethereum.publicnode.com',
   arbitrum: 'https://arb1.arbitrum.io/rpc',
@@ -183,7 +183,7 @@ export class EvmWalletSkillAdapter {
    */
   private loadEnvRpcs(): void {
     // Start with default RPCs
-    Object.entries(DEFAULT_RPCS).forEach(([chain, url]) => {
+    Object.entries(FALLBACK_RPCS).forEach(([chain, url]) => {
       this.skillRpcs.set(chain.toLowerCase(), url);
     });
 
