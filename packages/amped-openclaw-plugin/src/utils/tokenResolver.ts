@@ -14,7 +14,7 @@ const tokenCache = new Map<string, Token[]>();
 // Native token address (zero address)
 const NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
 
-// Native token configs per chain (18 decimals for all EVM chains)
+// Native token configs per chain (18 decimals for all EVM chains, 9 for Solana)
 const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: number }> = {
   sonic: { symbol: 'S', name: 'Sonic', decimals: 18 },
   ethereum: { symbol: 'ETH', name: 'Ether', decimals: 18 },
@@ -26,6 +26,7 @@ const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: nu
   '0xa86a.avax': { symbol: 'AVAX', name: 'Avalanche', decimals: 18 },
   hyper: { symbol: 'HYPE', name: 'Hyperliquid', decimals: 18 },
   lightlink: { symbol: 'ETH', name: 'Ether', decimals: 18 },
+  solana: { symbol: 'SOL', name: 'Solana', decimals: 9 },
 };
 
 // Fallback token list for common chains when SDK config is unavailable
@@ -51,6 +52,11 @@ const FALLBACK_TOKENS: Record<string, { address: string; symbol: string; name: s
     { address: '0x29219dd400f2Bf60E5a23d13Be72B486D4038894', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
     { address: '0x6047828dc181963ba44974801FF68e538dA5eaF9', symbol: 'USDT', name: 'Tether USD', decimals: 6 },
     { address: '0x0000000000000000000000000000000000000000', symbol: 'S', name: 'Sonic', decimals: 18 },
+  ],
+  'solana': [
+    { address: '11111111111111111111111111111111', symbol: 'SOL', name: 'Solana', decimals: 9 },
+    { address: '3rSPCLNEF7Quw4wX8S1NyKivELoyij8eYA2gJwBgt4V5', symbol: 'bnUSD', name: 'bnUSD', decimals: 9 },
+    { address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
   ],
 };
 
