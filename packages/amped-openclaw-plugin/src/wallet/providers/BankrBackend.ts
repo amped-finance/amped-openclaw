@@ -39,7 +39,7 @@ function serializeError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   try {
-    return JSON.stringify(error, null, 2);
+    return JSON.stringify(error, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
   } catch {
     return String(error);
   }

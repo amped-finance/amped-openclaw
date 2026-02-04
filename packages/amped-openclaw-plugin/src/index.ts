@@ -119,7 +119,7 @@ function wrapHandler(handler: (params: unknown) => Promise<unknown>) {
   return async (_toolCallId: string, params: unknown) => {
     const result = await handler(params);
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      content: [{ type: 'text' as const, text: JSON.stringify(result, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2) }],
       details: result,
     };
   };
