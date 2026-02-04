@@ -187,7 +187,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
         ? quoteResult.error.message 
         : typeof quoteResult.error === 'string' 
           ? quoteResult.error 
-          : JSON.stringify(quoteResult.error, null, 2);
+          : JSON.stringify(quoteResult.error, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
       throw new Error(`Quote failed: ${errorMsg}`);
     }
     
@@ -390,7 +390,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         ? swapResult.error.message 
         : typeof swapResult.error === 'string' 
           ? swapResult.error 
-          : JSON.stringify(swapResult.error, null, 2);
+          : JSON.stringify(swapResult.error, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
       throw new Error(`Swap failed: ${errorMsg}`);
     }
     
