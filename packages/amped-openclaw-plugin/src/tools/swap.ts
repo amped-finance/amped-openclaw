@@ -57,6 +57,22 @@ async function fetchIntentFromSodax(intentHash: string): Promise<any> {
   }
 }
 
+/**
+ * Ensure intent hash is in hex format (0x prefixed)
+ */
+function toHexIntentHash(hash: unknown): string | undefined {
+  if (!hash) return undefined;
+  const str = String(hash);
+  // Already hex format
+  if (str.startsWith('0x')) return str;
+  // Convert decimal BigInt string to hex
+  try {
+    return '0x' + BigInt(str).toString(16);
+  } catch {
+    return str; // Return as-is if conversion fails
+  }
+}
+
 function getSodaxScanUrl(intentHash: string): string {
   return `https://sodaxscan.com/messages/search?value=${intentHash}`;
 }
@@ -524,7 +540,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     
     // Extract internal tracking info
     const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.intent_hash || "unknown";
-    const intentHash = (solverResponse as any)?.intent_hash || intent?.intentId?.toString();
+    const intentHash = toHexIntentHash((solverResponse as any)?.intent_hash) || toHexIntentHash(intent?.intentId);
     
     // Poll for delivery confirmation (wait up to 60s)
     let deliveryResult: { delivered: boolean; deliveryExplorer?: string } = { delivered: false };
