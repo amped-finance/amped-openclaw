@@ -9,6 +9,8 @@ DeFi plugin for [OpenClaw](https://openclaw.ai). Swap, bridge, lend, and borrow 
 openclaw plugins install amped-openclaw
 ```
 
+Or browse on [ClawdHub](https://clawhub.ai/skills/amped-openclaw).
+
 ## Supported Chains
 
 Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, Kaia, Solana
@@ -89,6 +91,7 @@ openclaw plugins uninstall amped-openclaw && openclaw plugins install amped-open
 
 ## Links
 
+- [ClawdHub](https://clawhub.ai/skills/amped-openclaw) — discover and install
 - [Full Plugin Docs](packages/amped-openclaw-plugin/README.md)
 - [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill) (upstream) | [our fork](https://github.com/amped-finance/evm-wallet-skill)
 
