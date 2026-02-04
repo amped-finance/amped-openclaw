@@ -253,7 +253,14 @@ export class WalletManager {
     
     for (const [name, backend] of this.wallets) {
       try {
-        const address = await backend.getAddress();
+        // Add timeout for slow backends (like Bankr)
+        const addressPromise = backend.getAddress();
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 10000)
+        );
+        
+        const address = await Promise.race([addressPromise, timeoutPromise]);
+        
         wallets.push({
           nickname: name,
           type: backend.type,
@@ -262,8 +269,15 @@ export class WalletManager {
           isDefault: name === this.defaultWallet,
         });
       } catch (error) {
-        // Skip wallets that fail to load
-        console.warn(`[WalletManager] Failed to get info for "${name}": ${error}`);
+        // Include wallet with placeholder address if we can't get it
+        console.warn(`[WalletManager] Failed to get address for "${name}": ${error}`);
+        wallets.push({
+          nickname: name,
+          type: backend.type,
+          address: '0x...' as Address, // Placeholder
+          chains: [...backend.supportedChains],
+          isDefault: name === this.defaultWallet,
+        });
       }
     }
     

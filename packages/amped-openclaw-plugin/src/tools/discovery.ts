@@ -733,8 +733,12 @@ async function handleListWallets(
     nickname: w.nickname,
     type: w.type,
     address: w.address,
+    addressKnown: w.address !== '0x...',
     supportedChains: w.chains,
     isDefault: w.isDefault,
+    note: w.address === '0x...' && w.type === 'bankr' 
+      ? 'Address pending - will be fetched on first use' 
+      : undefined,
   }));
 
   const defaultWallet = await walletManager.getDefaultWalletName();
