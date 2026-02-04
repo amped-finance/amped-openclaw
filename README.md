@@ -67,15 +67,16 @@ To get a key: [bankr.bot](https://bankr.bot) → Settings → API Keys → Creat
 
 Bankr wallets support Ethereum, Base, Polygon, and Solana (as a receive destination for cross-chain swaps).
 
-## Tools
+## Tools (25)
 
 | Category | Tools |
 |----------|-------|
 | Swap | quote, execute, status, cancel |
 | Bridge | discover, quote, execute |
-| Money Market | supply, withdraw, borrow, repay |
-| Portfolio | balances, positions, intent history |
-| Wallets | add, rename, remove, set default |
+| Money Market | supply, withdraw, borrow, repay, create intents |
+| Portfolio | cross-chain positions, single-chain positions, reserves, intent history |
+| Discovery | supported chains, supported tokens, wallet address |
+| Wallets | list, add, rename, remove, set default |
 
 ## Update
 
