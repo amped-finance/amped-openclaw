@@ -348,45 +348,84 @@ async function handleMoneyMarketPositions(
 
   const sodax = getSodaxClient();
 
-  // Get user reserves in humanized format
+  // IMPORTANT: getUserReservesHumanized() only returns raw balances without token metadata.
+  // To get token symbols/names, we must:
+  // 1. Fetch getReservesHumanized() for token metadata
+  // 2. Format with formatReservesUSD(buildReserveDataWithPrice())
+  // 3. Join with formatUserSummary(buildUserSummaryRequest())
+  // Reference: sodax-frontend/packages/dapp-kit/src/hooks/mm/useUserFormattedSummary.ts
+
+  // Step 1: Fetch reserves with token metadata (symbols, names, decimals)
+  const reserves = await sodax.moneyMarket.data.getReservesHumanized();
+
+  // Step 2: Format reserves with USD prices
+  const formattedReserves = sodax.moneyMarket.data.formatReservesUSD(
+    sodax.moneyMarket.data.buildReserveDataWithPrice(reserves)
+  );
+
+  // Step 3: Fetch user-specific balances
   const userReservesResult = await sodax.moneyMarket.data.getUserReservesHumanized(
     spokeProvider
   );
 
-  // SDK may return { userReserves: [...], userEmodeCategoryId: ... } or just array
-  const reservesData = userReservesResult.userReserves || userReservesResult;
-  const reservesArray = Array.isArray(reservesData) ? reservesData : [];
+  // Step 4: Join reserves metadata with user balances via formatUserSummary
+  const userSummary = sodax.moneyMarket.data.formatUserSummary(
+    sodax.moneyMarket.data.buildUserSummaryRequest(reserves, formattedReserves, userReservesResult)
+  );
+
+  // Extract user reserves from the formatted summary
+  // The formatted summary has userReservesData with proper token metadata
+  const userReservesData = (userSummary as any).userReservesData || [];
 
   // Format positions for readability
-  const positions = reservesArray.map((reserve: any) => ({
-    token: {
-      address: reserve.token?.address || reserve.underlyingAsset || '',
-      symbol: reserve.token?.symbol || reserve.symbol || '',
-      name: reserve.token?.name || reserve.name || '',
-      decimals: reserve.token?.decimals || reserve.decimals || 18,
-    },
-    supply: {
-      balance: reserve.supply?.balance || reserve.scaledATokenBalance || '0',
-      balanceUsd: reserve.supply?.balanceUsd || '0',
-      apy: reserve.supply?.apy || 0,
-      collateral: reserve.supply?.isCollateral ?? reserve.usageAsCollateralEnabledOnUser ?? false,
-    },
-    borrow: {
-      balance: reserve.borrow?.balance || reserve.scaledVariableDebt || '0',
-      balanceUsd: reserve.borrow?.balanceUsd || '0',
-      apy: reserve.borrow?.apy || 0,
-    },
-    // Health indicators
-    loanToValue: reserve.loanToValue || 0,
-    liquidationThreshold: reserve.liquidationThreshold || 0,
-  }));
+  const positions = userReservesData.map((reserve: any) => {
+    // Get supply balance (underlyingBalance is the human-readable supply amount)
+    const supplyBalance = reserve.underlyingBalance || '0';
+    const supplyBalanceUsd = reserve.underlyingBalanceUSD || '0';
+
+    // Get borrow balance (variableBorrows is the human-readable borrow amount)
+    const borrowBalance = reserve.variableBorrows || reserve.totalBorrows || '0';
+    const borrowBalanceUsd = reserve.variableBorrowsUSD || reserve.totalBorrowsUSD || '0';
+
+    // Get APY values (formatted reserves have these)
+    const supplyApy = parseFloat(reserve.reserve?.supplyAPY || '0') * 100;
+    const borrowApy = parseFloat(reserve.reserve?.variableBorrowAPY || '0') * 100;
+
+    return {
+      token: {
+        address: reserve.underlyingAsset || reserve.reserve?.underlyingAsset || '',
+        symbol: reserve.reserve?.symbol || '',
+        name: reserve.reserve?.name || '',
+        decimals: reserve.reserve?.decimals || 18,
+      },
+      supply: {
+        balance: supplyBalance,
+        balanceUsd: supplyBalanceUsd,
+        apy: supplyApy,
+        collateral: reserve.usageAsCollateralEnabledOnUser ?? false,
+      },
+      borrow: {
+        balance: borrowBalance,
+        balanceUsd: borrowBalanceUsd,
+        apy: borrowApy,
+      },
+      // Health indicators
+      loanToValue: parseFloat(reserve.reserve?.baseLTVasCollateral || '0') / 10000,
+      liquidationThreshold: parseFloat(reserve.reserve?.reserveLiquidationThreshold || '0') / 10000,
+    };
+  });
+
+  // Filter to only positions with activity
+  const activePositions = positions.filter((p: any) =>
+    parseFloat(p.supply.balance) > 0 || parseFloat(p.borrow.balance) > 0
+  );
 
   // Calculate summary metrics
-  const totalSupplyUsd = positions.reduce(
+  const totalSupplyUsd = activePositions.reduce(
     (sum: number, p: any) => sum + (parseFloat(p.supply.balanceUsd) || 0),
     0
   );
-  const totalBorrowUsd = positions.reduce(
+  const totalBorrowUsd = activePositions.reduce(
     (sum: number, p: any) => sum + (parseFloat(p.borrow.balanceUsd) || 0),
     0
   );
@@ -399,13 +438,13 @@ async function handleMoneyMarketPositions(
     walletId,
     address: walletAddress,
     chainId,
-    positions,
+    positions: activePositions,
     summary: {
       totalSupplyUsd: totalSupplyUsd.toFixed(2),
       totalBorrowUsd: totalBorrowUsd.toFixed(2),
       netWorthUsd: netWorthUsd.toFixed(2),
       healthFactor: healthFactor === Infinity ? '∞' : healthFactor.toFixed(2),
-      positionCount: positions.length,
+      positionCount: activePositions.length,
     },
   };
 }
