@@ -108,12 +108,17 @@ const CHAIN_CONFIG: Record<number, Chain> = {
 /**
  * Default RPC URLs for all supported chains
  */
+/**
+ * FALLBACK RPC URLs for all supported chains
+ * Primary RPCs should come from evm-wallet-skill (chains.js)
+ * @see https://github.com/amped-finance/evm-wallet-skill
+ */
 export const DEFAULT_RPC_URLS: Record<number, string> = {
-  [CHAIN_IDS.ETHEREUM]: 'https://eth.llamarpc.com',
+  [CHAIN_IDS.ETHEREUM]: 'https://ethereum.publicnode.com',
   [CHAIN_IDS.ARBITRUM]: 'https://arb1.arbitrum.io/rpc',
   [CHAIN_IDS.OPTIMISM]: 'https://mainnet.optimism.io',
   [CHAIN_IDS.BASE]: 'https://mainnet.base.org',
-  [CHAIN_IDS.POLYGON]: 'https://1rpc.io/matic',
+  [CHAIN_IDS.POLYGON]: 'https://polygon-bor-rpc.publicnode.com',
   [CHAIN_IDS.BSC]: 'https://bsc-dataseed.binance.org',
   [CHAIN_IDS.AVALANCHE]: 'https://api.avax.network/ext/bc/C/rpc',
   [CHAIN_IDS.SONIC]: 'https://rpc.soniclabs.com',
