@@ -33,8 +33,17 @@ Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanc
 
 Quotes and discovery work without a wallet. Transactions require one of the following:
 
-### Option A: evm-wallet-skill
+### Option A: evm-wallet-skill (Recommended)
 
+**Easy install** — just ask your agent:
+> "Install evm-wallet-skill for me"
+
+**Via ClawdHub** (once [PR #5](https://github.com/surfer77/evm-wallet-skill/pull/5) is merged):
+```bash
+openclaw skills install evm-wallet-skill
+```
+
+**Manual install** (use our fork with SODAX chain support):
 ```bash
 git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill
 cd ~/.openclaw/skills/evm-wallet-skill && npm install && node src/setup.js
@@ -81,7 +90,7 @@ openclaw plugins uninstall amped-openclaw && openclaw plugins install amped-open
 ## Links
 
 - [Full Plugin Docs](packages/amped-openclaw-plugin/README.md)
-- [evm-wallet-skill](https://github.com/amped-finance/evm-wallet-skill)
+- [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill) (upstream) | [our fork](https://github.com/amped-finance/evm-wallet-skill)
 
 ---
 
