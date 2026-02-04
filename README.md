@@ -125,38 +125,3 @@ Verify: `openclaw plugins list` should show 24 tools.
   Built by <a href="https://amped.finance">Amped Finance</a>
 </p>
 
-## Development Notes
-
-### SODAX SDK: Position Data with Token Metadata
-
-⚠️ **Gotcha**: `getUserReservesHumanized()` returns raw balances only — no token symbols or names!
-
-To get complete position data with token metadata, you must join user balances with reserve data:
-
-```typescript
-// 1. Get reserves with token metadata (symbols, names, decimals)
-const reserves = await sodax.moneyMarket.data.getReservesHumanized();
-
-// 2. Format with USD prices
-const formattedReserves = sodax.moneyMarket.data.formatReservesUSD(
-  sodax.moneyMarket.data.buildReserveDataWithPrice(reserves)
-);
-
-// 3. Get user balances (raw data, NO token metadata)
-const userReserves = await sodax.moneyMarket.data.getUserReservesHumanized(spokeProvider);
-
-// 4. Join them to get complete data
-const userSummary = sodax.moneyMarket.data.formatUserSummary(
-  sodax.moneyMarket.data.buildUserSummaryRequest(reserves, formattedReserves, userReserves)
-);
-
-// userSummary.userReservesData now has:
-// - reserve.symbol, reserve.name, reserve.decimals
-// - underlyingBalance, underlyingBalanceUSD
-// - variableBorrows, variableBorrowsUSD
-// - APY values from reserve.supplyAPY/variableBorrowAPY
-```
-
-**Reference**: `sodax-frontend/packages/dapp-kit/src/hooks/mm/useUserFormattedSummary.ts`
-
-**Fixed in PR #35**: Both `positionAggregator.ts` and `discovery.ts` were missing steps 1-2-4.
