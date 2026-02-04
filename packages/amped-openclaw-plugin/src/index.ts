@@ -151,8 +151,8 @@ export default {
     // Check for missing env vars
     const missing = validateEnvironment();
     if (missing.length > 0) {
-      console.warn(`[AmpedOpenClaw] Missing config: ${missing.join(', ')}`);
-      console.warn('[AmpedOpenClaw] Configure via plugin settings or environment variables');
+      // console.warn(`[AmpedOpenClaw] Missing config: ${missing.join(', ')}`);
+      // console.warn('[AmpedOpenClaw] Configure via plugin settings or environment variables');
     }
 
     // Initialize core components (async, non-blocking)
