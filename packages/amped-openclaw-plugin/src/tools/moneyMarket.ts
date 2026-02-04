@@ -717,16 +717,28 @@ async function handleBorrow(
     // Get user's positions to check health factor (best practice)
     const sodaxClient = await getSodaxClient();
     
+    // For cross-chain borrow, resolve token on DESTINATION chain
+    // SDK expects: getMoneyMarketToken(toChainId, params.token)
+    // So params.token must be the destination chain's token address
+    let borrowTokenAddr = tokenAddr;
+    if (crossChain && dstChainId) {
+      borrowTokenAddr = await resolveToken(dstChainId, token);
+      console.log('[mm:borrow] Cross-chain: resolved token on destination chain', {
+        srcChain: chainId,
+        dstChain: dstChainId,
+        srcTokenAddr: tokenAddr,
+        dstTokenAddr: borrowTokenAddr,
+      });
+    }
+
     // Build borrow parameters
     const borrowParams: any = {
       action: 'borrow',
-      token: tokenAddr,
+      token: borrowTokenAddr,
       amount: amountBigInt,
       
       toAddress: recipient || walletAddress,
     };
-
-    // Add optional parameters
 
     // KEY CROSS-CHAIN FEATURE:
     // If dstChainId is provided and different from chainId, the borrowed tokens
