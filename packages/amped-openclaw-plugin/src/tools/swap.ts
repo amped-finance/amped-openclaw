@@ -57,9 +57,71 @@ async function fetchIntentFromSodax(intentHash: string): Promise<any> {
   }
 }
 
+function getSodaxScanUrl(intentHash: string): string {
+  return `https://sodaxscan.com/messages/search?value=${intentHash}`;
+}
+
 function getSodaxIntentApiUrl(intentHash: string): string {
   return `${SODAX_CANARY_API}/intent/${intentHash}`;
 }
+
+// SODAX internal chain ID to block explorer mapping
+const SODAX_CHAIN_EXPLORERS: Record<number, string> = {
+  1: 'https://solscan.io/tx/',           // Solana
+  30: 'https://basescan.org/tx/',        // Base
+  146: 'https://sonicscan.org/tx/',      // Sonic (hub)
+  42161: 'https://arbiscan.io/tx/',      // Arbitrum
+  10: 'https://optimistic.etherscan.io/tx/', // Optimism
+  137: 'https://polygonscan.com/tx/',    // Polygon
+  56: 'https://bscscan.com/tx/',         // BSC
+  43114: 'https://snowtrace.io/tx/',     // Avalanche
+};
+
+/**
+ * Poll SODAX API until intent is delivered, then return delivery tx explorer link
+ */
+async function pollForDelivery(
+  intentHash: string,
+  timeoutMs: number = 60000,
+  pollIntervalMs: number = 3000
+): Promise<{ delivered: boolean; deliveryTxHash?: string; deliveryExplorer?: string; dstChainId?: number }> {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const response = await fetch(`${SODAX_CANARY_API}/intent/${intentHash}`);
+      if (!response.ok) {
+        await new Promise(r => setTimeout(r, pollIntervalMs));
+        continue;
+      }
+      
+      const data: any = await response.json();
+      
+      // Check if intent is filled (closed)
+      if (data.open === false && data.events?.length > 0) {
+        const fillEvent = data.events.find((e: any) => e.eventType === 'intent-filled');
+        if (fillEvent) {
+          const dstChainId = data.intent?.dstChain;
+          const explorer = SODAX_CHAIN_EXPLORERS[dstChainId] || '';
+          
+          return {
+            delivered: true,
+            deliveryTxHash: fillEvent.txHash,
+            deliveryExplorer: explorer ? `${explorer}${fillEvent.txHash}` : undefined,
+            dstChainId
+          };
+        }
+      }
+      
+      await new Promise(r => setTimeout(r, pollIntervalMs));
+    } catch {
+      await new Promise(r => setTimeout(r, pollIntervalMs));
+    }
+  }
+  
+  return { delivered: false };
+}
+
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 
 // ============================================================================
@@ -460,18 +522,27 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     // SDK may return [response, intent, deliveryInfo] tuple
     const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
     
+    // Extract internal tracking info
     const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.intent_hash || "unknown";
     const intentHash = (solverResponse as any)?.intent_hash || intent?.intentId?.toString();
     
+    // Poll for delivery confirmation (wait up to 60s)
+    let deliveryResult: { delivered: boolean; deliveryExplorer?: string } = { delivered: false };
+    if (intentHash) {
+      console.log('[swap_execute] Waiting for delivery confirmation...');
+      deliveryResult = await pollForDelivery(intentHash, 60000, 3000);
+    }
+    
+    // Build user-friendly result
     const result = {
-      spokeTxHash,
-      hubTxHash: deliveryInfo?.dstTxHash,
-      intentHash: (solverResponse as any)?.intent_hash || intent?.intentId?.toString(),
-      status: 'submitted',
-      message: 'Swap executed successfully',
-      // SODAX intent tracking links
-      intentApiUrl: intentHash ? getSodaxIntentApiUrl(intentHash) : undefined,
-      creationTxExplorer: getExplorerLink(params.quote.srcChainId, spokeTxHash),
+      status: deliveryResult.delivered ? 'delivered' : 'submitted',
+      message: deliveryResult.delivered 
+        ? 'Swap completed and delivered to destination' 
+        : 'Swap submitted, awaiting delivery',
+      // User-friendly tracking link
+      sodaxScanUrl: intentHash ? getSodaxScanUrl(intentHash) : undefined,
+      // Destination chain delivery explorer (only when delivered)
+      deliveryExplorer: deliveryResult.deliveryExplorer,
     };
     
     logStructured({
@@ -480,9 +551,6 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       walletId: params.walletId,
       chainIds: [params.quote.srcChainId, params.quote.dstChainId],
       tokenAddresses: [params.quote.srcToken, params.quote.dstToken],
-      spokeTxHash: result.spokeTxHash,
-      hubTxHash: result.hubTxHash,
-      intentHash: result.intentHash,
       durationMs: Date.now() - startTime,
       success: true
     });
@@ -580,6 +648,7 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       expiresAt: (intent as any)?.deadline,
       // SODAX tracking links
       intentApiUrl: intentHashValue ? getSodaxIntentApiUrl(intentHashValue) : undefined,
+      sodaxScanUrl: intentHashValue ? getSodaxScanUrl(intentHashValue) : undefined,
       creationTxExplorer: spokeTxHashValue ? getExplorerLink(sodaxIntentData?.chainId?.toString() || 'base', spokeTxHashValue) : undefined,
       fulfillmentTxHash,
       fulfillmentTxExplorer: fulfillmentTxHash && sodaxIntentData ? getExplorerLink(sodaxIntentData.intent?.dstChain?.toString() || 'sonic', fulfillmentTxHash) : undefined,
