@@ -20,6 +20,7 @@ import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
+import { toSodaxChainId } from '../wallet/types';
 
 // ============================================================================
 // SODAX API & Explorer Links
@@ -288,9 +289,9 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     // Build SDK-compatible request with snake_case parameters
     const quoteRequest = {
       token_src: srcTokenAddr,
-      token_src_blockchain_id: params.srcChainId,
+      token_src_blockchain_id: toSodaxChainId(params.srcChainId),
       token_dst: dstTokenAddr,
-      token_dst_blockchain_id: params.dstChainId,
+      token_dst_blockchain_id: toSodaxChainId(params.dstChainId),
       amount: rawAmount,
       quote_type: params.type
     };
@@ -456,8 +457,8 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const intentParams = {
       srcAddress: walletAddress,
       dstAddress: params.quote.recipient || walletAddress,
-      srcChain: params.quote.srcChainId,
-      dstChain: params.quote.dstChainId,
+      srcChain: toSodaxChainId(params.quote.srcChainId),
+      dstChain: toSodaxChainId(params.quote.dstChainId),
       inputToken: srcTokenAddr,
       outputToken: dstTokenAddr,
       inputAmount: inputAmountRaw,
