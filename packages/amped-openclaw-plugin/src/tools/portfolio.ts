@@ -321,12 +321,16 @@ export async function handlePortfolioSummary(
   }
 
   // Determine chains to query
+  // Query all chains with configured tokens by default
   const defaultChains = [
     CHAIN_IDS.BASE,
     CHAIN_IDS.ETHEREUM,
     CHAIN_IDS.ARBITRUM,
     CHAIN_IDS.OPTIMISM,
     CHAIN_IDS.POLYGON,
+    CHAIN_IDS.SONIC,
+    CHAIN_IDS.BSC,
+    CHAIN_IDS.AVALANCHE,
   ];
   const chainIdsToQuery = chains
     ? chains.map((c) => resolveChainId(c))
