@@ -84,6 +84,29 @@ Bankr wallets support Ethereum, Base, Polygon, and Solana (as a receive destinat
 openclaw plugins uninstall amped-openclaw && openclaw plugins install amped-openclaw
 ```
 
+## Install from Git (Dev/VPS)
+
+For the latest unreleased version:
+
+```bash
+# Clone and build
+cd /tmp && rm -rf amped-openclaw
+git clone https://github.com/amped-finance/amped-openclaw.git
+cd amped-openclaw/packages/amped-openclaw-plugin
+npm install && npm run build
+
+# Install to OpenClaw (creates directory if needed)
+mkdir -p ~/.openclaw/extensions/amped-openclaw
+cp -r dist openclaw.plugin.json index.js package.json ~/.openclaw/extensions/amped-openclaw/
+cd ~/.openclaw/extensions/amped-openclaw && npm install --omit=dev
+
+# Enable and restart
+jq '.plugins.entries["amped-openclaw"] = {"enabled": true}' ~/.openclaw/openclaw.json > /tmp/oc.json && mv /tmp/oc.json ~/.openclaw/openclaw.json
+openclaw gateway restart
+```
+
+Verify: `openclaw plugins list` should show 24 tools.
+
 ## Troubleshooting
 
 **Plugin not loading?** Check `openclaw plugins list` and `~/.openclaw/logs/openclaw.log`
