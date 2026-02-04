@@ -345,75 +345,88 @@ async function handleBridgeExecute(
 
     // Step 3: Get spoke provider for source chain
     const spokeProvider = await getSpokeProvider(walletId, srcChainId);
-
-    // Create XToken objects for the SDK
-    const fromToken = { chainId: srcChainId, address: srcTokenAddr } as any;
-    const toToken = { chainId: dstChainId, address: dstTokenAddr } as any;
-
-    // Step 4: Check if allowance is valid for the bridge amount
-    // SDK may have different API - adapting to common patterns
-    let isAllowanceValid = false;
+    
+    // Step 4: Get token decimals and convert amount to bigint
+    let srcDecimals = 18; // Default
     try {
-      const allowanceResult = await (sodax.bridge as any).isAllowanceValid(
-        fromToken,
-        spokeProvider,
-        amount
-      );
-      isAllowanceValid = allowanceResult?.ok ? allowanceResult.value : allowanceResult;
+      const configService = (sodax as any).configService;
+      const tokenConfig = configService?.getTokenConfig?.(srcChainId, srcTokenAddr);
+      srcDecimals = tokenConfig?.decimals ?? 18;
     } catch {
-      // If method doesn't exist, assume we need to approve
-      isAllowanceValid = false;
+      console.warn('[bridge:execute] Could not get token decimals, using default 18');
     }
-
-    // Step 5: Approve if allowance is insufficient
-    if (!isAllowanceValid) {
+    const amountRaw = BigInt(Math.floor(parseFloat(amount) * Math.pow(10, srcDecimals)));
+    
+    console.log('[bridge:execute] Amount conversion:', {
+      humanAmount: amount,
+      rawAmount: amountRaw.toString(),
+      decimals: srcDecimals
+    });
+    
+    // Step 5: Build bridge intent params (SDK's createBridgeIntent format)
+    const bridgeIntentParams = {
+      srcChainId: srcChainId,
+      srcAsset: srcTokenAddr,
+      amount: amountRaw,
+      dstChainId: dstChainId,
+      dstAsset: dstTokenAddr,
+      recipient: recipient || walletAddress
+    };
+    
+    // Step 6: Check allowance using the bridge service
+    let allowanceValid = false;
+    try {
+      if ((sodax.bridge as any).isAllowanceValid) {
+        const allowanceResult = await (sodax.bridge as any).isAllowanceValid({
+          params: bridgeIntentParams,
+          spokeProvider
+        });
+        allowanceValid = allowanceResult?.ok ? allowanceResult.value : !!allowanceResult;
+      }
+    } catch {
+      // If method doesn't exist, assume we need to approve for non-native tokens
+      allowanceValid = srcTokenAddr.toLowerCase() === '0x0000000000000000000000000000000000000000';
+    }
+    
+    // Step 7: Approve if allowance is insufficient (skip for native tokens)
+    if (!allowanceValid && srcTokenAddr.toLowerCase() !== '0x0000000000000000000000000000000000000000') {
       console.log('[bridge:execute] Insufficient allowance, approving tokens', {
         srcChainId,
-        srcToken,
-        amount,
+        srcToken: srcTokenAddr,
+        amount: amountRaw.toString(),
       });
-
       try {
-        const approvalResult = await (sodax.bridge as any).approve(
-          fromToken,
-          spokeProvider,
-          amount
-        );
-        const approvalTxHash = approvalResult?.ok ? approvalResult.value : approvalResult;
-
-        console.log('[bridge:execute] Approval transaction submitted', {
-          approvalTxHash,
-        });
+        if ((sodax.bridge as any).approve) {
+          const approvalResult = await (sodax.bridge as any).approve({
+            params: bridgeIntentParams,
+            spokeProvider
+          });
+          const approvalTxHash = approvalResult?.ok ? approvalResult.value : approvalResult;
+          console.log('[bridge:execute] Approval transaction submitted', {
+            approvalTxHash: String(approvalTxHash),
+          });
+        }
       } catch (approvalError) {
         console.warn('[bridge:execute] Approval may have failed:', approvalError);
       }
     } else {
-      console.log('[bridge:execute] Allowance is sufficient');
+      console.log('[bridge:execute] Allowance is sufficient or native token');
     }
-
-    // Step 6: Execute the bridge operation
+    
+    // Step 8: Execute the bridge operation using createBridgeIntent
     console.log('[bridge:execute] Executing bridge operation', {
       srcChainId,
       dstChainId,
-      srcToken,
-      dstToken,
-      amount,
-      recipient,
+      srcAsset: srcTokenAddr,
+      dstAsset: dstTokenAddr,
+      amount: amountRaw.toString(),
+      recipient: recipient || walletAddress,
     });
-
-    // SDK bridge API - adapting to expected signature
-    const bridgeParams = {
-      params: {
-        from: fromToken,
-        to: toToken,
-        amount,
-        recipient: recipient || walletAddress,
-      },
-      spokeProvider,
-      timeout: timeoutMs,
-    };
-
-    const result = await (sodax.bridge as any).bridge(bridgeParams);
+    
+    const result = await (sodax.bridge as any).createBridgeIntent({
+      params: bridgeIntentParams,
+      spokeProvider
+    });
 
     // Handle Result type from SDK
     if (result.ok === false) {

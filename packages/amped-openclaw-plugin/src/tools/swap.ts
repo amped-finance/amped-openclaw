@@ -20,6 +20,46 @@ import { getSpokeProvider } from '../providers/spokeProviderFactory';
 import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
+
+// ============================================================================
+// SODAX API & Explorer Links
+// ============================================================================
+
+const SODAX_CANARY_API = 'https://canary-api.sodax.com/v1/be';
+
+// Chain ID to block explorer mapping
+const CHAIN_EXPLORERS: Record<string, string> = {
+  'ethereum': 'https://etherscan.io/tx/',
+  'base': 'https://basescan.org/tx/',
+  'arbitrum': 'https://arbiscan.io/tx/',
+  'optimism': 'https://optimistic.etherscan.io/tx/',
+  'polygon': 'https://polygonscan.com/tx/',
+  'sonic': 'https://sonicscan.org/tx/',
+  'avalanche': 'https://snowtrace.io/tx/',
+  'bsc': 'https://bscscan.com/tx/',
+  'solana': 'https://solscan.io/tx/',
+};
+
+function getExplorerLink(chainId: string, txHash: string): string | undefined {
+  // Normalize chain ID (remove 0x prefix and suffix if present)
+  const normalizedChainId = chainId.replace(/^0x[\da-f]+\./, '').toLowerCase();
+  const explorer = CHAIN_EXPLORERS[normalizedChainId];
+  return explorer ? `${explorer}${txHash}` : undefined;
+}
+
+async function fetchIntentFromSodax(intentHash: string): Promise<any> {
+  try {
+    const response = await fetch(`${SODAX_CANARY_API}/intent/${intentHash}`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function getSodaxIntentApiUrl(intentHash: string): string {
+  return `${SODAX_CANARY_API}/intent/${intentHash}`;
+}
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 
 // ============================================================================
@@ -314,41 +354,75 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       params.quote.srcChainId
     );
     
-    // 5. Check allowance
-    let isAllowanceValid = false;
+    // 5. Convert amounts to bigint FIRST (needed for intentParams)
+    const srcDecimals = srcTokenInfo?.decimals ?? 18;
+    const dstDecimals = dstTokenInfo?.decimals ?? 18;
+    const inputAmountRaw = BigInt(Math.floor(parseFloat(params.quote.inputAmount) * Math.pow(10, srcDecimals)));
+    const outputAmountRaw = BigInt(Math.floor(parseFloat(params.quote.outputAmount) * Math.pow(10, dstDecimals)));
+    
+    // Calculate minOutputAmount with slippage
+    const slippageBps = params.maxSlippageBps || params.quote.slippageBps || 100;
+    const minOutputAmountRaw = outputAmountRaw - (outputAmountRaw * BigInt(slippageBps) / 10000n);
+    
+    console.log("[swap_execute] Amount conversion:", {
+      inputAmount: params.quote.inputAmount,
+      inputAmountRaw: inputAmountRaw.toString(),
+      outputAmount: params.quote.outputAmount,
+      outputAmountRaw: outputAmountRaw.toString(),
+      minOutputAmountRaw: minOutputAmountRaw.toString(),
+      srcDecimals,
+      dstDecimals
+    });
+    
+    // 6. Build intentParams (used for allowance check, approval, and swap)
+    const intentParams = {
+      srcAddress: walletAddress,
+      dstAddress: params.quote.recipient || walletAddress,
+      srcChain: params.quote.srcChainId,
+      dstChain: params.quote.dstChainId,
+      inputToken: srcTokenAddr,
+      outputToken: dstTokenAddr,
+      inputAmount: inputAmountRaw,
+      minOutputAmount: minOutputAmountRaw,
+      deadline: BigInt(params.quote.deadline),
+      allowPartialFill: false,
+      solver: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+      data: "0x" as `0x${string}`
+    };
+    
+    // 7. Check allowance using SDK's expected API
+    let allowanceValid = false;
     try {
       const allowanceResult = await (sodaxClient as any).swaps.isAllowanceValid({
-        spokeProvider,
-        token: params.quote.srcToken,
-        amount: params.quote.inputAmount
+        intentParams,
+        spokeProvider
       });
-      isAllowanceValid = allowanceResult?.ok ? allowanceResult.value : !!allowanceResult;
-    } catch {
-      isAllowanceValid = false;
+      allowanceValid = allowanceResult?.ok ? allowanceResult.value : !!allowanceResult;
+    } catch (e) {
+      console.warn('[swap_execute] Allowance check failed, assuming approval needed:', e);
+      allowanceValid = false;
     }
     
-    // 6. Approve if needed
-    if (!isAllowanceValid) {
+    // 8. Approve if needed using SDK's expected API
+    if (!allowanceValid) {
       logStructured({
         requestId,
         opType: 'swap_approve',
         walletId: params.walletId,
         chainId: params.quote.srcChainId,
-        token: params.quote.srcToken,
+        token: srcTokenAddr,
         message: 'Token approval required'
       });
       
       const approvalResult = await (sodaxClient as any).swaps.approve({
-        spokeProvider,
-        token: params.quote.srcToken,
-        amount: params.quote.inputAmount
+        intentParams,
+        spokeProvider
       });
       
       const approvalTx = approvalResult?.ok ? approvalResult.value : approvalResult;
       
       // Wait for approval confirmation if possible
-      // SDK may expose waitForTransactionReceipt on the underlying wallet provider
-      if ((spokeProvider as any).walletProvider?.waitForTransactionReceipt) {
+      if ((spokeProvider as any).walletProvider?.waitForTransactionReceipt && approvalTx) {
         await (spokeProvider as any).walletProvider.waitForTransactionReceipt(approvalTx);
       }
       
@@ -357,28 +431,15 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         opType: 'swap_approve',
         walletId: params.walletId,
         chainId: params.quote.srcChainId,
-        token: params.quote.srcToken,
+        token: srcTokenAddr,
         approvalTx: String(approvalTx),
         success: true
       });
     }
     
-    // 7. Execute swap
+    // 9. Execute swap
     const swapResult = await (sodaxClient as any).swaps.swap({
-      intentParams: {
-        srcAddress: walletAddress,
-        dstAddress: params.quote.recipient || walletAddress,
-        srcChainId: params.quote.srcChainId,
-        dstChainId: params.quote.dstChainId,
-        srcToken: params.quote.srcToken,
-        dstToken: params.quote.dstToken,
-        inputAmount: params.quote.inputAmount,
-        outputAmount: params.quote.outputAmount,
-        slippageBps: params.quote.slippageBps,
-        deadline: BigInt(params.quote.deadline),
-        minOutputAmount: params.quote.minOutputAmount,
-        maxInputAmount: params.quote.maxInputAmount
-      },
+      intentParams,
       spokeProvider,
       skipSimulation: params.skipSimulation || false,
       timeout: params.timeoutMs || 120000
@@ -399,12 +460,18 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     // SDK may return [response, intent, deliveryInfo] tuple
     const [response, intent] = Array.isArray(value) ? value : [value, undefined];
     
+    const spokeTxHash = response?.spokeTxHash || response?.txHash || String(response);
+    const intentHashResult = intent?.intentHash || response?.intentHash;
+    
     const result = {
-      spokeTxHash: response?.spokeTxHash || response?.txHash || String(response),
+      spokeTxHash,
       hubTxHash: response?.hubTxHash,
-      intentHash: intent?.intentHash || response?.intentHash,
+      intentHash: intentHashResult,
       status: response?.status || 'pending',
-      message: 'Swap executed successfully'
+      message: 'Swap executed successfully',
+      // SODAX intent tracking links
+      intentApiUrl: intentHashResult ? getSodaxIntentApiUrl(intentHashResult) : undefined,
+      creationTxExplorer: getExplorerLink(params.quote.srcChainId, spokeTxHash),
     };
     
     logStructured({
@@ -486,17 +553,39 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       throw new Error('Unable to retrieve swap status');
     }
     
+    // Extract key fields
+    const intentHashValue = params.intentHash || (status as any).intentHash;
+    const spokeTxHashValue = params.txHash || (status as any).spokeTxHash;
+    const hubTxHashValue = (status as any).hubTxHash;
+    
+    // Try to fetch additional details from SODAX API
+    let sodaxIntentData: any = null;
+    let fulfillmentTxHash: string | undefined;
+    
+    if (intentHashValue) {
+      sodaxIntentData = await fetchIntentFromSodax(intentHashValue);
+      // Extract fulfillment tx from events if available
+      const filledEvent = sodaxIntentData?.events?.find((e: any) => e.eventType === 'intent-filled');
+      fulfillmentTxHash = filledEvent?.txHash;
+    }
+    
     const result: Record<string, unknown> = {
       status: (status as any).status || status,
-      intentHash: params.intentHash || (status as any).intentHash,
-      spokeTxHash: params.txHash || (status as any).spokeTxHash,
-      hubTxHash: (status as any).hubTxHash,
+      intentHash: intentHashValue,
+      spokeTxHash: spokeTxHashValue,
+      hubTxHash: hubTxHashValue,
       filledAmount: (status as any).filledAmount,
       error: (status as any).error,
-      createdAt: (intent as any)?.createdAt,
-      expiresAt: (intent as any)?.deadline
+      createdAt: (intent as any)?.createdAt || sodaxIntentData?.createdAt,
+      expiresAt: (intent as any)?.deadline,
+      // SODAX tracking links
+      intentApiUrl: intentHashValue ? getSodaxIntentApiUrl(intentHashValue) : undefined,
+      creationTxExplorer: spokeTxHashValue ? getExplorerLink(sodaxIntentData?.chainId?.toString() || 'base', spokeTxHashValue) : undefined,
+      fulfillmentTxHash,
+      fulfillmentTxExplorer: fulfillmentTxHash && sodaxIntentData ? getExplorerLink(sodaxIntentData.intent?.dstChain?.toString() || 'sonic', fulfillmentTxHash) : undefined,
+      // Include open status from SODAX
+      open: sodaxIntentData?.open,
     };
-    
     logStructured({
       requestId,
       opType: 'swap_status',
