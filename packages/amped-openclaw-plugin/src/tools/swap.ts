@@ -74,8 +74,8 @@ function toHexIntentHash(hash: unknown): string | undefined {
   }
 }
 
-function getSodaxScanUrl(intentHash: string): string {
-  return `https://sodaxscan.com/messages/search?value=${intentHash}`;
+function getSodaxScanUrl(txHash: string): string {
+  return `https://sodaxscan.com/messages/search?value=${txHash}`;
 }
 
 function getSodaxIntentApiUrl(intentHash: string): string {
@@ -557,7 +557,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         ? 'Swap completed! Funds delivered to destination.' 
         : 'Swap submitted, awaiting cross-chain delivery...',
       // User-friendly tracking link
-      sodaxScanUrl: intentHash ? getSodaxScanUrl(intentHash) : undefined,
+      sodaxScanUrl: srcTxHash ? getSodaxScanUrl(srcTxHash) : undefined,
       // Source chain: where user initiated the swap
       // Destination chain: where user RECEIVED funds
       initiationTx: srcTxHash ? getExplorerLink(params.quote.srcChainId, srcTxHash) : undefined,
@@ -667,7 +667,7 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       expiresAt: (intent as any)?.deadline,
       // SODAX tracking links
       intentApiUrl: intentHashValue ? getSodaxIntentApiUrl(intentHashValue) : undefined,
-      sodaxScanUrl: intentHashValue ? getSodaxScanUrl(intentHashValue) : undefined,
+      sodaxScanUrl: spokeTxHashValue ? getSodaxScanUrl(spokeTxHashValue) : undefined,
       creationTxExplorer: spokeTxHashValue ? getExplorerLink(sodaxIntentData?.chainId?.toString() || 'base', spokeTxHashValue) : undefined,
       fulfillmentTxHash,
       fulfillmentTxExplorer: fulfillmentTxHash && sodaxIntentData ? getExplorerLink(sodaxIntentData.intent?.dstChain?.toString() || 'sonic', fulfillmentTxHash) : undefined,
