@@ -57,6 +57,10 @@ async function fetchIntentFromSodax(intentHash: string): Promise<any> {
   }
 }
 
+function getSodaxScanUrl(intentHash: string): string {
+  return `https://sodaxscan.com/messages/search?value=${intentHash}`;
+}
+
 function getSodaxIntentApiUrl(intentHash: string): string {
   return `${SODAX_CANARY_API}/intent/${intentHash}`;
 }
@@ -471,6 +475,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       message: 'Swap executed successfully',
       // SODAX intent tracking links
       intentApiUrl: intentHash ? getSodaxIntentApiUrl(intentHash) : undefined,
+      sodaxScanUrl: intentHash ? getSodaxScanUrl(intentHash) : undefined,
       creationTxExplorer: getExplorerLink(params.quote.srcChainId, spokeTxHash),
     };
     
@@ -580,6 +585,7 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       expiresAt: (intent as any)?.deadline,
       // SODAX tracking links
       intentApiUrl: intentHashValue ? getSodaxIntentApiUrl(intentHashValue) : undefined,
+      sodaxScanUrl: intentHashValue ? getSodaxScanUrl(intentHashValue) : undefined,
       creationTxExplorer: spokeTxHashValue ? getExplorerLink(sodaxIntentData?.chainId?.toString() || 'base', spokeTxHashValue) : undefined,
       fulfillmentTxHash,
       fulfillmentTxExplorer: fulfillmentTxHash && sodaxIntentData ? getExplorerLink(sodaxIntentData.intent?.dstChain?.toString() || 'sonic', fulfillmentTxHash) : undefined,
