@@ -3,24 +3,22 @@
 [![npm version](https://img.shields.io/npm/v/amped-openclaw.svg)](https://www.npmjs.com/package/amped-openclaw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Cross-chain DeFi in one command.** Swap, bridge, lend, and borrow across 12 chains—including Solana—through natural language.
+DeFi plugin for [OpenClaw](https://openclaw.ai). Swap, bridge, lend, and borrow across 12 chains through natural language.
 
 ```bash
 openclaw plugins install amped-openclaw
 ```
 
-That's it. You're ready.
+## Supported Chains
 
-## What Makes This Different
+Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, Kaia, Solana
 
-🌐 **12 Chains, One Interface**  
-Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, Kaia, and Solana. No manual bridging. No chain switching.
+## Capabilities
 
-⚡ **Intent-Based Execution**  
-SODAX's solver network finds optimal routes across chains. You say "swap 100 USDC to ETH"—the protocol handles the rest.
-
-🏦 **Cross-Chain Money Market** *(Industry First)*  
-Supply collateral on Ethereum. Borrow USDT on Arbitrum. Your assets stay where they are while liquidity flows where you need it.
+- **Cross-chain swaps** — swap tokens between any supported chains
+- **Token bridging** — move assets across chains
+- **Cross-chain money market** — supply collateral on one chain, borrow on another
+- **Portfolio view** — balances and positions across all chains
 
 ## Example Commands
 
@@ -28,50 +26,45 @@ Supply collateral on Ethereum. Borrow USDT on Arbitrum. Your assets stay where t
 "Swap 100 USDC to ETH on Base"
 "Bridge 50 USDC from Arbitrum to Solana"
 "Supply 1000 USDC on Ethereum and borrow 500 USDT to Polygon"
-"What's my portfolio across all chains?"
+"Show my portfolio"
 ```
 
 ## Wallet Setup
 
-Works without a wallet for quotes and discovery. For transactions, pick one:
+Quotes and discovery work without a wallet. Transactions require one of the following:
 
-| Option | Setup | Best For |
-|--------|-------|----------|
-| **[evm-wallet-skill](https://github.com/amped-finance/evm-wallet-skill)** | `git clone` + `npm install` | All 12 chains, full control |
-| **[Bankr](https://bankr.bot)** | Set `BANKR_API_KEY` | Quick start (ETH/Base/Polygon) |
-| **Environment** | Set `AMPED_OC_WALLETS_JSON` | Custom setups |
+### Option A: evm-wallet-skill
 
-<details>
-<summary>Quick wallet setup</summary>
-
-**evm-wallet-skill (recommended):**
 ```bash
 git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill
 cd ~/.openclaw/skills/evm-wallet-skill && npm install && node src/setup.js
 ```
 
-**Environment variables:**
+Supports all 12 chains. The plugin auto-detects wallets from `~/.evm-wallet.json`.
+
+### Option B: Environment Variables
+
 ```bash
 export AMPED_OC_WALLETS_JSON='{"main":{"address":"0x...","privateKey":"0x..."}}'
 ```
-</details>
 
-## 23 Tools, Zero Complexity
+### Option C: Bankr
 
-| Category | What You Can Do |
-|----------|-----------------|
-| **Swap** | Quote, execute, track, cancel cross-chain swaps |
-| **Bridge** | Discover routes, quote, execute token bridges |
-| **Money Market** | Supply, withdraw, borrow, repay across chains |
-| **Portfolio** | Unified balances, positions, and history |
-| **Wallets** | Add, rename, remove, set defaults |
+```bash
+export BANKR_API_KEY=your-key  # Requires "Agent API" access enabled
+```
 
-## Recent Improvements
+Limited to Ethereum, Base, and Polygon.
 
-- ✅ EVM → Solana bridging
-- ✅ SODAXScan intent tracking links  
-- ✅ Automatic token resolution (symbols just work)
-- ✅ Robust error handling across all chains
+## Tools
+
+| Category | Tools |
+|----------|-------|
+| Swap | quote, execute, status, cancel |
+| Bridge | discover, quote, execute |
+| Money Market | supply, withdraw, borrow, repay |
+| Portfolio | balances, positions, intent history |
+| Wallets | add, rename, remove, set default |
 
 ## Update
 
@@ -81,23 +74,17 @@ openclaw plugins uninstall amped-openclaw && openclaw plugins install amped-open
 
 ## Troubleshooting
 
-**Plugin not loading?** Check `openclaw plugins list` and logs at `~/.openclaw/logs/openclaw.log`
+**Plugin not loading?** Check `openclaw plugins list` and `~/.openclaw/logs/openclaw.log`
 
 **Module errors?** Run `npm install` in `~/.openclaw/extensions/amped-openclaw`
-
-**Stale config?** Remove entry and reinstall:
-```bash
-jq 'del(.plugins.entries["amped-openclaw"])' ~/.openclaw/openclaw.json > /tmp/oc.json && mv /tmp/oc.json ~/.openclaw/openclaw.json
-```
 
 ## Links
 
 - [Full Plugin Docs](packages/amped-openclaw-plugin/README.md)
-- [SODAX SDK](https://docs.sodax.com)
 - [evm-wallet-skill](https://github.com/amped-finance/evm-wallet-skill)
 
 ---
 
 <p align="center">
-  Built with ❤️ by <a href="https://amped.finance">Amped Finance</a>
+  Built by <a href="https://amped.finance">Amped Finance</a>
 </p>
