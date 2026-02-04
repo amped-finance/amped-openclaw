@@ -458,19 +458,19 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     const value = swapResult.ok ? swapResult.value : swapResult;
     
     // SDK may return [response, intent, deliveryInfo] tuple
-    const [response, intent] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
     
-    const spokeTxHash = response?.spokeTxHash || response?.txHash || String(response);
-    const intentHashResult = intent?.intentHash || response?.intentHash;
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.intent_hash || "unknown";
+    const intentHash = (solverResponse as any)?.intent_hash || intent?.intentId?.toString();
     
     const result = {
       spokeTxHash,
-      hubTxHash: response?.hubTxHash,
-      intentHash: intentHashResult,
-      status: response?.status || 'pending',
+      hubTxHash: deliveryInfo?.dstTxHash,
+      intentHash: (solverResponse as any)?.intent_hash || intent?.intentId?.toString(),
+      status: 'submitted',
       message: 'Swap executed successfully',
       // SODAX intent tracking links
-      intentApiUrl: intentHashResult ? getSodaxIntentApiUrl(intentHashResult) : undefined,
+      intentApiUrl: intentHash ? getSodaxIntentApiUrl(intentHash) : undefined,
       creationTxExplorer: getExplorerLink(params.quote.srcChainId, spokeTxHash),
     };
     
