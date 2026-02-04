@@ -33,13 +33,13 @@ try {
  */
 const DEFAULT_RPCS: Record<string, string> = {
   // SODAX supported spoke chains
-  ethereum: 'https://eth.llamarpc.com',
+  ethereum: 'https://ethereum.publicnode.com',
   arbitrum: 'https://arb1.arbitrum.io/rpc',
   base: 'https://mainnet.base.org',
   optimism: 'https://mainnet.optimism.io',
   avalanche: 'https://api.avax.network/ext/bc/C/rpc',
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: 'https://1rpc.io/matic',
+  polygon: 'https://polygon-bor-rpc.publicnode.com',
   // Sonic hub chain
   sonic: 'https://rpc.soniclabs.com',
   // Additional chains (may not be SODAX-supported but useful)
