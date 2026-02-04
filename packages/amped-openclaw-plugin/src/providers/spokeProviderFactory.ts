@@ -69,7 +69,8 @@ function getSdkChainId(chainId: string): SpokeChainId {
  * Validate that wallet supports the requested chain
  */
 function validateChainSupport(wallet: IWalletBackend, chainId: string): void {
-  if (!wallet.supportsChain(chainId)) {
+  const normalizedForWallet = normalizeChainId(chainId);
+  if (!wallet.supportsChain(normalizedForWallet)) {
     throw new Error(
       `Wallet "${wallet.nickname}" doesn't support chain "${chainId}". ` +
       `Supported chains: ${wallet.supportedChains.join(', ')}. ` +
