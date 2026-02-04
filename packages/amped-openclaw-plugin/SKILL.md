@@ -44,7 +44,7 @@ Or use [Bankr](https://bankr.bot) for managed key infrastructure:
 export BANKR_API_KEY=your-bankr-api-key
 ```
 
-## Available Tools (23 Total)
+## Available Tools (24 Total)
 
 ### Discovery
 | Tool | Description |
