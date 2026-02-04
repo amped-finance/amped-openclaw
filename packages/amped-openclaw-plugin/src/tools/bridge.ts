@@ -17,6 +17,7 @@ import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletManager } from '../wallet/walletManager';
 import { serializeError } from '../utils/errorUtils';
 import { resolveToken } from '../utils/tokenResolver';
+import { toSodaxChainId } from '../wallet/types';
 
 // ============================================================================
 // TypeBox Schemas
@@ -142,8 +143,8 @@ async function handleBridgeDiscover(
     // Get bridgeable tokens from SODAX SDK
     // SDK API: getBridgeableTokens(from: SpokeChainId, to: SpokeChainId, token: string)
     const result = sodax.bridge.getBridgeableTokens(
-      srcChainId as any,
-      dstChainId as any,
+      toSodaxChainId(srcChainId) as any,
+      toSodaxChainId(dstChainId) as any,
       srcTokenAddr
     );
 
@@ -204,8 +205,8 @@ async function handleBridgeQuote(
     const sodax = getSodaxClient();
 
     // Create XToken objects for the SDK
-    const fromToken = { chainId: srcChainId, address: srcTokenAddr } as any;
-    const toToken = { chainId: dstChainId, address: dstTokenAddr } as any;
+    const fromToken = { chainId: toSodaxChainId(srcChainId), address: srcTokenAddr } as any;
+    const toToken = { chainId: toSodaxChainId(dstChainId), address: dstTokenAddr } as any;
 
     // Check if the route is bridgeable using isBridgeable
     // SDK may have different signature - adapting based on available methods
@@ -213,8 +214,8 @@ async function handleBridgeQuote(
     try {
       // Try to get bridgeable tokens to check if route exists
       const result = sodax.bridge.getBridgeableTokens(
-        srcChainId as any,
-        dstChainId as any,
+        toSodaxChainId(srcChainId) as any,
+        toSodaxChainId(dstChainId) as any,
         srcTokenAddr
       );
       if (result.ok && result.value.length > 0) {
@@ -365,10 +366,10 @@ async function handleBridgeExecute(
     
     // Step 5: Build bridge intent params (SDK's createBridgeIntent format)
     const bridgeIntentParams = {
-      srcChainId: srcChainId,
+      srcChainId: toSodaxChainId(srcChainId),
       srcAsset: srcTokenAddr,
       amount: amountRaw,
-      dstChainId: dstChainId,
+      dstChainId: toSodaxChainId(dstChainId),
       dstAsset: dstTokenAddr,
       recipient: recipient || walletAddress
     };
