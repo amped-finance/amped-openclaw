@@ -271,15 +271,20 @@ async function handleSupportedTokens(
 
     case 'moneyMarket': {
       // Get money market supported tokens from config
+      // Reference: sodax-frontend ConfigService.getSupportedMoneyMarketTokensByChainId
       try {
-        // SDK API may vary - try different approaches
-        const mmToken = sodax.config.getMoneyMarketToken?.(chainId as any, '');
-        if (mmToken) {
-          tokens = [normalizeToken(mmToken)];
+        const mmTokens = sodax.config.getSupportedMoneyMarketTokensByChainId?.(chainId as any);
+        if (mmTokens && Array.isArray(mmTokens)) {
+          tokens = mmTokens.map(normalizeToken);
         } else {
-          // Fallback to getting all supported tokens
-          const allTokens = (sodax.config as any).getMoneyMarketTokens?.() || [];
-          tokens = allTokens.filter((t: any) => t.chainId === chainId).map(normalizeToken);
+          // Fallback: try supportedMoneyMarketTokens directly from config
+          const allMmTokens = (sodax.config as any).sodaxConfig?.supportedMoneyMarketTokens;
+          if (allMmTokens && allMmTokens[chainId]) {
+            tokens = allMmTokens[chainId].map(normalizeToken);
+          } else {
+            console.warn('[discovery] No money market tokens found for chain', chainId);
+            tokens = [];
+          }
         }
       } catch (e) {
         console.warn('[discovery] Failed to get money market tokens:', e);
