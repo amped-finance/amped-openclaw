@@ -828,6 +828,7 @@ interface LogEntry {
 
 function logStructured(entry: LogEntry): void {
   // Structured JSON logging for observability
+  // Use replacer to handle BigInt serialization
   console.log(JSON.stringify({
     ...entry,
     timestamp: new Date().toISOString(),
