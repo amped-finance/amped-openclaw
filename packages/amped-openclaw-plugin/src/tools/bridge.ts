@@ -1,10 +1,14 @@
 /**
  * Bridge Tools for Amped OpenClaw Plugin
  *
- * Provides tools for cross-chain token bridging via SODAX SDK:
+ * NOTE: Bridge operations use the swap infrastructure internally.
+ * Cross-chain swaps and bridges are functionally equivalent in SODAX -
+ * both use the intent-based cross-chain messaging system.
+ *
+ * Tools:
  * - amped_oc_bridge_discover: Get bridgeable tokens for a route
- * - amped_oc_bridge_quote: Check bridgeability and max amounts
- * - amped_oc_bridge_execute: Execute bridge with allowance check and approval
+ * - amped_oc_bridge_quote: Check bridgeability and max amounts  
+ * - amped_oc_bridge_execute: Execute bridge (delegates to swap)
  *
  * @module tools/bridge
  */
@@ -18,6 +22,7 @@ import { getWalletManager } from '../wallet/walletManager';
 import { serializeError } from '../utils/errorUtils';
 import { resolveToken } from '../utils/tokenResolver';
 import { toSodaxChainId } from '../wallet/types';
+import { handleSwapQuote, handleSwapExecute } from './swap';
 
 // ============================================================================
 // TypeBox Schemas
@@ -267,22 +272,22 @@ async function handleBridgeQuote(
 }
 
 // ============================================================================
-// Bridge Execute Tool
+// Bridge Execute Tool (Delegates to Swap)
 // ============================================================================
 
 /**
  * Handler for amped_oc_bridge_execute
- * Executes a bridge operation with full allowance check and approval flow
+ *
+ * NOTE: Bridge operations are implemented via swap infrastructure.
+ * Cross-chain swaps and bridges are functionally equivalent in SODAX -
+ * both use the intent-based cross-chain messaging system.
  *
  * Flow:
- *   1. Policy check via PolicyEngine
- *   2. Get spoke provider for wallet
- *   3. Check token allowance via isAllowanceValid
- *   4. Approve tokens if needed
- *   5. Execute bridge operation
+ *   1. Get swap quote for the bridge route
+ *   2. Execute swap (handles allowance, approval, and execution)
  *
  * @param params - Execution parameters
- * @returns Transaction hashes (spoke and hub)
+ * @returns Transaction result with status and tracking links
  */
 async function handleBridgeExecute(
   params: BridgeExecuteParams
@@ -295,169 +300,66 @@ async function handleBridgeExecute(
     dstToken,
     amount,
     recipient,
-    timeoutMs = 300000, // Default 5 minutes
+    timeoutMs = 300000,
     policyId,
   } = params;
 
-    // Resolve token symbols to addresses
-    const srcTokenAddr = await resolveToken(srcChainId, srcToken);
-    const dstTokenAddr = await resolveToken(dstChainId, dstToken);
-
-  console.log('[bridge:execute] Starting bridge execution', {
+  console.log('[bridge:execute] Delegating to swap infrastructure', {
     walletId,
     srcChainId,
     dstChainId,
     srcToken,
     dstToken,
     amount,
-    recipient,
-    timeoutMs,
-    policyId,
   });
 
   try {
-    const sodax = getSodaxClient();
-    const policyEngine = new PolicyEngine();
-    const walletManager = getWalletManager();
-
-    // Step 1: Resolve wallet
-    const wallet = await walletManager.resolve(walletId);
-    const walletAddress = await wallet.getAddress();
-
-    // Step 2: Policy check
-    const bridgeOp: BridgeOperation = {
+    // Step 1: Get a swap quote for this bridge route
+    const quoteResult = await handleSwapQuote({
       walletId,
       srcChainId,
       dstChainId,
       srcToken,
       dstToken,
       amount,
+      type: 'exact_input',
+      slippageBps: 100, // 1% slippage for bridges
       recipient,
-      timeoutMs,
-      policyId,
-    };
-
-    const policyCheck = await policyEngine.checkBridge(bridgeOp);
-    if (!policyCheck.allowed) {
-      throw new Error(`Policy check failed: ${policyCheck.reason}`);
-    }
-
-    console.log('[bridge:execute] Policy check passed');
-
-    // Step 3: Get spoke provider for source chain
-    const spokeProvider = await getSpokeProvider(walletId, srcChainId);
-    
-    // Step 4: Get token decimals and convert amount to bigint
-    let srcDecimals = 18; // Default
-    try {
-      const configService = (sodax as any).configService;
-      const tokenConfig = configService?.getTokenConfig?.(srcChainId, srcTokenAddr);
-      srcDecimals = tokenConfig?.decimals ?? 18;
-    } catch {
-      console.warn('[bridge:execute] Could not get token decimals, using default 18');
-    }
-    const amountRaw = BigInt(Math.floor(parseFloat(amount) * Math.pow(10, srcDecimals)));
-    
-    console.log('[bridge:execute] Amount conversion:', {
-      humanAmount: amount,
-      rawAmount: amountRaw.toString(),
-      decimals: srcDecimals
-    });
-    
-    // Step 5: Build bridge intent params (SDK's createBridgeIntent format)
-    const bridgeIntentParams = {
-      srcChainId: toSodaxChainId(srcChainId),
-      srcAsset: srcTokenAddr,
-      amount: amountRaw,
-      dstChainId: toSodaxChainId(dstChainId),
-      dstAsset: dstTokenAddr,
-      recipient: recipient || walletAddress
-    };
-    
-    // Step 6: Check allowance using the bridge service
-    let allowanceValid = false;
-    try {
-      if ((sodax.bridge as any).isAllowanceValid) {
-        const allowanceResult = await (sodax.bridge as any).isAllowanceValid({
-          params: bridgeIntentParams,
-          spokeProvider
-        });
-        allowanceValid = allowanceResult?.ok ? allowanceResult.value : !!allowanceResult;
-      }
-    } catch {
-      // If method doesn't exist, assume we need to approve for non-native tokens
-      allowanceValid = srcTokenAddr.toLowerCase() === '0x0000000000000000000000000000000000000000';
-    }
-    
-    // Step 7: Approve if allowance is insufficient (skip for native tokens)
-    if (!allowanceValid && srcTokenAddr.toLowerCase() !== '0x0000000000000000000000000000000000000000') {
-      console.log('[bridge:execute] Insufficient allowance, approving tokens', {
-        srcChainId,
-        srcToken: srcTokenAddr,
-        amount: amountRaw.toString(),
-      });
-      try {
-        if ((sodax.bridge as any).approve) {
-          const approvalResult = await (sodax.bridge as any).approve({
-            params: bridgeIntentParams,
-            spokeProvider
-          });
-          const approvalTxHash = approvalResult?.ok ? approvalResult.value : approvalResult;
-          console.log('[bridge:execute] Approval transaction submitted', {
-            approvalTxHash: String(approvalTxHash),
-          });
-        }
-      } catch (approvalError) {
-        console.warn('[bridge:execute] Approval may have failed:', approvalError);
-      }
-    } else {
-      console.log('[bridge:execute] Allowance is sufficient or native token');
-    }
-    
-    // Step 8: Execute the bridge operation using createBridgeIntent
-    console.log('[bridge:execute] Executing bridge operation', {
-      srcChainId,
-      dstChainId,
-      srcAsset: srcTokenAddr,
-      dstAsset: dstTokenAddr,
-      amount: amountRaw.toString(),
-      recipient: recipient || walletAddress,
-    });
-    
-    const result = await (sodax.bridge as any).createBridgeIntent({
-      params: bridgeIntentParams,
-      spokeProvider
     });
 
-    // Handle Result type from SDK
-    if (result.ok === false) {
-      throw new Error(`Bridge failed: ${serializeError(result.error)}`);
-    }
+    console.log('[bridge:execute] Got swap quote', quoteResult);
 
-    // SODAX bridge returns Result<[spokeTxHash, hubTxHash], Error>
-    const value = result.ok ? result.value : result;
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
-
-    console.log('[bridge:execute] Bridge operation completed', {
-      spokeTxHash,
-      hubTxHash,
-    });
-
-    return {
-      spokeTxHash: String(spokeTxHash),
-      hubTxHash: hubTxHash ? String(hubTxHash) : undefined,
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[bridge:execute] Bridge execution failed', {
-      error: errorMessage,
+    // Step 2: Execute the swap
+    const swapResult = await handleSwapExecute({
       walletId,
-      srcChainId,
-      dstChainId,
-      srcToken,
-      dstToken,
-      amount,
+      quote: {
+        srcChainId,
+        dstChainId,
+        srcToken: String(quoteResult.srcToken),
+        dstToken: String(quoteResult.dstToken),
+        inputAmount: String(quoteResult.inputAmount),
+        outputAmount: String(quoteResult.outputAmount),
+        slippageBps: Number(quoteResult.slippageBps),
+        deadline: Number(quoteResult.deadline),
+        recipient,
+      },
+      policyId,
+      timeoutMs,
     });
+
+    console.log('[bridge:execute] Swap executed', swapResult);
+
+    // Map swap result to bridge result format
+    return {
+      spokeTxHash: String(swapResult.initiationTx || swapResult.spokeTxHash || ''),
+      hubTxHash: swapResult.hubTxHash ? String(swapResult.hubTxHash) : undefined,
+      status: String(swapResult.status),
+      message: swapResult.message ? String(swapResult.message) : 'Bridge executed via swap infrastructure',
+      sodaxScanUrl: swapResult.sodaxScanUrl ? String(swapResult.sodaxScanUrl) : undefined,
+    } as TransactionResult;
+  } catch (error) {
+    const errorMessage = serializeError(error);
+    console.error('[bridge:execute] Bridge via swap failed:', errorMessage);
     throw new Error(`Bridge execution failed: ${errorMessage}`);
   }
 }
