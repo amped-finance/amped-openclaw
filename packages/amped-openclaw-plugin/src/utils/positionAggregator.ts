@@ -128,15 +128,31 @@ export async function aggregateCrossChainPositions(
   const wallet = await walletManager.resolve(walletId);
   const walletAddress = await wallet.getAddress();
 
-  // Get supported chains
+  // Get supported chains from SODAX
   const sodax = getSodaxClient();
-  const supportedChains = sodax.config.getSupportedSpokeChains();
+  const sodaxChains = sodax.config.getSupportedSpokeChains();
   
-  // Determine which chains to query
-  // SDK may return chain IDs as strings or objects with id property
-  const chainsToQuery = options.chainIds || supportedChains.map((c: any) => 
+  // Map SDK chains to string IDs
+  const allSodaxChains = sodaxChains.map((c: any) => 
     typeof c === 'string' ? c : c.id
   );
+  
+  // Filter chains by what the wallet supports
+  // This is important for Bankr which only supports ethereum/polygon/base
+  const walletSupportedChains = wallet.supportedChains;
+  const filteredChains = allSodaxChains.filter((chainId: string) => 
+    wallet.supportsChain(chainId)
+  );
+  
+  // Determine which chains to query
+  const chainsToQuery = options.chainIds || filteredChains;
+  
+  console.log('[positionAggregator] Wallet chain filter', {
+    walletType: wallet.type,
+    walletSupports: walletSupportedChains,
+    sodaxChains: allSodaxChains.length,
+    filteredChains: filteredChains.length,
+  });
   
   console.log('[positionAggregator] Querying positions across chains', {
     walletId,

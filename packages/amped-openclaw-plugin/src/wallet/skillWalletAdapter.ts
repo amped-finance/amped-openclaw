@@ -38,7 +38,7 @@ const DEFAULT_RPCS: Record<string, string> = {
   optimism: 'https://mainnet.optimism.io',
   avalanche: 'https://api.avax.network/ext/bc/C/rpc',
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: 'https://polygon-bor-rpc.publicnode.com',
+  polygon: 'https://1rpc.io/matic',
   // Sonic hub chain
   sonic: 'https://rpc.soniclabs.com',
   // Additional chains (may not be SODAX-supported but useful)
