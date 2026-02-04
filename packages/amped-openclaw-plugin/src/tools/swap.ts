@@ -314,41 +314,75 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       params.quote.srcChainId
     );
     
-    // 5. Check allowance
-    let isAllowanceValid = false;
+    // 5. Convert amounts to bigint FIRST (needed for intentParams)
+    const srcDecimals = srcTokenInfo?.decimals ?? 18;
+    const dstDecimals = dstTokenInfo?.decimals ?? 18;
+    const inputAmountRaw = BigInt(Math.floor(parseFloat(params.quote.inputAmount) * Math.pow(10, srcDecimals)));
+    const outputAmountRaw = BigInt(Math.floor(parseFloat(params.quote.outputAmount) * Math.pow(10, dstDecimals)));
+    
+    // Calculate minOutputAmount with slippage
+    const slippageBps = params.maxSlippageBps || params.quote.slippageBps || 100;
+    const minOutputAmountRaw = outputAmountRaw - (outputAmountRaw * BigInt(slippageBps) / 10000n);
+    
+    console.log("[swap_execute] Amount conversion:", {
+      inputAmount: params.quote.inputAmount,
+      inputAmountRaw: inputAmountRaw.toString(),
+      outputAmount: params.quote.outputAmount,
+      outputAmountRaw: outputAmountRaw.toString(),
+      minOutputAmountRaw: minOutputAmountRaw.toString(),
+      srcDecimals,
+      dstDecimals
+    });
+    
+    // 6. Build intentParams (used for allowance check, approval, and swap)
+    const intentParams = {
+      srcAddress: walletAddress,
+      dstAddress: params.quote.recipient || walletAddress,
+      srcChain: params.quote.srcChainId,
+      dstChain: params.quote.dstChainId,
+      inputToken: srcTokenAddr,
+      outputToken: dstTokenAddr,
+      inputAmount: inputAmountRaw,
+      minOutputAmount: minOutputAmountRaw,
+      deadline: BigInt(params.quote.deadline),
+      allowPartialFill: false,
+      solver: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+      data: "0x" as `0x${string}`
+    };
+    
+    // 7. Check allowance using SDK's expected API
+    let allowanceValid = false;
     try {
       const allowanceResult = await (sodaxClient as any).swaps.isAllowanceValid({
-        spokeProvider,
-        token: params.quote.srcToken,
-        amount: params.quote.inputAmount
+        intentParams,
+        spokeProvider
       });
-      isAllowanceValid = allowanceResult?.ok ? allowanceResult.value : !!allowanceResult;
-    } catch {
-      isAllowanceValid = false;
+      allowanceValid = allowanceResult?.ok ? allowanceResult.value : !!allowanceResult;
+    } catch (e) {
+      console.warn('[swap_execute] Allowance check failed, assuming approval needed:', e);
+      allowanceValid = false;
     }
     
-    // 6. Approve if needed
-    if (!isAllowanceValid) {
+    // 8. Approve if needed using SDK's expected API
+    if (!allowanceValid) {
       logStructured({
         requestId,
         opType: 'swap_approve',
         walletId: params.walletId,
         chainId: params.quote.srcChainId,
-        token: params.quote.srcToken,
+        token: srcTokenAddr,
         message: 'Token approval required'
       });
       
       const approvalResult = await (sodaxClient as any).swaps.approve({
-        spokeProvider,
-        token: params.quote.srcToken,
-        amount: params.quote.inputAmount
+        intentParams,
+        spokeProvider
       });
       
       const approvalTx = approvalResult?.ok ? approvalResult.value : approvalResult;
       
       // Wait for approval confirmation if possible
-      // SDK may expose waitForTransactionReceipt on the underlying wallet provider
-      if ((spokeProvider as any).walletProvider?.waitForTransactionReceipt) {
+      if ((spokeProvider as any).walletProvider?.waitForTransactionReceipt && approvalTx) {
         await (spokeProvider as any).walletProvider.waitForTransactionReceipt(approvalTx);
       }
       
@@ -357,28 +391,15 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         opType: 'swap_approve',
         walletId: params.walletId,
         chainId: params.quote.srcChainId,
-        token: params.quote.srcToken,
+        token: srcTokenAddr,
         approvalTx: String(approvalTx),
         success: true
       });
     }
     
-    // 7. Execute swap
+    // 9. Execute swap
     const swapResult = await (sodaxClient as any).swaps.swap({
-      intentParams: {
-        srcAddress: walletAddress,
-        dstAddress: params.quote.recipient || walletAddress,
-        srcChainId: params.quote.srcChainId,
-        dstChainId: params.quote.dstChainId,
-        srcToken: params.quote.srcToken,
-        dstToken: params.quote.dstToken,
-        inputAmount: params.quote.inputAmount,
-        outputAmount: params.quote.outputAmount,
-        slippageBps: params.quote.slippageBps,
-        deadline: BigInt(params.quote.deadline),
-        minOutputAmount: params.quote.minOutputAmount,
-        maxInputAmount: params.quote.maxInputAmount
-      },
+      intentParams,
       spokeProvider,
       skipSimulation: params.skipSimulation || false,
       timeout: params.timeoutMs || 120000
