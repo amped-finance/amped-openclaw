@@ -490,6 +490,7 @@ async function handleSupply(
 
     // Build supply parameters
     const supplyParams: any = {
+      action: 'supply',
       token: tokenAddr,
       amount: amountBigInt,
       useAsCollateral,
@@ -600,6 +601,7 @@ async function handleWithdraw(
 
     // Build withdraw parameters
     const withdrawParams: any = {
+      action: 'withdraw',
       token: tokenAddr,
       amount: amountBigInt,
       withdrawType,
@@ -717,6 +719,7 @@ async function handleBorrow(
     
     // Build borrow parameters
     const borrowParams: any = {
+      action: 'borrow',
       token: tokenAddr,
       amount: amountBigInt,
       interestRateMode,
@@ -844,6 +847,7 @@ async function handleRepay(
 
     // Build repay parameters
     const repayParams: any = {
+      action: 'repay',
       token: tokenAddr,
       amount: amountBigInt,
       interestRateMode,
@@ -929,6 +933,7 @@ async function handleCreateSupplyIntent(
     const sodaxClient = await getSodaxClient();
 
     const supplyParams: any = {
+      action: 'supply',
       token: tokenAddr,
       amount: amountBigInt,
       useAsCollateral,
@@ -981,6 +986,7 @@ async function handleCreateBorrowIntent(
     const sodaxClient = await getSodaxClient();
 
     const borrowParams: any = {
+      action: 'borrow',
       token: tokenAddr,
       amount: amountBigInt,
       interestRateMode,
