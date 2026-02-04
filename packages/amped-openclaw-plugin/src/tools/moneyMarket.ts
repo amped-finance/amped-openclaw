@@ -356,6 +356,23 @@ async function prepareMoneyMarketOperation(
 
   return { walletAddress, spokeProvider, policyResult, tokenAddr };
 }
+/**
+ * Resolves token and returns its decimals
+ * Falls back to 18 decimals if token info not found
+ */
+async function getTokenDecimals(
+  chainId: string,
+  token: string
+): Promise<number> {
+  try {
+    const tokenInfo = await getTokenInfo(chainId, token);
+    return tokenInfo?.decimals ?? 18;
+  } catch {
+    // If token info lookup fails, fall back to 18 decimals
+    return 18;
+  }
+}
+
 
 /**
  * Checks and handles token approval if needed
@@ -450,8 +467,9 @@ async function handleSupply(
       policyId
     );
 
-    // Parse amount (would need actual token decimals in production)
-    const amountBigInt = parseTokenAmount(amount, 18);
+    // Parse amount with actual token decimals
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
 
     // Check allowance for supply
     const { approvalTxHash } = await ensureAllowance(
@@ -493,7 +511,12 @@ async function handleSupply(
     
     const value = supplyResult.ok ? supplyResult.value : supplyResult;
     // SDK may return [spokeTxHash, hubTxHash] tuple
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
+    
+    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
+    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
 
     return {
       success: true,
@@ -564,8 +587,9 @@ async function handleWithdraw(
       policyId
     );
 
-    // Parse amount
-    const amountBigInt = parseTokenAmount(amount, 18);
+    // Parse amount with actual token decimals
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
 
     const sodaxClient = await getSodaxClient();
 
@@ -596,7 +620,12 @@ async function handleWithdraw(
     }
     
     const value = withdrawResult.ok ? withdrawResult.value : withdrawResult;
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
+    
+    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
+    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
 
     return {
       success: true,
@@ -674,8 +703,9 @@ async function handleBorrow(
       policyId
     );
 
-    // Parse amount
-    const amountBigInt = parseTokenAmount(amount, 18);
+    // Parse amount with actual token decimals
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
 
     // Get user's positions to check health factor (best practice)
     const sodaxClient = await getSodaxClient();
@@ -715,7 +745,12 @@ async function handleBorrow(
     }
     
     const value = borrowResult.ok ? borrowResult.value : borrowResult;
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
+    
+    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
+    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
 
     return {
       success: true,
@@ -786,8 +821,9 @@ async function handleRepay(
       policyId
     );
 
-    // Parse amount (use -1 for max repay if repayAll is true)
-    const amountBigInt = repayAll ? BigInt(-1) : parseTokenAmount(amount, 18);
+    // Parse amount with actual token decimals (use -1 for max repay if repayAll is true)
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = repayAll ? BigInt(-1) : parseTokenAmount(amount, decimals);
 
     // Check allowance for repay
     const { approvalTxHash } = await ensureAllowance(
@@ -827,7 +863,12 @@ async function handleRepay(
     }
     
     const value = repayResult.ok ? repayResult.value : repayResult;
-    const [spokeTxHash, hubTxHash] = Array.isArray(value) ? value : [value, undefined];
+    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
+    
+    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
+    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
+    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
 
     return {
       success: true,
@@ -878,7 +919,8 @@ async function handleCreateSupplyIntent(
       walletId, chainId, token, amount, "supply"
     );
 
-    const amountBigInt = parseTokenAmount(amount, 18);
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
     const sodaxClient = await getSodaxClient();
 
     const supplyParams: any = {
@@ -929,7 +971,8 @@ async function handleCreateBorrowIntent(
       walletId, chainId, token, amount, "borrow"
     );
 
-    const amountBigInt = parseTokenAmount(amount, 18);
+    const decimals = await getTokenDecimals(chainId, token);
+    const amountBigInt = parseTokenAmount(amount, decimals);
     const sodaxClient = await getSodaxClient();
 
     const borrowParams: any = {
