@@ -26,6 +26,7 @@ import { getWalletManager } from '../wallet/walletManager';
 import { AgentTools } from "../types";
 import { serializeError } from '../utils/errorUtils';
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
+import { toSodaxChainId } from '../wallet/types';
 
 // ============================================================================
 // TypeBox Schemas
@@ -330,8 +331,11 @@ async function prepareMoneyMarketOperation(
   const _sodaxClient = getSodaxClient(); // Just verify it's ready
   void _sodaxClient;
 
+  // Normalize chain ID to SDK format for token resolution
+  const sdkChainId = toSodaxChainId(chainId);
+
   // Resolve token symbol to address
-  const tokenAddr = await resolveToken(chainId, token);
+  const tokenAddr = await resolveToken(sdkChainId, token);
 
   // Resolve wallet and create spoke provider
   const { walletAddress, spokeProvider } = await resolveWalletAndProvider(walletId, chainId);
@@ -365,7 +369,8 @@ async function getTokenDecimals(
   token: string
 ): Promise<number> {
   try {
-    const tokenInfo = await getTokenInfo(chainId, token);
+    const sdkChainId = toSodaxChainId(chainId);
+    const tokenInfo = await getTokenInfo(sdkChainId, token);
     return tokenInfo?.decimals ?? 18;
   } catch {
     // If token info lookup fails, fall back to 18 decimals
