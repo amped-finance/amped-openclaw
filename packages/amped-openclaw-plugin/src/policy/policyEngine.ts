@@ -10,6 +10,7 @@
  */
 
 import { BridgeOperation, PolicyConfig } from '../types';
+import { normalizeChainId } from '../wallet/types';
 
 /**
  * Policy check result
@@ -74,7 +75,8 @@ export class PolicyEngine {
     const { allowedChains } = this.config;
 
     if (allowedChains && allowedChains.length > 0) {
-      if (!allowedChains.includes(chainId)) {
+      const normalizedChain = normalizeChainId(chainId);
+      if (!allowedChains.includes(normalizedChain)) {
         return {
           allowed: false,
           reason: `Chain not allowed: ${chainId}. Allowed chains: ${allowedChains.join(', ')}`,
@@ -96,7 +98,8 @@ export class PolicyEngine {
     const { allowedTokensByChain } = this.config;
 
     if (allowedTokensByChain) {
-      const allowedTokens = allowedTokensByChain[chainId];
+      const normalizedChainForTokens = normalizeChainId(chainId);
+      const allowedTokens = allowedTokensByChain[normalizedChainForTokens];
       if (allowedTokens && allowedTokens.length > 0) {
         if (!allowedTokens.includes(token)) {
           return {
