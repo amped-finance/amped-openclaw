@@ -8,6 +8,7 @@
 
 import type { Token } from '@sodax/types';
 import { getSodaxClient } from '../sodax/client';
+import { toSodaxChainId } from '../wallet/types';
 
 // Cache tokens per chain to avoid repeated lookups
 const tokenCache = new Map<string, Token[]>();
@@ -122,6 +123,8 @@ function isValidTokenAddress(value: string, chainId?: string): boolean {
  * This is the canonical way to get tokens - used by both resolveToken and getTokenInfo
  */
 function populateTokenCache(chainId: string): Token[] {
+  // Convert to SDK chain ID format (e.g., "base" -> "0x2105.base")
+  const sdkChainId = toSodaxChainId(chainId);
   let tokens = tokenCache.get(chainId);
   if (tokens) return tokens;
   
@@ -131,12 +134,12 @@ function populateTokenCache(chainId: string): Token[] {
     
     if (configService?.getSupportedSwapTokensByChainId) {
       // Preferred method - returns readonly Token[]
-      tokens = [...configService.getSupportedSwapTokensByChainId(chainId)] as Token[];
+      tokens = [...configService.getSupportedSwapTokensByChainId(sdkChainId)] as Token[];
     } else if (configService?.getSwapTokensByChainId) {
-      tokens = configService.getSwapTokensByChainId(chainId) as Token[];
+      tokens = configService.getSwapTokensByChainId(sdkChainId) as Token[];
     } else if (configService?.getSwapTokens) {
       const allTokens = configService.getSwapTokens();
-      tokens = allTokens[chainId] || [];
+      tokens = allTokens[sdkChainId] || [];
     } else {
       console.warn(`[tokenResolver] configService not available for chain ${chainId}`);
       tokens = [];
@@ -152,9 +155,9 @@ function populateTokenCache(chainId: string): Token[] {
   }
   
   // Use fallback tokens if SDK returned empty list
-  if ((!tokens || tokens.length === 0) && FALLBACK_TOKENS[chainId]) {
+  if ((!tokens || tokens.length === 0) && FALLBACK_TOKENS[chainId] || FALLBACK_TOKENS[sdkChainId]) {
     console.log(`[tokenResolver] Using fallback token list for ${chainId}`);
-    tokens = FALLBACK_TOKENS[chainId] as unknown as Token[];
+    tokens = FALLBACK_TOKENS[chainId] || FALLBACK_TOKENS[sdkChainId] as unknown as Token[];
   }
   
   tokenCache.set(chainId, tokens || []);
@@ -223,6 +226,7 @@ export async function getTokenInfo(
   chainId: string,
   tokenInput: string
 ): Promise<Token | null> {
+  const sdkChainId = toSodaxChainId(chainId);
   // Handle native tokens first
   if (isValidTokenAddress(tokenInput, chainId) && isNativeToken(tokenInput, chainId)) {
     const nativeInfo = getNativeTokenInfo(chainId);
@@ -246,7 +250,7 @@ export async function getTokenInfo(
       return found;
     }
     // Check fallback tokens even if SDK tokens were loaded
-    const fallback = FALLBACK_TOKENS[chainId];
+    const fallback = FALLBACK_TOKENS[chainId] || FALLBACK_TOKENS[sdkChainId];
     if (fallback) {
       const fallbackToken = fallback.find(t => {
         const tokenAddr = isEvmAddress(t.address) ? t.address.toLowerCase() : t.address;
