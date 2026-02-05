@@ -517,6 +517,36 @@ async function handleSupply(
       warnings.push(`Cross-chain supply: tokens supplied on ${chainId}, collateral recorded on ${dstChainId}`);
     }
 
+    // Check and handle allowance (required for ALL supply operations)
+    // Reference: sodax-frontend moneymarket-ops.ts - supply ALWAYS checks allowance
+    try {
+      const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
+        { token: tokenAddr, amount: amountBigInt, action: 'supply' },
+        spokeProvider
+      );
+      
+      if (allowanceResult.ok && !allowanceResult.value) {
+        console.log('[mm:supply] Approval needed, approving...');
+        const approveResult = await (sodaxClient as any).moneyMarket.approve(
+          { token: tokenAddr, amount: amountBigInt, action: 'supply' },
+          spokeProvider
+        );
+        
+        if (!approveResult.ok) {
+          throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
+        }
+        
+        // Wait for approval confirmation
+        const approvalTxHash = approveResult.value;
+        if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
+          await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
+          console.log('[mm:supply] Approval confirmed');
+        }
+      }
+    } catch (allowanceError) {
+      console.warn('[mm:supply] Allowance check failed, proceeding anyway:', allowanceError);
+    }
+
     // Execute supply
     const supplyResult = await (sodaxClient as any).moneyMarket.supply(
       supplyParams,
@@ -946,6 +976,36 @@ async function handleRepay(
     if (crossChain && collateralChainId) {
       repayParams.toChainId = collateralChainId;
       warnings.push(`Cross-chain repay: Repaying debt on ${collateralChainId} using tokens from ${chainId}`);
+    }
+
+    // Check and handle allowance (required for ALL repay operations)
+    // Reference: sodax-frontend moneymarket-ops.ts - repay ALWAYS checks allowance
+    try {
+      const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
+        { token: tokenAddr, amount: amountBigInt, action: 'repay' },
+        spokeProvider
+      );
+      
+      if (allowanceResult.ok && !allowanceResult.value) {
+        console.log('[mm:repay] Approval needed, approving...');
+        const approveResult = await (sodaxClient as any).moneyMarket.approve(
+          { token: tokenAddr, amount: amountBigInt, action: 'repay' },
+          spokeProvider
+        );
+        
+        if (!approveResult.ok) {
+          throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
+        }
+        
+        // Wait for approval confirmation
+        const approvalTxHash = approveResult.value;
+        if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
+          await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
+          console.log('[mm:repay] Approval confirmed');
+        }
+      }
+    } catch (allowanceError) {
+      console.warn('[mm:repay] Allowance check failed, proceeding anyway:', allowanceError);
     }
 
     // Execute repay
