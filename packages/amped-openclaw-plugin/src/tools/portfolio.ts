@@ -442,6 +442,46 @@ export async function handlePortfolioSummary(
       };
     });
 
+    // Query Solana balances if wallet has a Solana address
+    // Bankr wallets have a separate Solana address that can be cached
+    const solanaAddress = (wallet as any).solanaAddress;
+    if (solanaAddress) {
+      try {
+        const solanaBalances = await getSolanaWalletBalances(solanaAddress, includeZeroBalances);
+        if (solanaBalances) {
+          // Add USD values for Solana
+          let solanaTotalUsd = 0;
+          const solPrice = getPrice('SOL');
+          const nativeBalance = parseFloat(solanaBalances.native.balance);
+          const nativeUsdValue = solPrice ? nativeBalance * solPrice : null;
+          if (nativeUsdValue) solanaTotalUsd += nativeUsdValue;
+          
+          const tokensWithUsd = solanaBalances.tokens.map((token) => {
+            const price = getPrice(token.symbol);
+            const balance = parseFloat(token.balance);
+            const usdValue = price ? balance * price : null;
+            if (usdValue) solanaTotalUsd += usdValue;
+            return { ...token, usdValue: usdValue ? `${usdValue.toFixed(2)}` : undefined };
+          });
+          
+          walletBalanceUsd += solanaTotalUsd;
+          balancesWithUsd.push({
+            chainId: 'solana',
+            chainName: 'Solana',
+            native: {
+              symbol: solanaBalances.native.symbol,
+              balance: solanaBalances.native.balance,
+              usdValue: nativeUsdValue ? `${nativeUsdValue.toFixed(2)}` : undefined,
+            },
+            tokens: tokensWithUsd,
+            chainTotalUsd: solanaTotalUsd > 0 ? `${solanaTotalUsd.toFixed(2)}` : undefined,
+          });
+        }
+      } catch (err) {
+        console.error(`[portfolio] Failed to get Solana balances for ${wallet.nickname}:`, err);
+      }
+    }
+
     // Get money market positions (aggregate)
     let mmSummary: WalletBalanceResult['moneyMarket'] | undefined;
     try {
@@ -499,4 +539,159 @@ export async function handlePortfolioSummary(
     summary,
     wallets: results,
   };
+}
+
+// ============================================================================
+// Solana Balance Functions
+// ============================================================================
+
+const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
+
+/**
+ * Major SPL tokens to check on Solana
+ */
+const SOLANA_TOKENS: Array<{ mint: string; symbol: string; decimals: number }> = [
+  { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC', decimals: 6 },
+  { mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT', decimals: 6 },
+];
+
+/**
+ * Get native SOL balance for a Solana wallet
+ */
+async function getSolanaBalance(
+  address: string
+): Promise<{ symbol: string; balance: string; balanceRaw: bigint }> {
+  try {
+    const response = await fetch(SOLANA_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getBalance',
+        params: [address],
+      }),
+    });
+    const json = await response.json() as { result?: { value: number } };
+    const lamports = BigInt(json.result?.value || 0);
+    // SOL has 9 decimals
+    const balance = Number(lamports) / 1e9;
+    return {
+      symbol: 'SOL',
+      balance: balance.toFixed(6),
+      balanceRaw: lamports,
+    };
+  } catch (error) {
+    console.error('[portfolio] Failed to get SOL balance:', error);
+    return { symbol: 'SOL', balance: '0', balanceRaw: 0n };
+  }
+}
+
+/**
+ * Get SPL token balances for a Solana wallet
+ */
+async function getSolanaTokenBalances(
+  address: string
+): Promise<Array<{ symbol: string; balance: string; address: string }>> {
+  const results: Array<{ symbol: string; balance: string; address: string }> = [];
+  
+  try {
+    // Query all token accounts owned by this wallet
+    const response = await fetch(SOLANA_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getTokenAccountsByOwner',
+        params: [
+          address,
+          { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+          { encoding: 'jsonParsed' },
+        ],
+      }),
+    });
+    
+    const json = await response.json() as {
+      result?: {
+        value: Array<{
+          account: {
+            data: {
+              parsed: {
+                info: {
+                  mint: string;
+                  tokenAmount: { uiAmount: number; decimals: number };
+                };
+              };
+            };
+          };
+        }>;
+      };
+    };
+    
+    const accounts = json.result?.value || [];
+    
+    // Match against known tokens
+    for (const tokenConfig of SOLANA_TOKENS) {
+      const account = accounts.find(
+        (a) => a.account.data.parsed.info.mint === tokenConfig.mint
+      );
+      if (account) {
+        const amount = account.account.data.parsed.info.tokenAmount.uiAmount || 0;
+        if (amount > 0) {
+          results.push({
+            symbol: tokenConfig.symbol,
+            balance: amount.toFixed(6),
+            address: tokenConfig.mint,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[portfolio] Failed to get Solana token balances:', error);
+  }
+  
+  return results;
+}
+
+/**
+ * Get all Solana balances for a wallet
+ */
+export async function getSolanaWalletBalances(
+  address: string,
+  includeZeroBalances: boolean = false
+): Promise<{
+  chainId: string;
+  chainName: string;
+  native: { symbol: string; balance: string; usdValue?: string };
+  tokens: Array<{ symbol: string; balance: string; address: string; usdValue?: string }>;
+  chainTotalUsd?: string;
+} | null> {
+  // Validate Solana address format (base58, 32-44 chars)
+  if (!address || address.startsWith('0x') || address.length < 32 || address.length > 44) {
+    return null;
+  }
+  
+  try {
+    const native = await getSolanaBalance(address);
+    const tokens = await getSolanaTokenBalances(address);
+    
+    // Skip if no balances and not including zeros
+    if (!includeZeroBalances && native.balanceRaw === 0n && tokens.length === 0) {
+      return null;
+    }
+    
+    return {
+      chainId: 'solana',
+      chainName: 'Solana',
+      native: {
+        symbol: native.symbol,
+        balance: native.balance,
+      },
+      tokens,
+    };
+  } catch (error) {
+    console.error('[portfolio] Failed to get Solana balances:', error);
+    return null;
+  }
 }

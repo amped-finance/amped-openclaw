@@ -72,6 +72,7 @@ export class BankrBackend implements IWalletBackend {
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private cachedAddress: Address | null = null;
+  private cachedSolanaAddress: string | null = null;
   
   // Polling configuration
   private readonly pollIntervalMs = 2000;
@@ -149,6 +150,64 @@ export class BankrBackend implements IWalletBackend {
       console.log(`[BankrBackend] Wallet address: ${this.cachedAddress}`);
       
       return this.cachedAddress;
+    } catch (error) {
+      console.error('[BankrBackend] Failed to get address:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the Solana wallet address from Bankr
+   */
+  async getSolanaAddress(): Promise<string | null> {
+    if (this.cachedSolanaAddress) return this.cachedSolanaAddress;
+    
+    // Check for cached address on disk
+    const cachePath = `${process.env.HOME}/.openclaw/cache/bankr-${this.nickname}-solana-address.json`;
+    try {
+      const fs = await import('fs');
+      if (fs.existsSync(cachePath)) {
+        const cached = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        if (cached.address && Date.now() - cached.timestamp < 86400000) {
+          this.cachedSolanaAddress = cached.address;
+          console.log(`[BankrBackend] Loaded cached Solana address: ${this.cachedSolanaAddress}`);
+          return this.cachedSolanaAddress;
+        }
+      }
+    } catch (e) {
+      // Cache miss, continue to query
+    }
+    
+    console.log('[BankrBackend] Fetching Solana wallet address from Bankr...');
+    
+    try {
+      const response = await this.submitAndWait('What is my Solana wallet address?');
+      
+      // Solana addresses are base58, typically 32-44 chars, no 0x prefix
+      const solanaMatch = response.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/);
+      if (!solanaMatch) {
+        console.warn('[BankrBackend] Could not parse Solana address from response');
+        return null;
+      }
+      
+      this.cachedSolanaAddress = solanaMatch[0];
+      console.log(`[BankrBackend] Solana address: ${this.cachedSolanaAddress}`);
+      
+      // Cache to disk
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const cacheDir = path.dirname(cachePath);
+        if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+        fs.writeFileSync(cachePath, JSON.stringify({ address: this.cachedSolanaAddress, timestamp: Date.now() }));
+      } catch (e) {
+        console.warn('[BankrBackend] Failed to cache Solana address:', e);
+      }
+      
+      return this.cachedSolanaAddress;
+    } catch (error) {
+      console.error('[BankrBackend] Failed to get Solana address:', error);
+      return null;
     } catch (error) {
       console.error('[BankrBackend] Failed to get address:', error);
       throw error;

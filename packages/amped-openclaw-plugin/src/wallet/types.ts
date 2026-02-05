@@ -33,6 +33,8 @@ export interface WalletInfo {
   address: Address;
   chains: string[];
   isDefault: boolean;
+  /** Solana address (if wallet has one, e.g., Bankr) */
+  solanaAddress?: string;
 }
 
 /**

@@ -261,12 +261,23 @@ export class WalletManager {
         
         const address = await Promise.race([addressPromise, timeoutPromise]);
         
+        // Get Solana address for Bankr wallets
+        let solanaAddress: string | undefined;
+        if (backend.type === 'bankr' && (backend as any).getSolanaAddress) {
+          try {
+            solanaAddress = await (backend as any).getSolanaAddress() || undefined;
+          } catch (e) {
+            console.warn(`[WalletManager] Failed to get Solana address for ${name}`);
+          }
+        }
+        
         wallets.push({
           nickname: name,
           type: backend.type,
           address,
           chains: [...backend.supportedChains],
           isDefault: name === this.defaultWallet,
+          solanaAddress,
         });
       } catch (error) {
         // Include wallet with placeholder address if we can't get it
