@@ -34,8 +34,20 @@ async function initializeSodax(): Promise<Sodax> {
     bridge: { partnerFee: PARTNER_FEE },
   } as any);
 
-  // Initialize with dynamic config
-  await sodax.initialize();
+  // Suppress SDK console output during initialization
+  const originalWarn = console.warn;
+  const originalLog = console.log;
+  console.warn = () => {};
+  console.log = () => {};
+  
+  try {
+    // Initialize with dynamic config
+    await sodax.initialize();
+  } finally {
+    // Restore console
+    console.warn = originalWarn;
+    console.log = originalLog;
+  }
 
   return sodax;
 }
