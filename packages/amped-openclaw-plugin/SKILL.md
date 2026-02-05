@@ -49,42 +49,42 @@ export BANKR_API_KEY=your-bankr-api-key
 ### Discovery
 | Tool | Description |
 |------|-------------|
-| `amped_oc_supported_chains` | List all supported spoke chains |
-| `amped_oc_supported_tokens` | Get supported tokens by module and chain |
-| `amped_oc_cross_chain_positions` | ⭐ Unified portfolio view across ALL chains |
-| `amped_oc_money_market_positions` | Single-chain position details |
-| `amped_oc_money_market_reserves` | Market reserves, APYs, liquidity |
-| `amped_oc_user_intents` | Query intent history via SODAX API |
-| `amped_oc_portfolio_summary` | Wallet balances + MM positions combined |
+| `amped_supported_chains` | List all supported spoke chains |
+| `amped_supported_tokens` | Get supported tokens by module and chain |
+| `amped_cross_chain_positions` | ⭐ Unified portfolio view across ALL chains |
+| `amped_money_market_positions` | Single-chain position details |
+| `amped_money_market_reserves` | Market reserves, APYs, liquidity |
+| `amped_user_intents` | Query intent history via SODAX API |
+| `amped_portfolio_summary` | Wallet balances + MM positions combined |
 
 ### Swap & Bridge
 | Tool | Description |
 |------|-------------|
-| `amped_oc_swap_quote` | Get exact-in/exact-out swap quote |
-| `amped_oc_swap_execute` | Execute swap with policy enforcement |
-| `amped_oc_swap_status` | Check swap/intent status |
-| `amped_oc_swap_cancel` | Cancel pending swap |
-| `amped_oc_bridge_discover` | Discover bridge routes |
-| `amped_oc_bridge_quote` | Check bridgeability and max amount |
-| `amped_oc_bridge_execute` | Execute bridge operation |
+| `amped_swap_quote` | Get exact-in/exact-out swap quote |
+| `amped_swap_execute` | Execute swap with policy enforcement |
+| `amped_swap_status` | Check swap/intent status |
+| `amped_swap_cancel` | Cancel pending swap |
+| `amped_bridge_discover` | Discover bridge routes |
+| `amped_bridge_quote` | Check bridgeability and max amount |
+| `amped_bridge_execute` | Execute bridge operation |
 
 ### Money Market
 | Tool | Description |
 |------|-------------|
-| `amped_oc_mm_supply` | Supply tokens as collateral |
-| `amped_oc_mm_withdraw` | Withdraw supplied tokens |
-| `amped_oc_mm_borrow` | Borrow tokens (cross-chain capable!) |
-| `amped_oc_mm_repay` | Repay borrowed tokens |
+| `amped_mm_supply` | Supply tokens as collateral |
+| `amped_mm_withdraw` | Withdraw supplied tokens |
+| `amped_mm_borrow` | Borrow tokens (cross-chain capable!) |
+| `amped_mm_repay` | Repay borrowed tokens |
 
 ### Wallet Management
 | Tool | Description |
 |------|-------------|
-| `amped_oc_list_wallets` | List all configured wallets |
-| `amped_oc_add_wallet` | Add a new wallet with nickname |
-| `amped_oc_rename_wallet` | Rename existing wallet |
-| `amped_oc_remove_wallet` | Remove wallet from config |
-| `amped_oc_set_default_wallet` | Set default wallet |
-| `amped_oc_wallet_address` | Get wallet address by nickname |
+| `amped_list_wallets` | List all configured wallets |
+| `amped_add_wallet` | Add a new wallet with nickname |
+| `amped_rename_wallet` | Rename existing wallet |
+| `amped_remove_wallet` | Remove wallet from config |
+| `amped_set_default_wallet` | Set default wallet |
+| `amped_wallet_address` | Get wallet address by nickname |
 
 ---
 
@@ -111,7 +111,7 @@ SODAX uses a **hub-spoke architecture**:
 ✅ RIGHT: "Base HF: 4.11 ✅ | Arbitrum HF: 1.2 ⚠️ (at risk!)"
 ```
 
-When using `amped_oc_cross_chain_positions`, always check the `chainBreakdown` array:
+When using `amped_cross_chain_positions`, always check the `chainBreakdown` array:
 ```json
 {
   "chainBreakdown": [
@@ -134,7 +134,7 @@ When using `amped_oc_cross_chain_positions`, always check the `chainBreakdown` a
 Or via tools:
 ```typescript
 // Get quote
-const quote = await agent.call('amped_oc_swap_quote', {
+const quote = await agent.call('amped_swap_quote', {
   walletId: 'main',
   srcChainId: 'ethereum',
   dstChainId: 'arbitrum',
@@ -146,7 +146,7 @@ const quote = await agent.call('amped_oc_swap_quote', {
 });
 
 // Execute
-const result = await agent.call('amped_oc_swap_execute', {
+const result = await agent.call('amped_swap_execute', {
   walletId: 'main',
   quote: quote
 });
@@ -158,7 +158,7 @@ Supply on Base, borrow on Arbitrum:
 
 ```typescript
 // Supply on Base
-await agent.call('amped_oc_mm_supply', {
+await agent.call('amped_mm_supply', {
   walletId: 'main',
   chainId: 'base',
   token: 'USDC',
@@ -167,7 +167,7 @@ await agent.call('amped_oc_mm_supply', {
 });
 
 // Borrow to Arbitrum (different chain!)
-await agent.call('amped_oc_mm_borrow', {
+await agent.call('amped_mm_borrow', {
   walletId: 'main',
   chainId: 'base',          // Where collateral lives
   dstChainId: 'arbitrum',   // Where borrowed tokens go
@@ -185,7 +185,7 @@ When displaying portfolio data, always:
 3. **Flag at-risk positions** (HF < 1.5)
 
 ```typescript
-const positions = await agent.call('amped_oc_cross_chain_positions', {
+const positions = await agent.call('amped_cross_chain_positions', {
   walletId: 'main'
 });
 
@@ -226,7 +226,7 @@ Ethereum, Arbitrum, Base, Optimism, Avalanche, BSC, Polygon, Sonic (hub), LightL
 
 **Example:** Cross-chain swap from Base to Solana works with Bankr:
 ```typescript
-await agent.call('amped_oc_swap_execute', {
+await agent.call('amped_swap_execute', {
   walletId: 'bankr',
   srcChainId: 'base',      // ✅ Bankr supports as source
   dstChainId: 'solana',    // ✅ Solana OK as destination
@@ -242,7 +242,7 @@ await agent.call('amped_oc_swap_execute', {
 Swaps and bridges use **intent-based execution**:
 - Transactions are NOT instant
 - Settlement typically takes **30-60 seconds**
-- Use `amped_oc_swap_status` to check completion
+- Use `amped_swap_status` to check completion
 - The `sodaxScanUrl` in responses shows full intent lifecycle
 
 **Don't assume completion** just because the tool returned success — that means the intent was submitted, not settled.
@@ -263,7 +263,7 @@ Default slippage (50 bps / 0.5%) may cause reverts during high volatility:
 - Very volatile: Up to 300 bps
 
 ```typescript
-await agent.call('amped_oc_swap_quote', {
+await agent.call('amped_swap_quote', {
   ...
   slippageBps: 150  // 1.5% for volatile conditions
 });
@@ -277,3 +277,31 @@ The plugin handles decimals automatically, but be aware:
 - **Native tokens (ETH, MATIC)**: 18 decimals
 
 When displaying amounts, the plugin returns human-readable values (e.g., "100.5" not "100500000").
+
+---
+
+## 🎨 Chain Display Emoji
+
+Use these emoji for consistent chain identification in portfolio displays:
+
+| Chain | Emoji | Hex Code |
+|-------|-------|----------|
+| LightLink | ⚡ | U+26A1 |
+| Base | 🟦 | U+1F7E6 |
+| Sonic | ⚪ | U+26AA |
+| Arbitrum | 🔽 | U+1F53D |
+| Optimism | 🔴 | U+1F534 |
+| Polygon | ♾️ | U+267E |
+| BSC | 🔶 | U+1F536 |
+| Ethereum | 💎 | U+1F48E |
+| Avalanche | 🔺 | U+1F53A |
+| HyperEVM | 🌀 | U+1F300 |
+| Kaia | 🟢 | U+1F7E2 |
+
+**Usage Example:**
+```
+⚡ LightLink    │ 0.002 ETH + 5.49 USDC       │   $9.78
+🟦 Base         │ 0.002 ETH + 0.39 USDC       │   $4.55
+                │ 💰 Supply $21.93 Borrow $5.00
+                │ 🏥 HF: 3.51 🟢
+```

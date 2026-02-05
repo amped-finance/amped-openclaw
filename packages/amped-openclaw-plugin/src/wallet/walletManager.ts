@@ -256,10 +256,20 @@ export class WalletManager {
         // Add timeout for slow backends (like Bankr)
         const addressPromise = backend.getAddress();
         const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 10000)
+          setTimeout(() => reject(new Error('Timeout')), 30000)
         );
         
         const address = await Promise.race([addressPromise, timeoutPromise]);
+        
+        // Get Solana address for Bankr wallets
+        let solanaAddress: string | undefined;
+        if (backend.type === 'bankr' && (backend as any).getSolanaAddress) {
+          try {
+            solanaAddress = await (backend as any).getSolanaAddress() || undefined;
+          } catch (e) {
+            console.warn(`[WalletManager] Failed to get Solana address for ${name}`);
+          }
+        }
         
         wallets.push({
           nickname: name,
@@ -267,6 +277,7 @@ export class WalletManager {
           address,
           chains: [...backend.supportedChains],
           isDefault: name === this.defaultWallet,
+          solanaAddress,
         });
       } catch (error) {
         // Include wallet with placeholder address if we can't get it

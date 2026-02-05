@@ -10,7 +10,16 @@
 
 import type { Address, Hash } from 'viem';
 import type { IWalletBackend, RawTransaction } from '../types';
-import { BANKR_SUPPORTED_CHAINS, getBankrChainId, normalizeChainId, isBankrSupportedChain } from '../types';
+import { BANKR_SUPPORTED_CHAINS, isBankrSupportedChain } from '../types';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { homedir } from 'os';
+
+/**
+ * Disk cache path for bankr address
+ */
+const BANKR_CACHE_DIR = join(homedir(), '.openclaw', 'cache');
+const getBankrCachePath = (nickname: string) => join(BANKR_CACHE_DIR, `bankr-${nickname}-address.json`);
 
 /**
  * Bankr API response types
@@ -63,6 +72,7 @@ export class BankrBackend implements IWalletBackend {
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private cachedAddress: Address | null = null;
+  private cachedSolanaAddress: string | null = null;
   
   // Polling configuration
   private readonly pollIntervalMs = 2000;
@@ -73,8 +83,47 @@ export class BankrBackend implements IWalletBackend {
     this.apiUrl = config.apiUrl || 'https://api.bankr.bot';
     this.apiKey = config.apiKey;
     
+    // Try to load cached address from disk
+    this.loadCachedAddress();
+    
     console.log(`[BankrBackend] Initialized as "${this.nickname}"`);
     console.log(`[BankrBackend] Supported chains: ${this.supportedChains.join(', ')}`);
+    if (this.cachedAddress) {
+      console.log(`[BankrBackend] Loaded cached address: ${this.cachedAddress}`);
+    }
+  }
+
+  /**
+   * Load cached address from disk
+   */
+  private loadCachedAddress(): void {
+    const cachePath = getBankrCachePath(this.nickname);
+    if (existsSync(cachePath)) {
+      try {
+        const data = JSON.parse(readFileSync(cachePath, 'utf-8'));
+        if (data.address && data.address.match(/^0x[a-fA-F0-9]{40}$/)) {
+          this.cachedAddress = data.address as Address;
+        }
+      } catch (e) {
+        console.warn(`[BankrBackend] Failed to load cached address: ${e}`);
+      }
+    }
+  }
+
+  /**
+   * Save address to disk cache
+   */
+  private saveCachedAddress(address: Address): void {
+    const cachePath = getBankrCachePath(this.nickname);
+    try {
+      if (!existsSync(BANKR_CACHE_DIR)) {
+        mkdirSync(BANKR_CACHE_DIR, { recursive: true });
+      }
+      writeFileSync(cachePath, JSON.stringify({ address, timestamp: Date.now() }));
+      console.log(`[BankrBackend] Cached address to ${cachePath}`);
+    } catch (e) {
+      console.warn(`[BankrBackend] Failed to cache address: ${e}`);
+    }
   }
 
   async getAddress(): Promise<Address> {
@@ -94,9 +143,71 @@ export class BankrBackend implements IWalletBackend {
       }
       
       this.cachedAddress = addressMatch[0] as Address;
+      
+      // Save to disk for next time
+      this.saveCachedAddress(this.cachedAddress);
+      
       console.log(`[BankrBackend] Wallet address: ${this.cachedAddress}`);
       
       return this.cachedAddress;
+    } catch (error) {
+      console.error('[BankrBackend] Failed to get address:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the Solana wallet address from Bankr
+   */
+  async getSolanaAddress(): Promise<string | null> {
+    if (this.cachedSolanaAddress) return this.cachedSolanaAddress;
+    
+    // Check for cached address on disk
+    const cachePath = `${process.env.HOME}/.openclaw/cache/bankr-${this.nickname}-solana-address.json`;
+    try {
+      const fs = await import('fs');
+      if (fs.existsSync(cachePath)) {
+        const cached = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        if (cached.address && Date.now() - cached.timestamp < 86400000) {
+          this.cachedSolanaAddress = cached.address;
+          console.log(`[BankrBackend] Loaded cached Solana address: ${this.cachedSolanaAddress}`);
+          return this.cachedSolanaAddress;
+        }
+      }
+    } catch (e) {
+      // Cache miss, continue to query
+    }
+    
+    console.log('[BankrBackend] Fetching Solana wallet address from Bankr...');
+    
+    try {
+      const response = await this.submitAndWait('What is my Solana wallet address?');
+      
+      // Solana addresses are base58, typically 32-44 chars, no 0x prefix
+      const solanaMatch = response.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/);
+      if (!solanaMatch) {
+        console.warn('[BankrBackend] Could not parse Solana address from response');
+        return null;
+      }
+      
+      this.cachedSolanaAddress = solanaMatch[0];
+      console.log(`[BankrBackend] Solana address: ${this.cachedSolanaAddress}`);
+      
+      // Cache to disk
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const cacheDir = path.dirname(cachePath);
+        if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+        fs.writeFileSync(cachePath, JSON.stringify({ address: this.cachedSolanaAddress, timestamp: Date.now() }));
+      } catch (e) {
+        console.warn('[BankrBackend] Failed to cache Solana address:', e);
+      }
+      
+      return this.cachedSolanaAddress;
+    } catch (error) {
+      console.error('[BankrBackend] Failed to get Solana address:', error);
+      return null;
     } catch (error) {
       console.error('[BankrBackend] Failed to get address:', error);
       throw error;

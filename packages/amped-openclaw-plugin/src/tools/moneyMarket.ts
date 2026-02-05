@@ -1122,7 +1122,7 @@ async function handleCreateBorrowIntent(
 export function registerMoneyMarketTools(agentTools: AgentTools): void {
   // Supply
   agentTools.register({
-    name: "amped_oc_mm_supply",
+    name: "amped_mm_supply",
     summary: "Supply tokens as collateral to the SODAX money market. Supports same-chain and cross-chain supply (supply on chain A, collateral available on chain B).",
     schema: MoneyMarketSupplySchema,
     handler: handleSupply,
@@ -1130,7 +1130,7 @@ export function registerMoneyMarketTools(agentTools: AgentTools): void {
 
   // Withdraw
   agentTools.register({
-    name: "amped_oc_mm_withdraw",
+    name: "amped_mm_withdraw",
     summary: "Withdraw supplied tokens from the SODAX money market. Supports cross-chain withdraw (withdraw from chain A, receive tokens on chain B).",
     schema: MoneyMarketWithdrawSchema,
     handler: handleWithdraw,
@@ -1138,7 +1138,7 @@ export function registerMoneyMarketTools(agentTools: AgentTools): void {
 
   // Borrow
   agentTools.register({
-    name: "amped_oc_mm_borrow",
+    name: "amped_mm_borrow",
     summary: "Borrow tokens from the SODAX money market. KEY FEATURE: Can borrow to a different chain than collateral! Example: Supply on Ethereum, borrow to Arbitrum using dstChainId parameter.",
     schema: MoneyMarketBorrowSchema,
     handler: handleBorrow,
@@ -1146,7 +1146,7 @@ export function registerMoneyMarketTools(agentTools: AgentTools): void {
 
   // Repay
   agentTools.register({
-    name: "amped_oc_mm_repay",
+    name: "amped_mm_repay",
     summary: "Repay borrowed tokens to the SODAX money market. Use amount='-1' or repayAll=true to repay full debt. Supports cross-chain repay.",
     schema: MoneyMarketRepaySchema,
     handler: handleRepay,
@@ -1154,14 +1154,14 @@ export function registerMoneyMarketTools(agentTools: AgentTools): void {
 
   // Advanced: Create Intent variants for custom flows
   agentTools.register({
-    name: "amped_oc_mm_create_supply_intent",
+    name: "amped_mm_create_supply_intent",
     summary: "[Advanced] Create a supply intent without executing. Returns raw intent data for custom signing or multi-step flows.",
     schema: CreateSupplyIntentSchema,
     handler: handleCreateSupplyIntent,
   });
 
   agentTools.register({
-    name: "amped_oc_mm_create_borrow_intent",
+    name: "amped_mm_create_borrow_intent",
     summary: "[Advanced] Create a borrow intent without executing. Supports cross-chain borrow intents. Returns raw intent data for custom signing or multi-step flows.",
     schema: CreateBorrowIntentSchema,
     handler: handleCreateBorrowIntent,

@@ -19,7 +19,7 @@ import type { WalletConfig, WalletBackendType } from '../wallet/types';
 // ============================================================================
 
 /**
- * Schema for amped_oc_add_wallet
+ * Schema for amped_add_wallet
  */
 const AddWalletSchema = Type.Object({
   nickname: Type.String({
@@ -57,7 +57,7 @@ const AddWalletSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_rename_wallet
+ * Schema for amped_rename_wallet
  */
 const RenameWalletSchema = Type.Object({
   currentNickname: Type.String({
@@ -69,7 +69,7 @@ const RenameWalletSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_remove_wallet
+ * Schema for amped_remove_wallet
  */
 const RemoveWalletSchema = Type.Object({
   nickname: Type.String({
@@ -82,7 +82,7 @@ const RemoveWalletSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_set_default_wallet
+ * Schema for amped_set_default_wallet
  */
 const SetDefaultWalletSchema = Type.Object({
   nickname: Type.String({
@@ -302,7 +302,7 @@ function wrapHandler<T>(handler: (params: T) => Promise<unknown>) {
 export function registerWalletManagementTools(agentTools: AgentTools): void {
   // 1. Add wallet
   agentTools.register({
-    name: 'amped_oc_add_wallet',
+    name: 'amped_add_wallet',
     summary: 'Add a new wallet with a nickname for easy reference',
     description:
       'Add a wallet from evm-wallet-skill, Bankr, or environment variables. ' +
@@ -314,7 +314,7 @@ export function registerWalletManagementTools(agentTools: AgentTools): void {
 
   // 2. Rename wallet
   agentTools.register({
-    name: 'amped_oc_rename_wallet',
+    name: 'amped_rename_wallet',
     summary: 'Rename a wallet to a new nickname',
     description:
       'Change the nickname of an existing wallet. ' +
@@ -325,7 +325,7 @@ export function registerWalletManagementTools(agentTools: AgentTools): void {
 
   // 3. Remove wallet
   agentTools.register({
-    name: 'amped_oc_remove_wallet',
+    name: 'amped_remove_wallet',
     summary: 'Remove a wallet from configuration',
     description:
       'Remove a wallet by nickname. This only removes it from the config file, ' +
@@ -336,7 +336,7 @@ export function registerWalletManagementTools(agentTools: AgentTools): void {
 
   // 4. Set default wallet
   agentTools.register({
-    name: 'amped_oc_set_default_wallet',
+    name: 'amped_set_default_wallet',
     summary: 'Set which wallet to use by default',
     description:
       'Set the default wallet for operations. When you don\'t specify a wallet, ' +
