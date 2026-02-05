@@ -208,9 +208,6 @@ export class BankrBackend implements IWalletBackend {
     } catch (error) {
       console.error('[BankrBackend] Failed to get Solana address:', error);
       return null;
-    } catch (error) {
-      console.error('[BankrBackend] Failed to get address:', error);
-      throw error;
     }
   }
 
