@@ -277,3 +277,31 @@ The plugin handles decimals automatically, but be aware:
 - **Native tokens (ETH, MATIC)**: 18 decimals
 
 When displaying amounts, the plugin returns human-readable values (e.g., "100.5" not "100500000").
+
+---
+
+## 🎨 Chain Display Emoji
+
+Use these emoji for consistent chain identification in portfolio displays:
+
+| Chain | Emoji | Hex Code |
+|-------|-------|----------|
+| LightLink | ⚡ | U+26A1 |
+| Base | 🟦 | U+1F7E6 |
+| Sonic | ⚪ | U+26AA |
+| Arbitrum | 🔽 | U+1F53D |
+| Optimism | 🔴 | U+1F534 |
+| Polygon | ♾️ | U+267E |
+| BSC | 🔶 | U+1F536 |
+| Ethereum | 💎 | U+1F48E |
+| Avalanche | 🔺 | U+1F53A |
+| HyperEVM | 🌀 | U+1F300 |
+| Kaia | 🟢 | U+1F7E2 |
+
+**Usage Example:**
+```
+⚡ LightLink    │ 0.002 ETH + 5.49 USDC       │   $9.78
+🟦 Base         │ 0.002 ETH + 0.39 USDC       │   $4.55
+                │ 💰 Supply $21.93 Borrow $5.00
+                │ 🏥 HF: 3.51 🟢
+```

@@ -89,8 +89,11 @@ const MAJOR_TOKENS: Record<number, TokenConfig[]> = {
     { address: '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7', symbol: 'USDT', decimals: 6 },
     { address: '0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB', symbol: 'WETH', decimals: 18 },
   ],
-  [CHAIN_IDS.SONIC]: [
+    [CHAIN_IDS.SONIC]: [
     { address: '0x29219dd400f2Bf60E5a23d13Be72B486D4038894', symbol: 'USDC', decimals: 6 },
+  ],
+  [CHAIN_IDS.LIGHTLINK]: [
+    { address: '0xbCF8C1B03bBDDA88D579330BDF236B58F8bb2cFd', symbol: 'USDC', decimals: 6 },
   ],
 };
 
@@ -139,7 +142,8 @@ const CHAIN_NAME_STRINGS: Record<number, string[]> = {
   [CHAIN_IDS.POLYGON]: ['polygon'],
   [CHAIN_IDS.BSC]: ['bsc'],
   [CHAIN_IDS.AVALANCHE]: ['avalanche', 'avax'],
-  [CHAIN_IDS.SONIC]: ['sonic'],
+    [CHAIN_IDS.SONIC]: ['sonic'],
+  [CHAIN_IDS.LIGHTLINK]: ['lightlink'],
 };
 
 // ============================================================================
@@ -290,6 +294,14 @@ interface WalletBalanceResult {
     netWorthUsd: string;
     healthFactor: string;
     healthStatus: { status: string; color: string };
+    /** Per-chain breakdown - CRITICAL: each chain has independent health factor */
+    chainBreakdown: Array<{
+      chainId: string;
+      supplyUsd: string;
+      borrowUsd: string;
+      healthFactor: string;
+      healthStatus: { status: string; color: string };
+    }>;
   };
   walletTotalUsd?: string;
 }
@@ -342,6 +354,7 @@ export async function handlePortfolioSummary(
     CHAIN_IDS.SONIC,
     CHAIN_IDS.BSC,
     CHAIN_IDS.AVALANCHE,
+    CHAIN_IDS.LIGHTLINK,
   ];
   const chainIdsToQuery = chains
     ? chains.map((c) => resolveChainId(c))
@@ -435,12 +448,21 @@ export async function handlePortfolioSummary(
       const positions = await aggregateCrossChainPositions(wallet.nickname);
       if (positions && (positions.summary.totalSupplyUsd > 0 || positions.summary.totalBorrowUsd > 0)) {
         const hfStatus = getHealthFactorStatus(positions.summary.healthFactor);
+        // Build per-chain breakdown with individual health factors
+        const chainBreakdown = positions.chainSummaries.map(cs => ({
+          chainId: cs.chainId,
+          supplyUsd: cs.supplyUsd.toFixed(2),
+          borrowUsd: cs.borrowUsd.toFixed(2),
+          healthFactor: formatHealthFactor(cs.healthFactor),
+          healthStatus: getHealthFactorStatus(cs.healthFactor),
+        }));
         mmSummary = {
           totalSupplyUsd: positions.summary.totalSupplyUsd.toFixed(2),
           totalBorrowUsd: positions.summary.totalBorrowUsd.toFixed(2),
           netWorthUsd: positions.summary.netWorthUsd.toFixed(2),
           healthFactor: formatHealthFactor(positions.summary.healthFactor),
           healthStatus: hfStatus,
+          chainBreakdown,
         };
         // MM net worth is already USD - add to wallet total
         walletBalanceUsd += positions.summary.netWorthUsd;
