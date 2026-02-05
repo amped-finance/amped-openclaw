@@ -61,8 +61,8 @@ npm install
 # List loaded plugins
 openclaw plugins list
 
-# Check for amped tools (should see 18 tools)
-openclaw tools list | grep amped_oc
+# Check for amped tools (should see 24 tools)
+openclaw tools list | grep amped_
 ```
 
 You should see tools like:
@@ -750,9 +750,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Documentation**: [https://docs.sodax.com](https://docs.sodax.com)
 - **Issues**: [GitHub Issues](https://github.com/amped-finance/amped-openclaw/issues)
 - **Discord**: [Amped Finance Community](https://discord.gg/amped)
-
----
-
-<p align="center">
-  Built with ❤️ by <a href="https://amped.finance">Amped Finance</a>
-</p>

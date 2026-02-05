@@ -1,7 +1,7 @@
 ---
 name: amped-openclaw
 description: DeFi operations plugin for swaps, bridging, and cross-chain money market operations via SODAX SDK
-version: 1.0.0
+version: 2.1.0
 author: Amped Finance
 tools:
   # Discovery Tools
