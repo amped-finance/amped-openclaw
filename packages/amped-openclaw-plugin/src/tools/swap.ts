@@ -2,10 +2,10 @@
  * Swap Tools for Amped OpenClaw Plugin
  * 
  * Provides OpenClaw tools for cross-chain swap operations using SODAX SDK:
- * - amped_oc_swap_quote: Get exact-in/exact-out quotes
- * - amped_oc_swap_execute: Execute swaps with policy enforcement
- * - amped_oc_swap_status: Poll intent status
- * - amped_oc_swap_cancel: Cancel active intents
+ * - amped_swap_quote: Get exact-in/exact-out quotes
+ * - amped_swap_execute: Execute swaps with policy enforcement
+ * - amped_swap_status: Poll intent status
+ * - amped_swap_cancel: Cancel active intents
  */
 
 import { Static, Type } from '@sinclair/typebox';
@@ -843,7 +843,7 @@ function logStructured(entry: LogEntry): void {
 export function registerSwapTools(agentTools: AgentTools): void {
   // Register swap quote tool
   agentTools.register({
-    name: 'amped_oc_swap_quote',
+    name: 'amped_swap_quote',
     summary: 'Get a swap quote for exact-in or exact-out swaps across chains',
     description: 'Retrieves a quote for swapping tokens across chains using the SODAX swap protocol. ' +
       'Supports both exact input (specify input amount, get output estimate) and ' +
@@ -854,7 +854,7 @@ export function registerSwapTools(agentTools: AgentTools): void {
   
   // Register swap execute tool
   agentTools.register({
-    name: 'amped_oc_swap_execute',
+    name: 'amped_swap_execute',
     summary: 'Execute a swap with policy enforcement and allowance handling',
     description: 'Executes a swap using a previously obtained quote. ' +
       'Performs policy checks, validates allowances, approves tokens if needed, ' +
@@ -865,7 +865,7 @@ export function registerSwapTools(agentTools: AgentTools): void {
   
   // Register swap status tool
   agentTools.register({
-    name: 'amped_oc_swap_status',
+    name: 'amped_swap_status',
     summary: 'Check the status of a swap intent or transaction',
     description: 'Polls the status of a swap by intent hash or transaction hash. ' +
       'Returns current status, fill amount, error details if failed, and timing information.',
@@ -875,7 +875,7 @@ export function registerSwapTools(agentTools: AgentTools): void {
   
   // Register swap cancel tool
   agentTools.register({
-    name: 'amped_oc_swap_cancel',
+    name: 'amped_swap_cancel',
     summary: 'Cancel an active swap intent',
     description: 'Cancels a pending swap intent on the source chain. ' +
       'Requires the intent details and source chain ID. Returns cancellation transaction hash.',

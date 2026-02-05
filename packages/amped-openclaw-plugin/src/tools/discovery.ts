@@ -27,12 +27,12 @@ import { getSodaxApiClient } from '../utils/sodaxApi';
 // ============================================================================
 
 /**
- * Schema for amped_oc_supported_chains - no parameters required
+ * Schema for amped_supported_chains - no parameters required
  */
 const SupportedChainsSchema = Type.Object({});
 
 /**
- * Schema for amped_oc_supported_tokens
+ * Schema for amped_supported_tokens
  */
 const SupportedTokensSchema = Type.Object({
   module: Type.Union([
@@ -46,7 +46,7 @@ const SupportedTokensSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_wallet_address
+ * Schema for amped_wallet_address
  */
 const WalletAddressSchema = Type.Object({
   walletId: Type.String({
@@ -55,7 +55,7 @@ const WalletAddressSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_money_market_positions
+ * Schema for amped_money_market_positions
  */
 const MoneyMarketPositionsSchema = Type.Object({
   walletId: Type.String({
@@ -67,7 +67,7 @@ const MoneyMarketPositionsSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_money_market_reserves
+ * Schema for amped_money_market_reserves
  */
 const MoneyMarketReservesSchema = Type.Object({
   chainId: Type.Optional(
@@ -79,7 +79,7 @@ const MoneyMarketReservesSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_cross_chain_positions
+ * Schema for amped_cross_chain_positions
  * Get aggregated positions view across all chains
  */
 const CrossChainPositionsSchema = Type.Object({
@@ -106,7 +106,7 @@ const CrossChainPositionsSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_user_intents
+ * Schema for amped_user_intents
  * Query user intent history from SODAX API
  */
 const UserIntentsSchema = Type.Object({
@@ -141,7 +141,7 @@ const UserIntentsSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_list_wallets - List all configured wallets
+ * Schema for amped_list_wallets - List all configured wallets
  */
 const ListWalletsSchema = Type.Object({});
 
@@ -837,54 +837,54 @@ async function handleListWallets(
  * @param agentTools - The OpenClaw AgentTools instance
  */
 export function registerDiscoveryTools(agentTools: AgentTools): void {
-  // 1. amped_oc_supported_chains - Get supported spoke chains
+  // 1. amped_supported_chains - Get supported spoke chains
   agentTools.register({
-    name: 'amped_oc_supported_chains',
+    name: 'amped_supported_chains',
     summary:
       'Get a list of all supported spoke chains for swaps, bridging, and money market operations',
     schema: SupportedChainsSchema,
     handler: wrapHandler(handleSupportedChains),
   });
 
-  // 2. amped_oc_supported_tokens - Get supported tokens by module
+  // 2. amped_supported_tokens - Get supported tokens by module
   agentTools.register({
-    name: 'amped_oc_supported_tokens',
+    name: 'amped_supported_tokens',
     summary:
       'Get supported tokens for a specific module (swaps, bridge, or moneyMarket) on a given chain',
     schema: SupportedTokensSchema,
     handler: wrapHandler(handleSupportedTokens),
   });
 
-  // 3. amped_oc_wallet_address - Get wallet address
+  // 3. amped_wallet_address - Get wallet address
   agentTools.register({
-    name: 'amped_oc_wallet_address',
+    name: 'amped_wallet_address',
     summary:
       'Get the resolved wallet address for a given walletId. Validates private key matches in execute mode.',
     schema: WalletAddressSchema,
     handler: wrapHandler(handleWalletAddress),
   });
 
-  // 4. amped_oc_money_market_positions - Get user positions (humanized)
+  // 4. amped_money_market_positions - Get user positions (humanized)
   agentTools.register({
-    name: 'amped_oc_money_market_positions',
+    name: 'amped_money_market_positions',
     summary:
       'Get humanized money market positions for a wallet on a specific chain, including supply/borrow balances and health metrics',
     schema: MoneyMarketPositionsSchema,
     handler: wrapHandler(handleMoneyMarketPositions),
   });
 
-  // 5. amped_oc_money_market_reserves - Get market reserves (humanized)
+  // 5. amped_money_market_reserves - Get market reserves (humanized)
   agentTools.register({
-    name: 'amped_oc_money_market_reserves',
+    name: 'amped_money_market_reserves',
     summary:
       'Get humanized money market reserves data including liquidity, rates, and parameters. Hub-centric with optional chain filtering.',
     schema: MoneyMarketReservesSchema,
     handler: wrapHandler(handleMoneyMarketReserves),
   });
 
-  // 6. amped_oc_cross_chain_positions - Get aggregated positions across all chains
+  // 6. amped_cross_chain_positions - Get aggregated positions across all chains
   agentTools.register({
-    name: 'amped_oc_cross_chain_positions',
+    name: 'amped_cross_chain_positions',
     summary:
       'Get a unified view of money market positions across ALL chains. Shows total supply/borrow, health factor, borrowing power, net APY, and risk metrics.',
     description:
@@ -896,9 +896,9 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
     handler: wrapHandler(handleCrossChainPositions),
   });
 
-  // 7. amped_oc_user_intents - Query user intent history from SODAX API
+  // 7. amped_user_intents - Query user intent history from SODAX API
   agentTools.register({
-    name: 'amped_oc_user_intents',
+    name: 'amped_user_intents',
     summary:
       'Query user swap intent history from SODAX backend API. Shows open, filled, and cancelled intents with event details.',
     description:
@@ -910,9 +910,9 @@ export function registerDiscoveryTools(agentTools: AgentTools): void {
     handler: wrapHandler(handleUserIntents),
   });
 
-  // 8. amped_oc_list_wallets - List all configured wallets
+  // 8. amped_list_wallets - List all configured wallets
   agentTools.register({
-    name: 'amped_oc_list_wallets',
+    name: 'amped_list_wallets',
     summary:
       'List all configured wallets with their nicknames, types, addresses, and supported chains.',
     description:

@@ -197,63 +197,63 @@ export default {
 
     // Register Discovery Tools
     api.registerTool({
-      name: 'amped_oc_supported_chains',
+      name: 'amped_supported_chains',
       description: 'List all blockchain networks supported by the Amped DeFi plugin',
       parameters: SupportedChainsSchema,
       execute: wrapHandler(handleSupportedChains),
     });
 
     api.registerTool({
-      name: 'amped_oc_supported_tokens',
+      name: 'amped_supported_tokens',
       description: 'List tokens supported on a specific chain for swaps and bridging',
       parameters: SupportedTokensSchema,
       execute: wrapHandler(handleSupportedTokens),
     });
 
     api.registerTool({
-      name: 'amped_oc_wallet_address',
+      name: 'amped_wallet_address',
       description: 'Get the wallet address for a specific wallet ID',
       parameters: WalletAddressSchema,
       execute: wrapHandler(handleWalletAddress),
     });
 
     api.registerTool({
-      name: 'amped_oc_money_market_reserves',
+      name: 'amped_money_market_reserves',
       description: 'Get money market reserve info (APY, utilization, liquidity)',
       parameters: MoneyMarketReservesSchema,
       execute: wrapHandler(handleMoneyMarketReserves),
     });
 
     api.registerTool({
-      name: 'amped_oc_money_market_positions',
+      name: 'amped_money_market_positions',
       description: 'Get user positions in money market on a single chain',
       parameters: MoneyMarketPositionsSchema,
       execute: wrapHandler(handleMoneyMarketPositions),
     });
 
     api.registerTool({
-      name: 'amped_oc_cross_chain_positions',
+      name: 'amped_cross_chain_positions',
       description: 'Get aggregated money market positions across all chains',
       parameters: CrossChainPositionsSchema,
       execute: wrapHandler(handleCrossChainPositions),
     });
 
     api.registerTool({
-      name: 'amped_oc_user_intents',
+      name: 'amped_user_intents',
       description: 'Query user intent history from SODAX API',
       parameters: UserIntentsSchema,
       execute: wrapHandler(handleUserIntents),
     });
 
     api.registerTool({
-      name: 'amped_oc_list_wallets',
+      name: 'amped_list_wallets',
       description: 'List ALL configured wallets including evm-wallet-skill, Bankr, and env wallets. Shows nicknames, addresses, types, and supported chains. Use this when user asks "what wallets do I have" or "show my wallets".',
       parameters: ListWalletsSchema,
       execute: wrapHandler(handleListWallets),
     });
 
     api.registerTool({
-      name: 'amped_oc_portfolio_summary',
+      name: 'amped_portfolio_summary',
       description: 'Get a comprehensive portfolio summary including wallet balances (native + major tokens) across chains and money market positions. Use when user asks for "portfolio", "balances", or "summary of positions".',
       parameters: PortfolioSummarySchema,
       execute: wrapHandler(handlePortfolioSummary),
@@ -261,28 +261,28 @@ export default {
 
     // Register Wallet Management Tools
     api.registerTool({
-      name: 'amped_oc_add_wallet',
+      name: 'amped_add_wallet',
       description: 'Add a new wallet with a nickname (evm-wallet-skill, bankr, or env)',
       parameters: AddWalletSchema,
       execute: wrapHandler(handleAddWallet),
     });
 
     api.registerTool({
-      name: 'amped_oc_rename_wallet',
+      name: 'amped_rename_wallet',
       description: 'Rename a wallet to a new nickname',
       parameters: RenameWalletSchema,
       execute: wrapHandler(handleRenameWallet),
     });
 
     api.registerTool({
-      name: 'amped_oc_remove_wallet',
+      name: 'amped_remove_wallet',
       description: 'Remove a wallet from configuration (does not delete funds)',
       parameters: RemoveWalletSchema,
       execute: wrapHandler(handleRemoveWallet),
     });
 
     api.registerTool({
-      name: 'amped_oc_set_default_wallet',
+      name: 'amped_set_default_wallet',
       description: 'Set which wallet to use by default for operations',
       parameters: SetDefaultWalletSchema,
       execute: wrapHandler(handleSetDefaultWallet),
@@ -290,28 +290,28 @@ export default {
 
     // Register Swap Tools
     api.registerTool({
-      name: 'amped_oc_swap_quote',
+      name: 'amped_swap_quote',
       description: 'Get a quote for swapping tokens (same chain or cross-chain)',
       parameters: SwapQuoteSchema,
       execute: wrapHandler(handleSwapQuote),
     });
 
     api.registerTool({
-      name: 'amped_oc_swap_execute',
+      name: 'amped_swap_execute',
       description: 'Execute a token swap using a previously obtained quote',
       parameters: SwapExecuteSchema,
       execute: wrapHandler(handleSwapExecute),
     });
 
     api.registerTool({
-      name: 'amped_oc_swap_status',
+      name: 'amped_swap_status',
       description: 'Check the status of a swap/bridge operation by intent ID',
       parameters: SwapStatusSchema,
       execute: wrapHandler(handleSwapStatus),
     });
 
     api.registerTool({
-      name: 'amped_oc_swap_cancel',
+      name: 'amped_swap_cancel',
       description: 'Cancel a pending swap/bridge operation',
       parameters: SwapCancelSchema,
       execute: wrapHandler(handleSwapCancel),
@@ -319,21 +319,21 @@ export default {
 
     // Register Bridge Tools
     api.registerTool({
-      name: 'amped_oc_bridge_discover',
+      name: 'amped_bridge_discover',
       description: 'Discover available bridge routes between chains',
       parameters: BridgeDiscoverSchema,
       execute: wrapHandler(handleBridgeDiscover),
     });
 
     api.registerTool({
-      name: 'amped_oc_bridge_quote',
+      name: 'amped_bridge_quote',
       description: 'Get a quote for bridging tokens between chains',
       parameters: BridgeQuoteSchema,
       execute: wrapHandler(handleBridgeQuote),
     });
 
     api.registerTool({
-      name: 'amped_oc_bridge_execute',
+      name: 'amped_bridge_execute',
       description: 'Execute a bridge transfer using a previously obtained quote',
       parameters: BridgeExecuteSchema,
       execute: wrapHandler(handleBridgeExecute),
@@ -341,28 +341,28 @@ export default {
 
     // Register Money Market Tools
     api.registerTool({
-      name: 'amped_oc_mm_supply',
+      name: 'amped_mm_supply',
       description: 'Supply (deposit) tokens to money market to earn interest',
       parameters: MmSupplySchema,
       execute: wrapHandler(handleMmSupply),
     });
 
     api.registerTool({
-      name: 'amped_oc_mm_withdraw',
+      name: 'amped_mm_withdraw',
       description: 'Withdraw supplied tokens from money market',
       parameters: MmWithdrawSchema,
       execute: wrapHandler(handleMmWithdraw),
     });
 
     api.registerTool({
-      name: 'amped_oc_mm_borrow',
+      name: 'amped_mm_borrow',
       description: 'Borrow tokens from money market (cross-chain capable)',
       parameters: MmBorrowSchema,
       execute: wrapHandler(handleMmBorrow),
     });
 
     api.registerTool({
-      name: 'amped_oc_mm_repay',
+      name: 'amped_mm_repay',
       description: 'Repay borrowed tokens to money market',
       parameters: MmRepaySchema,
       execute: wrapHandler(handleMmRepay),

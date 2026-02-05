@@ -6,9 +6,9 @@
  * both use the intent-based cross-chain messaging system.
  *
  * Tools:
- * - amped_oc_bridge_discover: Get bridgeable tokens for a route
- * - amped_oc_bridge_quote: Check bridgeability and max amounts  
- * - amped_oc_bridge_execute: Execute bridge (delegates to swap)
+ * - amped_bridge_discover: Get bridgeable tokens for a route
+ * - amped_bridge_quote: Check bridgeability and max amounts  
+ * - amped_bridge_execute: Execute bridge (delegates to swap)
  *
  * @module tools/bridge
  */
@@ -29,7 +29,7 @@ import { handleSwapQuote, handleSwapExecute } from './swap';
 // ============================================================================
 
 /**
- * Schema for amped_oc_bridge_discover tool
+ * Schema for amped_bridge_discover tool
  * Discover bridgeable tokens for a given source chain, destination chain, and source token
  */
 const BridgeDiscoverSchema = Type.Object({
@@ -45,7 +45,7 @@ const BridgeDiscoverSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_bridge_quote tool
+ * Schema for amped_bridge_quote tool
  * Check if a bridge route is valid and get maximum bridgeable amount
  */
 const BridgeQuoteSchema = Type.Object({
@@ -64,7 +64,7 @@ const BridgeQuoteSchema = Type.Object({
 });
 
 /**
- * Schema for amped_oc_bridge_execute tool
+ * Schema for amped_bridge_execute tool
  * Execute a bridge operation with full allowance check and approval flow
  */
 const BridgeExecuteSchema = Type.Object({
@@ -122,7 +122,7 @@ interface TransactionResult {
 }
 
 /**
- * Handler for amped_oc_bridge_discover
+ * Handler for amped_bridge_discover
  * Retrieves tokens that can be bridged from the source chain to destination chain
  *
  * @param params - Discovery parameters (srcChainId, dstChainId, srcToken)
@@ -184,7 +184,7 @@ async function handleBridgeDiscover(
 // ============================================================================
 
 /**
- * Handler for amped_oc_bridge_quote
+ * Handler for amped_bridge_quote
  * Checks if a bridge route is valid and returns the maximum bridgeable amount
  *
  * @param params - Quote parameters (srcChainId, dstChainId, srcToken, dstToken)
@@ -276,7 +276,7 @@ async function handleBridgeQuote(
 // ============================================================================
 
 /**
- * Handler for amped_oc_bridge_execute
+ * Handler for amped_bridge_execute
  *
  * NOTE: Bridge operations are implemented via swap infrastructure.
  * Cross-chain swaps and bridges are functionally equivalent in SODAX -
@@ -376,7 +376,7 @@ async function handleBridgeExecute(
 export function registerBridgeTools(agentTools: AgentTools): void {
   // Register bridge discover tool
   agentTools.register({
-    name: 'amped_oc_bridge_discover',
+    name: 'amped_bridge_discover',
     summary: 'Discover bridgeable tokens for a given source chain and token',
     description:
       'Retrieves a list of tokens that can be bridged from the specified source chain ' +
@@ -386,11 +386,11 @@ export function registerBridgeTools(agentTools: AgentTools): void {
     handler: handleBridgeDiscover,
   });
 
-  console.log('[bridge] Registered tool: amped_oc_bridge_discover');
+  console.log('[bridge] Registered tool: amped_bridge_discover');
 
   // Register bridge quote tool
   agentTools.register({
-    name: 'amped_oc_bridge_quote',
+    name: 'amped_bridge_quote',
     summary: 'Check bridgeability and get maximum bridgeable amount',
     description:
       'Validates whether a specific bridge route (source chain/token → destination chain/token) ' +
@@ -400,11 +400,11 @@ export function registerBridgeTools(agentTools: AgentTools): void {
     handler: handleBridgeQuote,
   });
 
-  console.log('[bridge] Registered tool: amped_oc_bridge_quote');
+  console.log('[bridge] Registered tool: amped_bridge_quote');
 
   // Register bridge execute tool
   agentTools.register({
-    name: 'amped_oc_bridge_execute',
+    name: 'amped_bridge_execute',
     summary: 'Execute a cross-chain bridge operation',
     description:
       'Executes a bridge operation that moves tokens from a source chain to a destination chain. ' +
@@ -415,7 +415,7 @@ export function registerBridgeTools(agentTools: AgentTools): void {
     handler: handleBridgeExecute,
   });
 
-  console.log('[bridge] Registered tool: amped_oc_bridge_execute');
+  console.log('[bridge] Registered tool: amped_bridge_execute');
 }
 
 // Export schemas for testing and reuse

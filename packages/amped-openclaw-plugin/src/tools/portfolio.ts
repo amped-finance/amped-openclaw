@@ -24,7 +24,7 @@ import {
 // ============================================================================
 
 /**
- * Schema for amped_oc_portfolio_summary
+ * Schema for amped_portfolio_summary
  */
 export const PortfolioSummarySchema = Type.Object({
   walletId: Type.Optional(Type.String({
