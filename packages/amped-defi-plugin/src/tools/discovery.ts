@@ -294,10 +294,10 @@ async function handleSupportedTokens(
           // For spoke chains, get assets bridgeable from that specific chain
           const chainAssets = hubAssets[chainId as keyof typeof hubAssets] || {};
           tokens = Object.values(chainAssets).map((asset: any) => normalizeToken({
-            address: asset.address || asset.originalAddress || '',
+            address: (asset as any).asset || (asset as any).address || (asset as any).originalAddress || '',
             symbol: asset.symbol || '',
             name: asset.name || asset.symbol || '',
-            decimals: asset.decimals || 18,
+            decimals: (asset as any).decimal || (asset as any).decimals || 18,
             logoURI: asset.logoURI || asset.logoUri,
           }));
         }
