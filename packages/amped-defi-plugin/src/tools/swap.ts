@@ -21,6 +21,7 @@ import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
 import { toSodaxChainId } from '../wallet/types';
+import { getSodaxApiClient } from '../utils/sodaxApi';
 
 // ============================================================================
 // SODAX API & Explorer Links
@@ -43,7 +44,7 @@ const CHAIN_EXPLORERS: Record<string, string> = {
 
 function getExplorerLink(chainId: string, txHash: string): string | undefined {
   // Normalize chain ID (remove 0x prefix and suffix if present)
-  const normalizedChainId = chainId.replace(/^0x[\da-f]+\./, '').toLowerCase();
+  const normalizedChainId = chainId.replace(/^0x[\\da-f]+\\./, '').toLowerCase();
   const explorer = CHAIN_EXPLORERS[normalizedChainId];
   return explorer ? `${explorer}${txHash}` : undefined;
 }
@@ -604,16 +605,15 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       throw new Error('Either txHash or intentHash must be provided');
     }
     
-    const sodaxClient = getSodaxClient();
+    // Use our SodaxApiClient for Backend API access (not SDK)
+    const sodaxApi = getSodaxApiClient();
     
-    // Use Backend API for intent lookups (more reliable than Solver API)
-    // Backend API is the indexer that tracks all intents
     let intentData: any = null;
     
     // Try intentHash first (most reliable)
     if (params.intentHash) {
       try {
-        intentData = await sodaxClient.backendApi.getIntentByHash(params.intentHash);
+        intentData = await sodaxApi.getIntentByHash(params.intentHash);
       } catch (err) {
         console.warn(`[swap_status] getIntentByHash failed: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -623,7 +623,7 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
     // Note: txHash should be from the HUB chain (Sonic), not spoke chain
     if (!intentData && params.txHash) {
       try {
-        intentData = await sodaxClient.backendApi.getIntentByTxHash(params.txHash);
+        intentData = await sodaxApi.getIntentByTxHash(params.txHash);
       } catch (err) {
         // txHash lookup failed - provide helpful error message
         const errorMsg = err instanceof Error ? err.message : String(err);

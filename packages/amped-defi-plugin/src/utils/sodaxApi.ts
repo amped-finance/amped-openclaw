@@ -91,6 +91,74 @@ export class SodaxApiClient {
     this.timeoutMs = config.timeoutMs || 30000;
   }
 
+  /**
+   * Get intent by intentHash
+   * Most reliable lookup method - works for all intents
+   */
+  async getIntentByHash(intentHash: string): Promise<UserIntent | null> {
+    const normalizedHash = intentHash.startsWith('0x') ? intentHash : `0x${intentHash}`;
+    const url = `${this.baseUrl}/${API_VERSION}/be/intent/${normalizedHash}`;
+
+    console.log('[sodaxApi] Fetching intent by hash:', { intentHash: normalizedHash });
+
+    try {
+      const response = await this.fetchWithTimeout(url);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        const errorText = await response.text();
+        throw new AmpedDefiError(
+          ErrorCode.UNKNOWN_ERROR,
+          `SODAX API error: ${response.status} ${errorText}`
+        );
+      }
+
+      return await response.json() as UserIntent;
+    } catch (error) {
+      if (error instanceof AmpedDefiError) throw error;
+      throw new AmpedDefiError(
+        ErrorCode.UNKNOWN_ERROR,
+        `Failed to fetch intent by hash: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Get intent by transaction hash
+   * NOTE: This expects the HUB chain (Sonic) transaction hash, NOT spoke chain tx
+   */
+  async getIntentByTxHash(txHash: string): Promise<UserIntent | null> {
+    const normalizedHash = txHash.startsWith('0x') ? txHash : `0x${txHash}`;
+    const url = `${this.baseUrl}/${API_VERSION}/be/intent/tx/${normalizedHash}`;
+
+    console.log('[sodaxApi] Fetching intent by txHash:', { txHash: normalizedHash });
+
+    try {
+      const response = await this.fetchWithTimeout(url);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        const errorText = await response.text();
+        throw new AmpedDefiError(
+          ErrorCode.UNKNOWN_ERROR,
+          `SODAX API error: ${response.status} ${errorText}`
+        );
+      }
+
+      return await response.json() as UserIntent;
+    } catch (error) {
+      if (error instanceof AmpedDefiError) throw error;
+      throw new AmpedDefiError(
+        ErrorCode.UNKNOWN_ERROR,
+        `Failed to fetch intent by txHash: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
   async getUserIntents(
     userAddress: string,
     pagination: PaginationParams = {},
@@ -179,7 +247,6 @@ export class SodaxApiClient {
   }
 }
 
-// Singleton instance
 let apiClient: SodaxApiClient | null = null;
 
 export function getSodaxApiClient(config?: SodaxApiConfig): SodaxApiClient {
