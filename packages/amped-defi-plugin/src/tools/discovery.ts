@@ -276,7 +276,7 @@ async function handleSupportedTokens(
             const chainAssets = hubAssets[spokeChainId as keyof typeof hubAssets] || {};
             for (const asset of Object.values(chainAssets)) {
               // Add the hub asset (on Sonic) - dedupe by hub address
-              const hubAddress = (asset as any).hubAddress || (asset as any).address;
+              const hubAddress = (asset as any).asset || (asset as any).hubAddress || (asset as any).address;
               if (hubAddress && !seenAddresses.has(hubAddress.toLowerCase())) {
                 seenAddresses.add(hubAddress.toLowerCase());
                 allTokens.push(normalizeToken({
