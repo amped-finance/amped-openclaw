@@ -1,4 +1,4 @@
-# Contributing to Amped OpenClaw Plugin
+# Contributing to Amped DeFi Plugin
 
 Thank you for your interest in contributing! This document provides guidelines for contributing to the project.
 
@@ -6,8 +6,8 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/amped-finance/amped-openclaw.git
-   cd amped-openclaw/packages/amped-openclaw-plugin
+   git clone https://github.com/amped-finance/amped-defi.git
+   cd amped-defi/packages/amped-defi-plugin
    ```
 
 2. **Install dependencies**

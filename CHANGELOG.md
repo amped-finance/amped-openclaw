@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.0] - 2026-02-04
+## [1.0.0] - 2026-02-05
+
+### Changed
+- **Package Rename** — Renamed from `amped-openclaw` to `amped-defi`
+  - New npm package: `amped-defi@1.0.0`
+  - New ClawHub plugin: `amped-defi`
+  - All internal references updated
+  - Version reset to 1.0.0 for fresh start
+- **Silent Startup** — Removed all console logging on plugin initialization
+  - Plugin no longer prints status messages on gateway restart
+  - Errors still surface when tools are used
+- **Error Class Rename** — `AmpedOpenClawError` → `AmpedDefiError`
+
+---
+
+## [2.1.0] - 2026-02-04 (as amped-openclaw)
 
 ### Added
 - **USD Portfolio Pricing** — Portfolio summary now displays USD values for all tokens
@@ -49,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-02-02
 
 ### Added
-- Initial release of Amped OpenClaw Plugin
+- Initial release of Amped DeFi Plugin
 - **Cross-Chain Swaps**: Execute swaps across chains via SODAX solver network
 - **Token Bridging**: Bridge assets between spoke chains and Sonic hub
 - **Cross-Chain Money Market**: Supply on Chain A, borrow to Chain B
@@ -88,5 +103,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@sodax/types@1.0.4-beta`
 - `@sinclair/typebox@^0.32.0`
 
-[2.1.0]: https://github.com/amped-finance/amped-openclaw/compare/v0.1.0...v2.1.0
-[0.1.0]: https://github.com/amped-finance/amped-openclaw/releases/tag/v0.1.0
+[2.1.0]: https://github.com/amped-finance/amped-defi/compare/v0.1.0...v2.1.0
+[0.1.0]: https://github.com/amped-finance/amped-defi/releases/tag/v0.1.0
