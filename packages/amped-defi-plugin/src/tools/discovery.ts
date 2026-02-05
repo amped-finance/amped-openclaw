@@ -255,13 +255,52 @@ async function handleSupportedTokens(
       break;
     }
 
+
     case 'bridge': {
-      // Get bridgeable tokens for the chain
-      // Note: getBridgeableTokens requires 3 args - we'll get all tokens for a chain
+      // Get bridgeable tokens via hub assets
+      // Hub assets represent tokens that can be bridged between chains
+      // Reference: sodax-frontend uses getHubAssets() for bridge token discovery
       try {
-        // Try to get config-based token list instead
-        const configTokens = (sodax.config as any).getBridgeTokensByChainId?.(chainId) || [];
-        tokens = configTokens.map(normalizeToken);
+        const hubAssets = sodax.config.getHubAssets();
+        
+        // Check if this is the hub chain (Sonic)
+        const isHubChain = rawChainId === 'sonic' || chainId === 'sonic';
+        
+        if (isHubChain) {
+          // For Sonic (hub), show all bridgeable assets from all spoke chains
+          // These are the assets that can be bridged FROM Sonic to other chains
+          const allTokens: typeof tokens = [];
+          const seenAddresses = new Set<string>();
+          
+          for (const spokeChainId of Object.keys(hubAssets)) {
+            const chainAssets = hubAssets[spokeChainId as keyof typeof hubAssets] || {};
+            for (const asset of Object.values(chainAssets)) {
+              // Add the hub asset (on Sonic) - dedupe by hub address
+              const hubAddress = (asset as any).hubAddress || (asset as any).address;
+              if (hubAddress && !seenAddresses.has(hubAddress.toLowerCase())) {
+                seenAddresses.add(hubAddress.toLowerCase());
+                allTokens.push(normalizeToken({
+                  address: hubAddress,
+                  symbol: (asset as any).symbol || '',
+                  name: (asset as any).name || (asset as any).symbol || '',
+                  decimals: (asset as any).decimals || 18,
+                  logoURI: (asset as any).logoURI || (asset as any).logoUri,
+                }));
+              }
+            }
+          }
+          tokens = allTokens;
+        } else {
+          // For spoke chains, get assets bridgeable from that specific chain
+          const chainAssets = hubAssets[chainId as keyof typeof hubAssets] || {};
+          tokens = Object.values(chainAssets).map((asset: any) => normalizeToken({
+            address: asset.address || asset.originalAddress || '',
+            symbol: asset.symbol || '',
+            name: asset.name || asset.symbol || '',
+            decimals: asset.decimals || 18,
+            logoURI: asset.logoURI || asset.logoUri,
+          }));
+        }
       } catch (e) {
         console.warn('[discovery] Failed to get bridge tokens:', e);
         tokens = [];
