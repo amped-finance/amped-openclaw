@@ -66,10 +66,10 @@ openclaw tools list | grep amped_oc
 ```
 
 You should see tools like:
-- `amped_oc_supported_chains`
-- `amped_oc_swap_quote`
-- `amped_oc_mm_supply`
-- `amped_oc_cross_chain_positions`
+- `amped_supported_chains`
+- `amped_swap_quote`
+- `amped_mm_supply`
+- `amped_cross_chain_positions`
 - etc.
 
 ### Updating the Plugin
@@ -303,49 +303,49 @@ await deactivate();
 
 | Tool | Description |
 |------|-------------|
-| `amped_oc_list_wallets` | List all configured wallets with nicknames and addresses |
-| `amped_oc_add_wallet` | Add a new wallet with a nickname |
-| `amped_oc_rename_wallet` | Rename an existing wallet |
-| `amped_oc_remove_wallet` | Remove a wallet from configuration |
-| `amped_oc_set_default_wallet` | Set which wallet to use by default |
+| `amped_list_wallets` | List all configured wallets with nicknames and addresses |
+| `amped_add_wallet` | Add a new wallet with a nickname |
+| `amped_rename_wallet` | Rename an existing wallet |
+| `amped_remove_wallet` | Remove a wallet from configuration |
+| `amped_set_default_wallet` | Set which wallet to use by default |
 
 ### Discovery Tools (8)
 
 | Tool | Description |
 |------|-------------|
-| `amped_oc_supported_chains` | List all supported spoke chains |
-| `amped_oc_supported_tokens` | Get supported tokens by module and chain |
-| `amped_oc_wallet_address` | Resolve wallet address by walletId |
-| `amped_oc_money_market_reserves` | View market reserves and liquidity |
-| `amped_oc_money_market_positions` | View positions on a single chain |
-| `amped_oc_cross_chain_positions` | ⭐ **Unified portfolio view across ALL chains** |
-| `amped_oc_user_intents` | Query intent history via SODAX API |
+| `amped_supported_chains` | List all supported spoke chains |
+| `amped_supported_tokens` | Get supported tokens by module and chain |
+| `amped_wallet_address` | Resolve wallet address by walletId |
+| `amped_money_market_reserves` | View market reserves and liquidity |
+| `amped_money_market_positions` | View positions on a single chain |
+| `amped_cross_chain_positions` | ⭐ **Unified portfolio view across ALL chains** |
+| `amped_user_intents` | Query intent history via SODAX API |
 
 ### Swap Tools (4)
 
 | Tool | Description |
 |------|-------------|
-| `amped_oc_swap_quote` | Get exact-in/exact-out swap quote |
-| `amped_oc_swap_execute` | Execute swap with policy enforcement |
-| `amped_oc_swap_status` | Check swap status by txHash/intentHash |
-| `amped_oc_swap_cancel` | Cancel pending swap intent |
+| `amped_swap_quote` | Get exact-in/exact-out swap quote |
+| `amped_swap_execute` | Execute swap with policy enforcement |
+| `amped_swap_status` | Check swap status by txHash/intentHash |
+| `amped_swap_cancel` | Cancel pending swap intent |
 
 ### Bridge Tools (3)
 
 | Tool | Description |
 |------|-------------|
-| `amped_oc_bridge_discover` | Discover bridgeable tokens for a route |
-| `amped_oc_bridge_quote` | Check bridgeability and max amount |
-| `amped_oc_bridge_execute` | Execute bridge operation |
+| `amped_bridge_discover` | Discover bridgeable tokens for a route |
+| `amped_bridge_quote` | Check bridgeability and max amount |
+| `amped_bridge_execute` | Execute bridge operation |
 
 ### Money Market Tools (4)
 
 | Tool | Description |
 |------|-------------|
-| `amped_oc_mm_supply` | Supply tokens as collateral |
-| `amped_oc_mm_withdraw` | Withdraw supplied tokens |
-| `amped_oc_mm_borrow` | Borrow tokens (cross-chain capable!) |
-| `amped_oc_mm_repay` | Repay borrowed tokens |
+| `amped_mm_supply` | Supply tokens as collateral |
+| `amped_mm_withdraw` | Withdraw supplied tokens |
+| `amped_mm_borrow` | Borrow tokens (cross-chain capable!) |
+| `amped_mm_repay` | Repay borrowed tokens |
 
 ## Wallet Management
 
@@ -375,7 +375,7 @@ Specify a wallet nickname in any operation:
 
 ```typescript
 // Swap using a specific wallet
-await agent.call('amped_oc_swap_execute', {
+await agent.call('amped_swap_execute', {
   walletId: 'trading',  // Use the "trading" wallet
   quote: quoteResult,
   maxSlippageBps: 50
@@ -412,7 +412,7 @@ Configurations persist to `~/.openclaw/extensions/amped-openclaw/wallets.json`:
 Get a complete portfolio overview across all chains:
 
 ```typescript
-const positions = await agentTools.call('amped_oc_cross_chain_positions', {
+const positions = await agentTools.call('amped_cross_chain_positions', {
   walletId: 'main'
 });
 
@@ -457,7 +457,7 @@ const positions = await agentTools.call('amped_oc_cross_chain_positions', {
 
 ```typescript
 // Step 1: Get quote
-const quote = await agentTools.call('amped_oc_swap_quote', {
+const quote = await agentTools.call('amped_swap_quote', {
   walletId: 'main',
   srcChainId: 'ethereum',
   dstChainId: 'arbitrum',
@@ -469,7 +469,7 @@ const quote = await agentTools.call('amped_oc_swap_quote', {
 });
 
 // Step 2: Execute
-const result = await agentTools.call('amped_oc_swap_execute', {
+const result = await agentTools.call('amped_swap_execute', {
   walletId: 'main',
   quote: quote,
   maxSlippageBps: 100
@@ -481,7 +481,7 @@ const result = await agentTools.call('amped_oc_swap_execute', {
 ### 3. Query Intent History
 
 ```typescript
-const history = await agentTools.call('amped_oc_user_intents', {
+const history = await agentTools.call('amped_user_intents', {
   walletId: 'main',
   status: 'all',     // 'all', 'open', or 'closed'
   limit: 50,
@@ -505,7 +505,7 @@ Your collateral stays on the source chain, but you receive borrowed tokens on th
 
 ```typescript
 // Step 1: Supply on Ethereum
-await agentTools.call('amped_oc_mm_supply', {
+await agentTools.call('amped_mm_supply', {
   walletId: 'main',
   chainId: 'ethereum',
   token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC
@@ -514,7 +514,7 @@ await agentTools.call('amped_oc_mm_supply', {
 });
 
 // Step 2: Borrow to Arbitrum (different chain!)
-await agentTools.call('amped_oc_mm_borrow', {
+await agentTools.call('amped_mm_borrow', {
   walletId: 'main',
   chainId: 'ethereum',        // Collateral source
   dstChainId: 'arbitrum',     // Borrowed tokens destination
@@ -570,7 +570,7 @@ The plugin provides structured error codes for better debugging:
 import { ErrorCode, wrapError } from '@amped/openclaw-plugin';
 
 try {
-  await agentTools.call('amped_oc_swap_execute', params);
+  await agentTools.call('amped_swap_execute', params);
 } catch (error) {
   const ampedError = wrapError(error);
   

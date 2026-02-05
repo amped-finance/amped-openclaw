@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 1-minute cache for efficient repeated queries
 - **Portfolio All Chains** — Query all configured chains by default (#30)
 - **Dynamic Config** — Enable SODAX dynamic config with hardcoded 20 bps partner fee (#26)
-- **Portfolio Summary Tool** — New `amped_oc_portfolio_summary` for unified balance view
+- **Portfolio Summary Tool** — New `amped_portfolio_summary` for unified balance view
 
 ### Fixed
 - **POL Rebrand** — Updated Polygon native token symbol from MATIC to POL

@@ -31,7 +31,7 @@ async function main() {
 
 async function demonstrateCrossChainPositionView() {
   console.log('2. Cross-Chain Position View Example');
-  console.log('   Tool: amped_oc_cross_chain_positions');
+  console.log('   Tool: amped_cross_chain_positions');
   console.log('   Purpose: Get unified portfolio view across all chains');
   console.log('   Parameters: { walletId: "main" }');
   console.log('   Returns:');
@@ -47,7 +47,7 @@ async function demonstrateCrossChainPositionView() {
 async function demonstrateSwapWorkflow() {
   console.log('3. Swap Workflow Example');
   console.log('   Step 1: Get Quote');
-  console.log('   Tool: amped_oc_swap_quote');
+  console.log('   Tool: amped_swap_quote');
   console.log('   Parameters: {');
   console.log('     walletId: "main",');
   console.log('     srcChainId: "ethereum",');
@@ -60,7 +60,7 @@ async function demonstrateSwapWorkflow() {
   console.log('   }');
   console.log();
   console.log('   Step 2: Execute Swap');
-  console.log('   Tool: amped_oc_swap_execute');
+  console.log('   Tool: amped_swap_execute');
   console.log('   Parameters: { walletId, quote, maxSlippageBps: 100 }');
   console.log();
 }
@@ -70,7 +70,7 @@ async function demonstrateCrossChainBorrow() {
   console.log('   Feature: Supply on Chain A, Borrow to Chain B');
   console.log();
   console.log('   Step 1: Supply on Ethereum');
-  console.log('   Tool: amped_oc_mm_supply');
+  console.log('   Tool: amped_mm_supply');
   console.log('   Parameters: {');
   console.log('     walletId: "main",');
   console.log('     chainId: "ethereum",');
@@ -80,7 +80,7 @@ async function demonstrateCrossChainBorrow() {
   console.log('   }');
   console.log();
   console.log('   Step 2: Borrow to Arbitrum (Cross-Chain!)');
-  console.log('   Tool: amped_oc_mm_borrow');
+  console.log('   Tool: amped_mm_borrow');
   console.log('   Parameters: {');
   console.log('     walletId: "main",');
   console.log('     chainId: "ethereum",        // Collateral source');

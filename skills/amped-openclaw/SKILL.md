@@ -5,30 +5,30 @@ version: 1.0.0
 author: Amped Finance
 tools:
   # Discovery Tools
-  - amped_oc_supported_chains
-  - amped_oc_supported_tokens
-  - amped_oc_wallet_address
-  - amped_oc_money_market_reserves
-  - amped_oc_money_market_positions (single chain)
-  - amped_oc_cross_chain_positions (aggregated view across all chains)
-  - amped_oc_user_intents (query intent history via SODAX API)
+  - amped_supported_chains
+  - amped_supported_tokens
+  - amped_wallet_address
+  - amped_money_market_reserves
+  - amped_money_market_positions (single chain)
+  - amped_cross_chain_positions (aggregated view across all chains)
+  - amped_user_intents (query intent history via SODAX API)
   # Swap Tools
-  - amped_oc_swap_quote
-  - amped_oc_swap_execute
-  - amped_oc_swap_status
-  - amped_oc_swap_cancel
+  - amped_swap_quote
+  - amped_swap_execute
+  - amped_swap_status
+  - amped_swap_cancel
   # Bridge Tools
-  - amped_oc_bridge_discover
-  - amped_oc_bridge_quote
-  - amped_oc_bridge_execute
+  - amped_bridge_discover
+  - amped_bridge_quote
+  - amped_bridge_execute
   # Money Market Tools (Same-Chain & Cross-Chain)
-  - amped_oc_mm_supply
-  - amped_oc_mm_withdraw
-  - amped_oc_mm_borrow
-  - amped_oc_mm_repay
+  - amped_mm_supply
+  - amped_mm_withdraw
+  - amped_mm_borrow
+  - amped_mm_repay
   # Advanced Intent Tools
-  - amped_oc_mm_create_supply_intent
-  - amped_oc_mm_create_borrow_intent
+  - amped_mm_create_supply_intent
+  - amped_mm_create_borrow_intent
 ---
 
 # Amped OpenClaw Skill
@@ -53,13 +53,13 @@ Use these tools to explore supported chains, tokens, and wallet state before exe
 
 | Tool | Purpose |
 |------|---------|
-| `amped_oc_supported_chains` | List all supported spoke chains (e.g., ethereum, arbitrum, sonic) |
-| `amped_oc_supported_tokens` | Get supported tokens for a specific module (swaps/bridge/moneyMarket) on a chain |
-| `amped_oc_wallet_address` | Resolve wallet address by walletId (validates private key ↔ address match in execute mode) |
-| `amped_oc_money_market_reserves` | View available money market reserves (collateral/borrow markets) |
-| `amped_oc_money_market_positions` | View user's money market positions on a SINGLE chain |
-| `amped_oc_cross_chain_positions` | **RECOMMENDED**: View aggregated positions across ALL chains with total supply/borrow, health factor, borrowing power, net APY, and risk metrics |
-| `amped_oc_user_intents` | Query user's swap/bridge intent history from SODAX backend API. Shows open, filled, cancelled intents with full event details. |
+| `amped_supported_chains` | List all supported spoke chains (e.g., ethereum, arbitrum, sonic) |
+| `amped_supported_tokens` | Get supported tokens for a specific module (swaps/bridge/moneyMarket) on a chain |
+| `amped_wallet_address` | Resolve wallet address by walletId (validates private key ↔ address match in execute mode) |
+| `amped_money_market_reserves` | View available money market reserves (collateral/borrow markets) |
+| `amped_money_market_positions` | View user's money market positions on a SINGLE chain |
+| `amped_cross_chain_positions` | **RECOMMENDED**: View aggregated positions across ALL chains with total supply/borrow, health factor, borrowing power, net APY, and risk metrics |
+| `amped_user_intents` | Query user's swap/bridge intent history from SODAX backend API. Shows open, filled, cancelled intents with full event details. |
 
 **When to use:** Always start with discovery tools to verify chain/token support before attempting any operation.
 
@@ -68,7 +68,7 @@ Use these tools to explore supported chains, tokens, and wallet state before exe
 Query the SODAX backend API to retrieve complete intent history for a wallet:
 
 ```
-→ amped_oc_user_intents(
+→ amped_user_intents(
     walletId="main",
     status="all",     // "all", "open", or "closed"
     limit=10,         // Number of results (max 100)
@@ -108,10 +108,10 @@ Cross-chain and same-chain token swaps via SODAX's intent-based solver network.
 
 | Tool | Purpose |
 |------|---------|
-| `amped_oc_swap_quote` | Get an exact-in or exact-out swap quote with slippage and fee estimates |
-| `amped_oc_swap_execute` | Execute a swap (handles allowance, approval, and execution automatically) |
-| `amped_oc_swap_status` | Check the status of a swap transaction or intent |
-| `amped_oc_swap_cancel` | Cancel an active swap intent (where supported) |
+| `amped_swap_quote` | Get an exact-in or exact-out swap quote with slippage and fee estimates |
+| `amped_swap_execute` | Execute a swap (handles allowance, approval, and execution automatically) |
+| `amped_swap_status` | Check the status of a swap transaction or intent |
+| `amped_swap_cancel` | Cancel an active swap intent (where supported) |
 
 **When to use swaps:**
 - Exchanging one token for another on the same chain
@@ -126,15 +126,15 @@ Cross-chain and same-chain token swaps via SODAX's intent-based solver network.
 
 Bridge tokens between chains via the swap infrastructure.
 
-> **Note:** In SODAX, bridges and cross-chain swaps use the same underlying intent-based messaging system. The `amped_oc_bridge_execute` tool internally delegates to the swap infrastructure, which provides better routing and reliability.
+> **Note:** In SODAX, bridges and cross-chain swaps use the same underlying intent-based messaging system. The `amped_bridge_execute` tool internally delegates to the swap infrastructure, which provides better routing and reliability.
 >
-> **Recommendation:** Use cross-chain swaps (`amped_oc_swap_quote` + `amped_oc_swap_execute`) directly for bridging. You can swap USDC on one chain directly to native tokens (ETH, AVAX, POL, etc.) on another chain in a single operation.
+> **Recommendation:** Use cross-chain swaps (`amped_swap_quote` + `amped_swap_execute`) directly for bridging. You can swap USDC on one chain directly to native tokens (ETH, AVAX, POL, etc.) on another chain in a single operation.
 
 | Tool | Purpose |
 |------|---------|
-| `amped_oc_bridge_discover` | Discover bridgeable tokens between two chains |
-| `amped_oc_bridge_quote` | Check bridgeability, limits, and max bridgeable amount |
-| `amped_oc_bridge_execute` | Execute bridge (delegates to swap infrastructure) |
+| `amped_bridge_discover` | Discover bridgeable tokens between two chains |
+| `amped_bridge_quote` | Check bridgeability, limits, and max bridgeable amount |
+| `amped_bridge_execute` | Execute bridge (delegates to swap infrastructure) |
 
 **When to use bridging/cross-chain swaps:**
 - Moving tokens from one chain to another (e.g., USDC on Base → ETH on Arbitrum)
@@ -144,8 +144,8 @@ Bridge tokens between chains via the swap infrastructure.
 **Preferred approach for gas distribution:**
 ```
 // Get gas tokens on multiple chains from a single source
-→ amped_oc_swap_quote(srcChainId="base", dstChainId="polygon", srcToken="USDC", dstToken="POL", amount="0.5", ...)
-→ amped_oc_swap_execute(quote)
+→ amped_swap_quote(srcChainId="base", dstChainId="polygon", srcToken="USDC", dstToken="POL", amount="0.5", ...)
+→ amped_swap_execute(quote)
 // Result: 0.5 USDC on Base → ~4 POL on Polygon
 ```
 
@@ -155,12 +155,12 @@ Supply, borrow, repay, and withdraw assets from the SODAX money market with **cr
 
 | Tool | Purpose |
 |------|---------|
-| `amped_oc_mm_supply` | Supply tokens as collateral to the money market. Supports cross-chain supply. |
-| `amped_oc_mm_withdraw` | Withdraw supplied tokens from the money market. Supports cross-chain withdraw. |
-| `amped_oc_mm_borrow` | Borrow tokens against supplied collateral. **KEY FEATURE: Can borrow to a different chain!** |
-| `amped_oc_mm_repay` | Repay borrowed tokens. Use amount='-1' or repayAll=true for full repay. |
-| `amped_oc_mm_create_supply_intent` | [Advanced] Create a supply intent without executing (for custom flows) |
-| `amped_oc_mm_create_borrow_intent` | [Advanced] Create a borrow intent without executing (supports cross-chain) |
+| `amped_mm_supply` | Supply tokens as collateral to the money market. Supports cross-chain supply. |
+| `amped_mm_withdraw` | Withdraw supplied tokens from the money market. Supports cross-chain withdraw. |
+| `amped_mm_borrow` | Borrow tokens against supplied collateral. **KEY FEATURE: Can borrow to a different chain!** |
+| `amped_mm_repay` | Repay borrowed tokens. Use amount='-1' or repayAll=true for full repay. |
+| `amped_mm_create_supply_intent` | [Advanced] Create a supply intent without executing (for custom flows) |
+| `amped_mm_create_borrow_intent` | [Advanced] Create a borrow intent without executing (supports cross-chain) |
 
 **Cross-Chain Money Market Capabilities:**
 
@@ -199,12 +199,12 @@ The SODAX money market supports powerful cross-chain operations:
 ⚠️ **MUST FOLLOW — These rules are enforced by the Policy Engine:**
 
 1. **Always get a quote before executing**
-   - Never execute a swap without first calling `amped_oc_swap_quote`
-   - Never execute a bridge without first calling `amped_oc_bridge_quote`
+   - Never execute a swap without first calling `amped_swap_quote`
+   - Never execute a bridge without first calling `amped_bridge_quote`
    - Review the quote output for acceptable slippage and output amounts
 
 2. **Verify chain and token are supported**
-   - Call `amped_oc_supported_chains` and `amped_oc_supported_tokens` before operations
+   - Call `amped_supported_chains` and `amped_supported_tokens` before operations
    - Unsupported chains/tokens will return clear errors
 
 3. **Check slippage is within acceptable bounds**
@@ -219,8 +219,8 @@ The SODAX money market supports powerful cross-chain operations:
    - Policy caps: `maxSwapInputUsd`, `maxBridgeAmountToken`, `maxBorrowUsd`
 
 5. **Always verify transaction status after execution**
-   - Use `amped_oc_swap_status` to track swap completion
-   - Check `amped_oc_money_market_positions` to verify position updates
+   - Use `amped_swap_status` to track swap completion
+   - Check `amped_money_market_positions` to verify position updates
    - Never assume success based on transaction hash alone
 
 6. **Enforce allowlist compliance**
@@ -235,7 +235,7 @@ The SODAX money market supports powerful cross-chain operations:
 8. **Monitor health factor for money market positions**
    - Health factor < 1.0 = liquidation risk
    - Keep health factor > 1.5 for safety margin
-   - Use `amped_oc_money_market_positions` to monitor
+   - Use `amped_money_market_positions` to monitor
 
 ## Parameter Conventions
 
@@ -288,11 +288,11 @@ Complete workflow for executing a token swap:
 
 ```
 Step 1: Discovery (if needed)
-  → amped_oc_supported_chains
-  → amped_oc_supported_tokens(module="swaps", chainId="ethereum")
+  → amped_supported_chains
+  → amped_supported_tokens(module="swaps", chainId="ethereum")
 
 Step 2: Get Quote
-  → amped_oc_swap_quote(
+  → amped_swap_quote(
       walletId="main",
       srcChainId="ethereum",
       dstChainId="arbitrum",
@@ -310,7 +310,7 @@ Step 3: Review Quote
   ✓ Confirm fees are acceptable
 
 Step 4: Execute Swap
-  → amped_oc_swap_execute(
+  → amped_swap_execute(
       walletId="main",
       quote=<quote from step 2>,
       maxSlippageBps=100,
@@ -319,11 +319,11 @@ Step 4: Execute Swap
   ← Returns: { spokeTxHash, hubTxHash, intentHash, status }
 
 Step 5: Verify Status
-  → amped_oc_swap_status(txHash=spokeTxHash)
+  → amped_swap_status(txHash=spokeTxHash)
   ← Returns: { status, confirmations, filledAmount, remainingAmount }
 
 Step 6: Handle Failures (if needed)
-  → amped_oc_swap_cancel(walletId="main", intent=<intent>, srcChainId="ethereum")
+  → amped_swap_cancel(walletId="main", intent=<intent>, srcChainId="ethereum")
 ```
 
 ### Bridge Workflow
@@ -332,7 +332,7 @@ Complete workflow for bridging tokens between chains:
 
 ```
 Step 1: Discover Routes
-  → amped_oc_bridge_discover(
+  → amped_bridge_discover(
       srcChainId="ethereum",
       dstChainId="sonic",
       srcToken="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
@@ -340,7 +340,7 @@ Step 1: Discover Routes
   ← Returns: { bridgeableTokens: [...] }
 
 Step 2: Get Bridge Quote
-  → amped_oc_bridge_quote(
+  → amped_bridge_quote(
       srcChainId="ethereum",
       dstChainId="sonic",
       srcToken="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -354,7 +354,7 @@ Step 3: Review Limits
   ✓ Confirm amount within policy limits
 
 Step 4: Execute Bridge
-  → amped_oc_bridge_execute(
+  → amped_bridge_execute(
       walletId="main",
       srcChainId="ethereum",
       dstChainId="sonic",
@@ -372,14 +372,14 @@ Complete workflow for supplying to and monitoring money market positions:
 
 ```
 Step 1: View Available Markets
-  → amped_oc_money_market_reserves(chainId="sonic")
+  → amped_money_market_reserves(chainId="sonic")
   ← Returns: { reserves: [
       { token: "USDC", supplyAPY: "4.5%", totalSupplied: "..." },
       { token: "WETH", supplyAPY: "2.1%", totalSupplied: "..." }
     ]}
 
 Step 2: Check Current Positions (RECOMMENDED: use cross-chain view)
-  → amped_oc_cross_chain_positions(walletId="main")
+  → amped_cross_chain_positions(walletId="main")
   ← Returns: { 
       summary: {
         totalSupplyUsd: "15000.00",
@@ -401,7 +401,7 @@ Step 2: Check Current Positions (RECOMMENDED: use cross-chain view)
     }
 
 Step 3: Supply Tokens
-  → amped_oc_mm_supply(
+  → amped_mm_supply(
       walletId="main",
       chainId="sonic",
       token="0x29219dd400f2bf60e5a23d13be72b486d4038894",
@@ -411,13 +411,13 @@ Step 3: Supply Tokens
   ← Returns: { txHash, spokeTxHash, hubTxHash }
 
 Step 4: Verify Position Update (cross-chain view)
-  → amped_oc_cross_chain_positions(walletId="main")
+  → amped_cross_chain_positions(walletId="main")
   ← Returns: Updated positions reflecting the new supply across all chains
 ```
 
 ### Cross-Chain Positions View (Recommended)
 
-The `amped_oc_cross_chain_positions` tool provides a **unified portfolio view** across all chains. This is the recommended way to check money market positions.
+The `amped_cross_chain_positions` tool provides a **unified portfolio view** across all chains. This is the recommended way to check money market positions.
 
 **What it shows:**
 - **Total Portfolio Summary**: Supply, borrow, net worth across ALL chains
@@ -486,7 +486,7 @@ The `amped_oc_cross_chain_positions` tool provides a **unified portfolio view** 
 Scenario: Supply USDC on Ethereum, borrow USDT to Arbitrum
 
 Step 1: Verify Collateral Position on Source Chain
-  → amped_oc_money_market_positions(walletId="main", chainId="ethereum")
+  → amped_money_market_positions(walletId="main", chainId="ethereum")
   ← Returns: { positions: [...], totalCollateralUSD, availableBorrowUSD, healthFactor }
 
 Step 2: Check Borrow Capacity
@@ -494,7 +494,7 @@ Step 2: Check Borrow Capacity
   ✓ Check healthFactor will remain safe after borrow
 
 Step 3: Cross-Chain Borrow
-  → amped_oc_mm_borrow(
+  → amped_mm_borrow(
       walletId="main",
       chainId="ethereum",        // Source chain (where collateral is)
       dstChainId="arbitrum",     // Destination chain (where you receive borrowed tokens)
@@ -511,11 +511,11 @@ Step 3: Cross-Chain Borrow
     }
 
 Step 4: Verify Position
-  → amped_oc_money_market_positions(walletId="main", chainId="ethereum")
+  → amped_money_market_positions(walletId="main", chainId="ethereum")
   ← Returns: Updated positions with new borrow recorded
 
 Step 5: Verify Received Tokens on Destination Chain
-  → amped_oc_wallet_address(walletId="main")
+  → amped_wallet_address(walletId="main")
   ← Check USDT balance on Arbitrum via external means or position query
 ```
 
@@ -525,7 +525,7 @@ Step 5: Verify Received Tokens on Destination Chain
 Scenario: Supply tokens on Arbitrum, collateral recorded on Sonic
 
 Step 1: Supply with Cross-Chain Flag
-  → amped_oc_mm_supply(
+  → amped_mm_supply(
       walletId="main",
       chainId="arbitrum",        // Source chain (where tokens are)
       dstChainId="sonic",        // Destination chain (where collateral is recorded)
@@ -540,7 +540,7 @@ Step 1: Supply with Cross-Chain Flag
     }
 
 Step 2: Verify on Destination Chain
-  → amped_oc_money_market_positions(walletId="main", chainId="sonic")
+  → amped_money_market_positions(walletId="main", chainId="sonic")
   ← Returns: Collateral should appear on Sonic
 ```
 
@@ -550,12 +550,12 @@ Complete workflow for repaying borrowed tokens:
 
 ```
 Step 1: Check Borrow Position
-  → amped_oc_money_market_positions(walletId="main", chainId="sonic")
+  → amped_money_market_positions(walletId="main", chainId="sonic")
   ← Returns: { positions: [...], totalBorrowUSD, healthFactor }
 
 Step 2: Repay (Full or Partial)
   Option A - Partial Repay:
-  → amped_oc_mm_repay(
+  → amped_mm_repay(
       walletId="main",
       chainId="sonic",
       token="0x...",
@@ -563,7 +563,7 @@ Step 2: Repay (Full or Partial)
     )
   
   Option B - Full Repay:
-  → amped_oc_mm_repay(
+  → amped_mm_repay(
       walletId="main",
       chainId="sonic",
       token="0x...",
@@ -572,7 +572,7 @@ Step 2: Repay (Full or Partial)
     )
 
 Step 3: Verify Repayment
-  → amped_oc_money_market_positions(walletId="main", chainId="sonic")
+  → amped_money_market_positions(walletId="main", chainId="sonic")
   ← Returns: Updated positions with reduced borrow, improved healthFactor
 ```
 
@@ -582,12 +582,12 @@ Complete workflow for withdrawing supplied tokens:
 
 ```
 Step 1: Check Position and Available Liquidity
-  → amped_oc_money_market_positions(walletId="main", chainId="sonic")
+  → amped_money_market_positions(walletId="main", chainId="sonic")
   ← Verify: withdrawal won't cause healthFactor to drop below safe level
   ← Verify: sufficient available liquidity in reserve
 
 Step 2: Withdraw
-  → amped_oc_mm_withdraw(
+  → amped_mm_withdraw(
       walletId="main",
       chainId="sonic",
       token="0x...",
@@ -597,7 +597,7 @@ Step 2: Withdraw
   ← Returns: { txHash, spokeTxHash, hubTxHash }
 
 Step 3: Verify Withdrawal
-  → amped_oc_money_market_positions(walletId="main", chainId="sonic")
+  → amped_money_market_positions(walletId="main", chainId="sonic")
   ← Returns: Updated positions with reduced supply
 ```
 
@@ -610,10 +610,10 @@ User: "I have USDC on Ethereum. I want to borrow USDC on Base without moving my 
 
 Agent actions:
 1. Check positions on Ethereum
-   → amped_oc_money_market_positions(walletId="main", chainId="ethereum")
+   → amped_money_market_positions(walletId="main", chainId="ethereum")
 
 2. Supply USDC on Ethereum
-   → amped_oc_mm_supply(
+   → amped_mm_supply(
        walletId="main",
        chainId="ethereum",
        token="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -622,7 +622,7 @@ Agent actions:
      )
 
 3. Cross-chain borrow to Base
-   → amped_oc_mm_borrow(
+   → amped_mm_borrow(
        walletId="main",
        chainId="ethereum",        // Collateral is here
        dstChainId="base",         // Receive borrowed tokens here
@@ -632,8 +632,8 @@ Agent actions:
      )
 
 4. Verify positions
-   → amped_oc_money_market_positions(walletId="main", chainId="ethereum")
-   → amped_oc_money_market_positions(walletId="main", chainId="base")
+   → amped_money_market_positions(walletId="main", chainId="ethereum")
+   → amped_money_market_positions(walletId="main", chainId="base")
 ```
 
 ### Example 2: Cross-Chain Withdraw
@@ -642,7 +642,7 @@ Agent actions:
 User: "I have collateral on Sonic but I want to withdraw to Arbitrum."
 
 Agent actions:
-→ amped_oc_mm_withdraw(
+→ amped_mm_withdraw(
     walletId="main",
     chainId="sonic",             // Collateral source
     dstChainId="arbitrum",       // Token destination
@@ -832,7 +832,7 @@ Structured logs include:
 User: "Swap 100 USDC for ETH on Ethereum"
 
 Agent actions:
-1. amped_oc_swap_quote(
+1. amped_swap_quote(
      walletId="main",
      srcChainId="ethereum",
      dstChainId="ethereum",
@@ -843,8 +843,8 @@ Agent actions:
      slippageBps=100
    )
 2. Review quote (slippage 0.8%, expected output 0.042 ETH)
-3. amped_oc_swap_execute(walletId="main", quote=<quote>, maxSlippageBps=100)
-4. amped_oc_swap_status(txHash=<spokeTxHash>)
+3. amped_swap_execute(walletId="main", quote=<quote>, maxSlippageBps=100)
+4. amped_swap_status(txHash=<spokeTxHash>)
 ```
 
 ### Example 2: Cross-Chain Bridge
@@ -853,9 +853,9 @@ Agent actions:
 User: "Bridge 1000 USDC from Ethereum to Sonic"
 
 Agent actions:
-1. amped_oc_bridge_discover(srcChainId="ethereum", dstChainId="sonic", srcToken="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
-2. amped_oc_bridge_quote(srcChainId="ethereum", dstChainId="sonic", srcToken="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", dstToken="0x29219dd400f2bf60e5a23d13be72b486d4038894")
-3. amped_oc_bridge_execute(walletId="main", srcChainId="ethereum", dstChainId="sonic", srcToken="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", dstToken="0x29219dd400f2bf60e5a23d13be72b486d4038894", amount="1000")
+1. amped_bridge_discover(srcChainId="ethereum", dstChainId="sonic", srcToken="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+2. amped_bridge_quote(srcChainId="ethereum", dstChainId="sonic", srcToken="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", dstToken="0x29219dd400f2bf60e5a23d13be72b486d4038894")
+3. amped_bridge_execute(walletId="main", srcChainId="ethereum", dstChainId="sonic", srcToken="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", dstToken="0x29219dd400f2bf60e5a23d13be72b486d4038894", amount="1000")
 ```
 
 ### Example 3: Supply and Borrow Loop (Same Chain)
@@ -864,11 +864,11 @@ Agent actions:
 User: "Supply 5000 USDC and borrow 2000 USDT on Sonic"
 
 Agent actions:
-1. amped_oc_money_market_reserves(chainId="sonic")
-2. amped_oc_mm_supply(walletId="main", chainId="sonic", token="0x29219dd400f2bf60e5a23d13be72b486d4038894", amount="5000")
-3. amped_oc_money_market_positions(walletId="main", chainId="sonic")
-4. amped_oc_mm_borrow(walletId="main", chainId="sonic", token="0x...usdt...", amount="2000")
-5. amped_oc_money_market_positions(walletId="main", chainId="sonic") // Verify new health factor
+1. amped_money_market_reserves(chainId="sonic")
+2. amped_mm_supply(walletId="main", chainId="sonic", token="0x29219dd400f2bf60e5a23d13be72b486d4038894", amount="5000")
+3. amped_money_market_positions(walletId="main", chainId="sonic")
+4. amped_mm_borrow(walletId="main", chainId="sonic", token="0x...usdt...", amount="2000")
+5. amped_money_market_positions(walletId="main", chainId="sonic") // Verify new health factor
 ```
 
 ### Example 4: Cross-Chain Money Market (Advanced)
@@ -878,15 +878,15 @@ User: "I want to use my USDC on Ethereum as collateral to borrow USDC on Arbitru
 
 Agent actions:
 1. Verify supported chains and tokens
-   → amped_oc_supported_tokens(module="moneyMarket", chainId="ethereum")
-   → amped_oc_supported_tokens(module="moneyMarket", chainId="arbitrum")
+   → amped_supported_tokens(module="moneyMarket", chainId="ethereum")
+   → amped_supported_tokens(module="moneyMarket", chainId="arbitrum")
 
 2. Check current positions
-   → amped_oc_money_market_positions(walletId="main", chainId="ethereum")
-   → amped_oc_money_market_positions(walletId="main", chainId="arbitrum")
+   → amped_money_market_positions(walletId="main", chainId="ethereum")
+   → amped_money_market_positions(walletId="main", chainId="arbitrum")
 
 3. Supply USDC on Ethereum
-   → amped_oc_mm_supply(
+   → amped_mm_supply(
        walletId="main",
        chainId="ethereum",
        token="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -895,7 +895,7 @@ Agent actions:
      )
 
 4. Cross-chain borrow to Arbitrum
-   → amped_oc_mm_borrow(
+   → amped_mm_borrow(
        walletId="main",
        chainId="ethereum",        // Source: collateral is here
        dstChainId="arbitrum",     // Destination: receive tokens here
