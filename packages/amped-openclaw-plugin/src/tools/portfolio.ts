@@ -142,7 +142,7 @@ const CHAIN_NAME_STRINGS: Record<number, string[]> = {
   [CHAIN_IDS.POLYGON]: ['polygon'],
   [CHAIN_IDS.BSC]: ['bsc'],
   [CHAIN_IDS.AVALANCHE]: ['avalanche', 'avax'],
-    [CHAIN_IDS.SONIC]: ['sonic'],
+  [CHAIN_IDS.SONIC]: ['sonic'],
   [CHAIN_IDS.LIGHTLINK]: ['lightlink'],
 };
 

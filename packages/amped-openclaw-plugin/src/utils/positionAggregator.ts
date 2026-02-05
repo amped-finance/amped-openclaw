@@ -232,13 +232,13 @@ export async function aggregateCrossChainPositions(
  * Reference: sodax-frontend/packages/dapp-kit/src/hooks/mm/useUserFormattedSummary.ts
  */
 async function queryChainPositions(
-  _walletId: string,
+  walletId: string,
   address: string,
   chainId: string
 ): Promise<{ positions: TokenPosition[]; summary: ChainPositionSummary }> {
   try {
     // Use address for spoke provider lookup
-    const spokeProvider = await getSpokeProvider(address, chainId);
+    const spokeProvider = await getSpokeProvider(walletId, chainId);
     const sodax = getSodaxClient();
 
     // Step 1: Fetch reserves with token metadata (symbols, names, decimals)
