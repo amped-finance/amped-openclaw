@@ -282,7 +282,7 @@ When using Bankr backend:
 ## Quick Start
 
 ```typescript
-import { activate, deactivate } from '@amped/openclaw-plugin';
+import { activate, deactivate } from 'amped-defi';
 
 // In your OpenClaw agent setup
 async function setupAgent(agentTools) {
@@ -729,13 +729,18 @@ src/
 
 | Chain | Chain ID | Type |
 |-------|----------|------|
-| Ethereum | `ethereum` | EVM |
-| Arbitrum | `arbitrum` | EVM |
-| Base | `base` | EVM |
-| Optimism | `optimism` | EVM |
-| Avalanche | `avalanche` | EVM |
-| BSC | `bsc` | EVM |
+| Ethereum | `ethereum` | EVM Spoke |
+| Arbitrum | `arbitrum` | EVM Spoke |
+| Base | `base` | EVM Spoke |
+| Optimism | `optimism` | EVM Spoke |
+| Polygon | `polygon` | EVM Spoke |
+| Avalanche | `avalanche` | EVM Spoke |
+| BSC | `bsc` | EVM Spoke |
+| LightLink | `lightlink` | EVM Spoke |
+| HyperEVM | `hyperevm` | EVM Spoke |
+| Kaia | `kaia` | EVM Spoke |
 | Sonic | `sonic` | Hub |
+| Solana | `solana` | Solana (receive only) |
 
 ## Contributing
 
@@ -748,5 +753,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 - **Documentation**: [https://docs.sodax.com](https://docs.sodax.com)
-- **Issues**: [GitHub Issues](https://github.com/amped-finance/amped-defi/issues)
+- **Issues**: [GitHub Issues](https://github.com/amped-finance/amped-openclaw/issues)
 - **Discord**: [Amped Finance Community](https://discord.gg/amped)
