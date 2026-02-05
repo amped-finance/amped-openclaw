@@ -21,6 +21,7 @@ import { PolicyEngine } from '../policy/policyEngine';
 import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
 import { toSodaxChainId } from '../wallet/types';
+import { getSodaxApiClient } from '../utils/sodaxApi';
 
 // ============================================================================
 // SODAX API & Explorer Links
@@ -43,7 +44,7 @@ const CHAIN_EXPLORERS: Record<string, string> = {
 
 function getExplorerLink(chainId: string, txHash: string): string | undefined {
   // Normalize chain ID (remove 0x prefix and suffix if present)
-  const normalizedChainId = chainId.replace(/^0x[\da-f]+\./, '').toLowerCase();
+  const normalizedChainId = chainId.replace(/^0x[\\da-f]+\\./, '').toLowerCase();
   const explorer = CHAIN_EXPLORERS[normalizedChainId];
   return explorer ? `${explorer}${txHash}` : undefined;
 }
@@ -594,6 +595,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
 // Swap Status Tool
 // ============================================================================
 
+
 async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string, unknown>> {
   const requestId = generateRequestId();
   const startTime = Date.now();
@@ -603,83 +605,101 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       throw new Error('Either txHash or intentHash must be provided');
     }
     
-    const sodaxClient = getSodaxClient();
+    // Use our SodaxApiClient for Backend API access (not SDK)
+    const sodaxApi = getSodaxApiClient();
     
-    // Resolve token symbols to addresses
-    let status: IntentStatus | null = null;
-    let intent: Intent | null = null;
+    let intentData: any = null;
     
-    // Try to get status by intent hash first (more reliable)
+    // Try intentHash first (most reliable)
     if (params.intentHash) {
       try {
-        const statusResult = await (sodaxClient as any).swaps.getStatus(params.intentHash as `0x${string}`);
-        status = statusResult?.ok ? statusResult.value : statusResult;
-        
-        const intentResult = await (sodaxClient as any).swaps.getIntent(params.intentHash as `0x${string}`);
-        intent = intentResult?.ok ? intentResult.value : intentResult;
-      } catch {
-        // Intent hash lookup failed, will try txHash
+        intentData = await sodaxApi.getIntentByHash(params.intentHash);
+      } catch (err) {
+        console.warn(`[swap_status] getIntentByHash failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     
-    // Fallback to txHash
-    if (!status && params.txHash) {
+    // If intentHash lookup failed or wasn't provided, try txHash
+    // Note: txHash should be from the HUB chain (Sonic), not spoke chain
+    if (!intentData && params.txHash) {
       try {
-      const statusResult = await (sodaxClient as any).swaps.getStatus(params.txHash as `0x${string}`);
-      status = statusResult?.ok ? statusResult.value : statusResult;
+        intentData = await sodaxApi.getIntentByTxHash(params.txHash);
       } catch (err) {
+        // txHash lookup failed - provide helpful error message
+        const errorMsg = err instanceof Error ? err.message : String(err);
         throw new Error(
           `Unable to find intent for txHash: ${params.txHash}. ` +
-          `This may not be a SODAX swap transaction, or the transaction is still pending indexing. ` +
-          `Error: ${err instanceof Error ? err.message : String(err)}`
+          `Note: The txHash must be from the HUB chain (Sonic), not the spoke chain. ` +
+          `If you have a spoke chain txHash (Base, Arbitrum, etc.), use amped_user_intents to find the intent first. ` +
+          `Error: ${errorMsg}`
         );
       }
     }
     
-    if (!status) {
-      throw new Error('Unable to retrieve swap status');
+    if (!intentData) {
+      throw new Error('Unable to retrieve swap status. Provide a valid intentHash or hub chain txHash.');
     }
     
-    // Extract key fields
-    const intentHashValue = params.intentHash || (status as any).intentHash;
-    const spokeTxHashValue = params.txHash || (status as any).spokeTxHash;
-    const hubTxHashValue = (status as any).hubTxHash;
+    // Extract intent details
+    const intentHash = intentData.intentHash;
+    const hubTxHash = intentData.txHash;  // This is the hub chain tx that created the intent
+    const isOpen = intentData.open;
+    const intent = intentData.intent;
     
-    // Try to fetch additional details from SODAX API
-    let sodaxIntentData: any = null;
-    let fulfillmentTxHash: string | undefined;
-    
-    if (intentHashValue) {
-      sodaxIntentData = await fetchIntentFromSodax(intentHashValue);
-      // Extract fulfillment tx from events if available
-      const filledEvent = sodaxIntentData?.events?.find((e: any) => e.eventType === 'intent-filled');
-      fulfillmentTxHash = filledEvent?.txHash;
+    // Determine status from intent state
+    let status = 'unknown';
+    if (intentData.open === true) {
+      status = 'pending';
+    } else if (intentData.open === false) {
+      // Check events to determine if filled or cancelled/expired
+      const filledEvent = intentData.events?.find((e: any) => e.eventType === 'intent-filled');
+      const cancelledEvent = intentData.events?.find((e: any) => 
+        e.eventType === 'intent-cancelled' || e.eventType === 'intent-expired'
+      );
+      if (filledEvent) {
+        status = 'filled';
+      } else if (cancelledEvent) {
+        status = cancelledEvent.eventType === 'intent-cancelled' ? 'cancelled' : 'expired';
+      } else {
+        status = 'closed';
+      }
     }
     
+    // Extract fulfillment details if available
+    const filledEvent = intentData.events?.find((e: any) => e.eventType === 'intent-filled');
+    const fulfillmentTxHash = filledEvent?.txHash;
+    const receivedOutput = filledEvent?.intentState?.receivedOutput;
+    
+    // Build result
     const result: Record<string, unknown> = {
-      status: (status as any).status || status,
-      intentHash: intentHashValue,
-      spokeTxHash: spokeTxHashValue,
-      hubTxHash: hubTxHashValue,
-      filledAmount: (status as any).filledAmount,
-      error: (status as any).error,
-      createdAt: (intent as any)?.createdAt || sodaxIntentData?.createdAt,
-      expiresAt: (intent as any)?.deadline,
-      // SODAX tracking links
-      intentApiUrl: intentHashValue ? getSodaxIntentApiUrl(intentHashValue) : undefined,
-      sodaxScanUrl: spokeTxHashValue ? getSodaxScanUrl(spokeTxHashValue) : undefined,
-      creationTxExplorer: spokeTxHashValue ? getExplorerLink(sodaxIntentData?.chainId?.toString() || 'base', spokeTxHashValue) : undefined,
+      status,
+      intentHash,
+      hubTxHash,  // Hub chain tx that created the intent
+      spokeTxHash: params.txHash !== hubTxHash ? params.txHash : undefined,  // Original spoke tx if different
+      open: isOpen,
+      // Intent details
+      srcChain: intent?.srcChain,
+      dstChain: intent?.dstChain,
+      inputToken: intent?.inputToken,
+      outputToken: intent?.outputToken,
+      inputAmount: intent?.inputAmount,
+      minOutputAmount: intent?.minOutputAmount,
+      receivedOutput: receivedOutput,
+      deadline: intent?.deadline ? new Date(parseInt(intent.deadline) * 1000).toISOString() : undefined,
+      createdAt: intentData.createdAt,
+      // Fulfillment details
       fulfillmentTxHash,
-      fulfillmentTxExplorer: fulfillmentTxHash && sodaxIntentData ? getExplorerLink(sodaxIntentData.intent?.dstChain?.toString() || 'sonic', fulfillmentTxHash) : undefined,
-      // Include open status from SODAX
-      open: sodaxIntentData?.open,
+      fulfillmentChain: intent?.dstChain,
+      // Tracking links
+      sodaxScanUrl: `https://sodaxscan.com/intents/${intentHash}`,
     };
+    
     logStructured({
       requestId,
       opType: 'swap_status',
-      intentHash: params.intentHash,
+      intentHash,
       txHash: params.txHash,
-      status: String((status as any).status || status),
+      status,
       durationMs: Date.now() - startTime,
       success: true
     });
