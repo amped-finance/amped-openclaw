@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Package Rename** — Renamed from `amped-openclaw` to `amped-defi`
   - New npm package: `amped-defi@1.0.0`
-  - New ClawHub plugin: `amped-defi`
   - All internal references updated
   - Version reset to 1.0.0 for fresh start
 - **Silent Startup** — Removed all console logging on plugin initialization

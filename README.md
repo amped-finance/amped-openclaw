@@ -9,8 +9,6 @@ DeFi plugin for [OpenClaw](https://openclaw.ai). Swap, bridge, lend, and borrow 
 openclaw plugins install amped-defi
 ```
 
-Or browse on [ClawdHub](https://clawhub.ai/skills/amped-defi).
-
 ## Supported Chains
 
 Ethereum, Base, Arbitrum, Optimism, Polygon, Sonic, LightLink, HyperEVM, Avalanche, BSC, Kaia, Solana
@@ -40,11 +38,6 @@ Quotes and discovery work without a wallet. Transactions require one of the foll
 **Easy install** — just ask your agent:
 > "Install evm-wallet-skill for me"
 
-**Via ClawdHub** (once [PR #5](https://github.com/surfer77/evm-wallet-skill/pull/5) is merged):
-```bash
-openclaw skills install evm-wallet-skill
-```
-
 **Manual install** (use our fork with SODAX chain support):
 ```bash
 git clone https://github.com/amped-finance/evm-wallet-skill.git ~/.openclaw/skills/evm-wallet-skill
@@ -67,7 +60,7 @@ To get a key: [bankr.bot](https://bankr.bot) → Settings → API Keys → Creat
 
 Bankr wallets support Ethereum, Base, Polygon, and Solana (as a receive destination for cross-chain swaps).
 
-## Tools (24)
+## Tools (25)
 
 | Category | Tools |
 |----------|-------|
@@ -105,7 +98,7 @@ jq '.plugins.entries["amped-defi"] = {"enabled": true}' ~/.openclaw/openclaw.jso
 openclaw gateway restart
 ```
 
-Verify: `openclaw plugins list` should show 24 tools.
+Verify: `openclaw plugins list` should show 25 tools.
 
 ## Troubleshooting
 
@@ -115,7 +108,7 @@ Verify: `openclaw plugins list` should show 24 tools.
 
 ## Links
 
-- [ClawdHub](https://clawhub.ai/skills/amped-defi) — discover and install
+- [npm](https://npmjs.com/package/amped-defi)
 - [Full Plugin Docs](packages/amped-defi-plugin/README.md)
 - [evm-wallet-skill](https://github.com/surfer77/evm-wallet-skill) (upstream) | [our fork](https://github.com/amped-finance/evm-wallet-skill)
 
