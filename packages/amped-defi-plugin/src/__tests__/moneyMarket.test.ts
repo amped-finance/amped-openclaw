@@ -47,12 +47,21 @@ describe('moneyMarket handlers', () => {
     withdraw: jest.fn(),
     borrow: jest.fn(),
     repay: jest.fn(),
+    data: {
+      getReservesHumanized: jest.fn(),
+    },
   };
+  const isMoneyMarketSupportedToken = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
 
-    mockGetSodaxClient.mockReturnValue({ moneyMarket });
+    mockGetSodaxClient.mockReturnValue({
+      moneyMarket,
+      config: {
+        isMoneyMarketSupportedToken,
+      },
+    });
     mockGetSpokeProvider.mockResolvedValue({
       walletProvider: {
         waitForTransactionReceipt: mockWaitForTransactionReceipt,
@@ -69,11 +78,13 @@ describe('moneyMarket handlers', () => {
       if (chainId === 'base') return '30';
       return chainId;
     });
+    isMoneyMarketSupportedToken.mockReturnValue(true);
 
     moneyMarket.isAllowanceValid.mockResolvedValue({ ok: true, value: true });
     moneyMarket.approve.mockResolvedValue({ ok: true, value: '0xApprove' });
     moneyMarket.withdraw.mockResolvedValue({ ok: true, value: ['0xSpoke', '0xHub'] });
     moneyMarket.repay.mockResolvedValue({ ok: true, value: ['0xSpoke', '0xHub'] });
+    moneyMarket.data.getReservesHumanized.mockResolvedValue({ reservesData: [] });
   });
 
   it('allows hub-chain source MM withdraw and parses [spokeTxHash, hubTxHash] tuple', async () => {
@@ -120,6 +131,38 @@ describe('moneyMarket handlers', () => {
     expect(result.success).toBe(true);
     const withdrawParams = moneyMarket.withdraw.mock.calls[0][0];
     expect(withdrawParams.amount).toBe(maxUint256);
+  });
+
+  it('normalizes aToken-style withdraw input to supported underlying token', async () => {
+    const aTokenAddr = '0x4effb5813271699683c25c734f4dabc45b363709';
+    const underlyingAddr = '0x4200000000000000000000000000000000000006';
+
+    mockResolveToken.mockImplementation(async () => aTokenAddr);
+    isMoneyMarketSupportedToken.mockImplementation((chainId: string, token: string) => {
+      return chainId === '30' && token.toLowerCase() === underlyingAddr.toLowerCase();
+    });
+    moneyMarket.data.getReservesHumanized.mockResolvedValue({
+      reservesData: [
+        {
+          underlyingAsset: underlyingAddr,
+          aTokenAddress: aTokenAddr,
+          symbol: 'ETH',
+        },
+      ],
+    });
+
+    const result = await handleWithdraw({
+      walletId: 'main',
+      chainId: 'base',
+      token: 'sodaETH',
+      amount: '1',
+    } as any);
+
+    expect(result.success).toBe(true);
+    const allowanceParams = moneyMarket.isAllowanceValid.mock.calls[0][0];
+    const withdrawParams = moneyMarket.withdraw.mock.calls[0][0];
+    expect(allowanceParams.token).toBe(underlyingAddr.toLowerCase());
+    expect(withdrawParams.token).toBe(underlyingAddr.toLowerCase());
   });
 
   it('uses max uint256 for repayAll and normalizes collateralChainId', async () => {

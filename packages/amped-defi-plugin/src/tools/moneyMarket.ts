@@ -370,6 +370,83 @@ async function getTokenDecimals(
   }
 }
 
+function getReserveValue<T = unknown>(reserve: any, keys: string[]): T | undefined {
+  for (const key of keys) {
+    if (reserve?.[key] !== undefined) return reserve[key] as T;
+    if (reserve?.reserve?.[key] !== undefined) return reserve.reserve[key] as T;
+    if (reserve?.token?.[key] !== undefined) return reserve.token[key] as T;
+  }
+  return undefined;
+}
+
+async function normalizeWithdrawTokenAddress(
+  sourceChainId: string,
+  targetChainId: string,
+  tokenInput: string,
+  resolvedTokenAddr: string
+): Promise<string> {
+  const sodaxClient = await getSodaxClient();
+  const config = (sodaxClient as any).config;
+  const mmChainId = toSodaxChainId(targetChainId);
+  const lcInput = tokenInput.toLowerCase();
+
+  const isSupported = (tokenAddr: string): boolean => {
+    if (!config?.isMoneyMarketSupportedToken) return true;
+    return !!config.isMoneyMarketSupportedToken(mmChainId, tokenAddr);
+  };
+
+  if (isSupported(resolvedTokenAddr)) {
+    return resolvedTokenAddr;
+  }
+
+  // Try resolving token against destination chain first (frontend effectively does this via constrained UI selection).
+  try {
+    const dstResolved = await resolveToken(targetChainId, tokenInput);
+    if (isSupported(dstResolved)) {
+      return dstResolved;
+    }
+  } catch {
+    // Fall through to reserve-based mapping.
+  }
+
+  // Fallback: map aToken-style token to underlying from reserves metadata.
+  try {
+    const reservesResult = await (sodaxClient as any).moneyMarket?.data?.getReservesHumanized?.();
+    const reserves = Array.isArray(reservesResult) ? reservesResult : (reservesResult?.reservesData ?? []);
+    for (const reserve of reserves) {
+      const reserveChain = getReserveValue<string>(reserve, ['chainId', 'xChainId', 'tokenSrcBlockchainId']);
+      if (reserveChain && toSodaxChainId(String(reserveChain)) !== mmChainId) {
+        continue;
+      }
+
+      const underlying = getReserveValue<string>(reserve, ['underlyingAsset', 'address']);
+      const aTokenAddress = getReserveValue<string>(reserve, ['aTokenAddress', 'aToken']);
+      const symbol = getReserveValue<string>(reserve, ['symbol'])?.toLowerCase();
+      const aTokenSymbol = getReserveValue<string>(reserve, ['aTokenSymbol'])?.toLowerCase();
+      if (!underlying) continue;
+
+      const lcUnderlying = String(underlying).toLowerCase();
+      const lcATokenAddr = aTokenAddress ? String(aTokenAddress).toLowerCase() : '';
+      const sodaSymbol = symbol ? `soda${symbol}` : '';
+
+      const matchesATokenAddr = lcATokenAddr && (lcInput === lcATokenAddr || resolvedTokenAddr.toLowerCase() === lcATokenAddr);
+      const matchesATokenSymbol = !!(aTokenSymbol && lcInput === aTokenSymbol);
+      const matchesSodaSymbol = !!(sodaSymbol && lcInput === sodaSymbol);
+
+      if ((matchesATokenAddr || matchesATokenSymbol || matchesSodaSymbol) && isSupported(lcUnderlying)) {
+        return lcUnderlying;
+      }
+    }
+  } catch {
+    // Ignore reserve mapping errors and throw clearer unsupported token message below.
+  }
+
+  throw new Error(
+    `Unsupported money market withdraw token on ${targetChainId}: ${tokenInput}. ` +
+    `Use the underlying money market token for the destination chain.`
+  );
+}
+
 
 /**
  * Checks and handles token approval if needed
@@ -616,11 +693,18 @@ async function handleWithdraw(
     const amountBigInt = withdrawType === 'all' ? MAX_UINT256 : parseTokenAmount(amount, decimals);
 
     const sodaxClient = await getSodaxClient();
+    const effectiveDstChainId = dstChainId || chainId;
+    const withdrawTokenAddr = await normalizeWithdrawTokenAddress(
+      chainId,
+      effectiveDstChainId,
+      token,
+      tokenAddr
+    );
 
     // Build withdraw parameters
     const withdrawParams: any = {
       action: 'withdraw',
-      token: tokenAddr,
+      token: withdrawTokenAddr,
       amount: amountBigInt,
       
       toAddress: recipient || walletAddress,
@@ -636,7 +720,7 @@ async function handleWithdraw(
       warnings.push("withdrawType='collateral' is not a distinct SDK mode; using standard withdraw.");
     }
     const { approvalTxHash } = await ensureAllowance(
-      { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
+      { token: withdrawTokenAddr, amount: amountBigInt, action: 'withdraw' },
       spokeProvider
     );
     if (approvalTxHash) warnings.push(`Approval transaction executed: ${approvalTxHash}`);
