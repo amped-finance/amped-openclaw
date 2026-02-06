@@ -108,7 +108,7 @@ Cross-chain and same-chain token swaps via SODAX's intent-based solver network.
 
 | Tool | Purpose |
 |------|---------|
-| `amped_swap_quote` | Get an exact-in or exact-out swap quote with slippage and fee estimates |
+| `amped_swap_quote` | Get an exact-input swap quote with slippage and fee estimates |
 | `amped_swap_execute` | Execute a swap (handles allowance, approval, and execution automatically) |
 | `amped_swap_status` | Check the status of a swap transaction or intent |
 | `amped_swap_cancel` | Cancel an active swap intent (where supported) |
@@ -158,7 +158,7 @@ Supply, borrow, repay, and withdraw assets from the SODAX money market with **cr
 | `amped_mm_supply` | Supply tokens as collateral to the money market. Supports cross-chain supply. |
 | `amped_mm_withdraw` | Withdraw supplied tokens from the money market. Supports cross-chain withdraw. |
 | `amped_mm_borrow` | Borrow tokens against supplied collateral. **KEY FEATURE: Can borrow to a different chain!** |
-| `amped_mm_repay` | Repay borrowed tokens. Use amount='-1' or repayAll=true for full repay. |
+| `amped_mm_repay` | Repay borrowed tokens. Use repayAll=true for full repay. |
 | `amped_mm_create_supply_intent` | [Advanced] Create a supply intent without executing (for custom flows) |
 | `amped_mm_create_borrow_intent` | [Advanced] Create a borrow intent without executing (supports cross-chain) |
 
