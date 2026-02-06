@@ -27,6 +27,7 @@ import { AgentTools } from "../types";
 import { serializeError } from '../utils/errorUtils';
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 import { toSodaxChainId } from '../wallet/types';
+import { parseUnits } from 'viem';
 
 // ============================================================================
 // TypeBox Schemas
@@ -46,7 +47,7 @@ const MoneyMarketBaseSchema = Type.Object({
     description: "Token address or symbol to supply/borrow/withdraw/repay",
   }),
   amount: Type.String({
-    description: "Amount in human-readable units (e.g., '100.5' for 100.5 USDC). Use '-1' for max repay (repay full debt).",
+    description: "Amount in human-readable units (e.g., '100.5' for 100.5 USDC).",
   }),
   timeoutMs: Type.Optional(
     Type.Number({
@@ -275,6 +276,8 @@ interface IntentResult extends MoneyMarketOperationResult {
   requiresSubmission: boolean;
 }
 
+const MAX_UINT256 = (2n ** 256n) - 1n;
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -283,18 +286,7 @@ interface IntentResult extends MoneyMarketOperationResult {
  * Converts human-readable amount to token units (wei)
  */
 function parseTokenAmount(amount: string, decimals: number = 18): bigint {
-  // Handle special case for max repay
-  if (amount === '-1') {
-    return BigInt(-1);
-  }
-  
-  const parsed = parseFloat(amount);
-  if (isNaN(parsed)) {
-    throw new Error(`Invalid amount: ${amount}`);
-  }
-  
-  const multiplier = Math.pow(10, decimals);
-  return BigInt(Math.floor(parsed * multiplier));
+  return parseUnits(amount, decimals);
 }
 
 /**
@@ -327,20 +319,6 @@ async function prepareMoneyMarketOperation(
   operation: "supply" | "withdraw" | "borrow" | "repay",
   policyId?: string
 ): Promise<{ walletAddress: string; spokeProvider: any; policyResult: any; tokenAddr: string }> {
-  // ============================================================================
-  // Hub Chain Validation
-  // ============================================================================
-  // SODAX architecture: Money market operations must be initiated from spoke chains,
-  // not the hub chain (Sonic). The hub chain is the settlement layer where contracts
-  // live, but users interact via spoke chains that relay operations to the hub.
-  // Reference: sodax-tests/tests/crossChainSdk.test.ts explicitly omits SONIC_MAINNET_CHAIN_ID
-  const isHubChainSource = chainId.toLowerCase() === 'sonic' || chainId === '146';
-  if (isHubChainSource) {
-    throw new Error(
-      `Money market operations cannot be initiated from the hub chain (Sonic). ` +
-      `Please use a spoke chain (base, arbitrum, ethereum, optimism, avalanche, bsc, polygon) as the source chain.`
-    );
-  }
   // Ensure sodax client is initialized
   const _sodaxClient = getSodaxClient(); // Just verify it's ready
   void _sodaxClient;
@@ -400,7 +378,7 @@ async function ensureAllowance(
   params: {
     token: string;
     amount: bigint;
-    action: 'supply' | 'repay';
+    action: 'supply' | 'withdraw' | 'borrow' | 'repay';
   },
   spokeProvider: any,
   raw: boolean = false
@@ -413,31 +391,57 @@ async function ensureAllowance(
     spokeProvider
   );
 
-  if (!isAllowanceValid.ok || !isAllowanceValid.value) {
+  if (isAllowanceValid.ok === false) {
+    throw new Error(`Failed to check allowance: ${serializeError(isAllowanceValid.error)}`);
+  }
+
+  if (!isAllowanceValid.value) {
     if (raw) {
-      // Return raw approval transaction
-      const rawApproval = await sodaxClient.moneyMarket.approve(
-        params,
-        spokeProvider,
-        true // raw mode
-      );
+      const rawApproval = await sodaxClient.moneyMarket.approve(params, spokeProvider, true);
       return { rawApproval };
-    } else {
-      // Execute approval transaction
-      const approvalResult = await sodaxClient.moneyMarket.approve(
-        params,
-        spokeProvider,
-        false
-      );
-      // Handle Result type from SDK
-      const txHash = (approvalResult as any).ok 
-        ? (approvalResult as any).value 
-        : (approvalResult as any).txHash || approvalResult;
-      return { approvalTxHash: String(txHash) };
     }
+
+    const approvalResult = await sodaxClient.moneyMarket.approve(params, spokeProvider, false);
+    if (approvalResult.ok === false) {
+      throw new Error(`Approval failed: ${serializeError(approvalResult.error)}`);
+    }
+    const approvalTxHash = approvalResult.value;
+    if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
+      await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
+    }
+    return { approvalTxHash: String(approvalTxHash) };
   }
 
   return {};
+}
+
+function parseRelayTxHashes(value: unknown): {
+  spokeTxHash: string;
+  hubTxHash?: string;
+  dstTxHash?: string;
+} {
+  if (Array.isArray(value)) {
+    const [first, second, third] = value;
+    if (typeof first === 'string' && typeof second === 'string') {
+      return { spokeTxHash: first, hubTxHash: second };
+    }
+    const deliveryInfo = third as any;
+    const spokeTxHash = deliveryInfo?.srcTxHash || (first as any)?.txHash || first;
+    const hubTxHash = deliveryInfo?.hubTxHash || (second as any)?.hubTxHash;
+    const dstTxHash = deliveryInfo?.dstTxHash;
+    return {
+      spokeTxHash: String(spokeTxHash),
+      hubTxHash: hubTxHash ? String(hubTxHash) : undefined,
+      dstTxHash: dstTxHash ? String(dstTxHash) : undefined,
+    };
+  }
+
+  const asAny = value as any;
+  return {
+    spokeTxHash: String(asAny?.srcTxHash || asAny?.txHash || value),
+    hubTxHash: asAny?.hubTxHash ? String(asAny.hubTxHash) : undefined,
+    dstTxHash: asAny?.dstTxHash ? String(asAny.dstTxHash) : undefined,
+  };
 }
 
 /**
@@ -474,6 +478,9 @@ async function handleSupply(
 
   const crossChain = isCrossChainOperation(chainId, dstChainId);
   const warnings: string[] = [];
+  if (skipSimulation) {
+    warnings.push('skipSimulation is not supported by the current SDK flow and was ignored.');
+  }
 
   try {
     // Pre-operation checks
@@ -490,7 +497,7 @@ async function handleSupply(
     const decimals = await getTokenDecimals(chainId, token);
     const amountBigInt = parseTokenAmount(amount, decimals);
 
-    // Check allowance for supply
+    // Frontend-aligned flow: check allowance and approve when required.
     const { approvalTxHash } = await ensureAllowance(
       { token: tokenAddr, amount: amountBigInt, action: 'supply' },
       spokeProvider
@@ -517,36 +524,6 @@ async function handleSupply(
       warnings.push(`Cross-chain supply: tokens supplied on ${chainId}, collateral recorded on ${dstChainId}`);
     }
 
-    // Check and handle allowance (required for ALL supply operations)
-    // Reference: sodax-frontend moneymarket-ops.ts - supply ALWAYS checks allowance
-    try {
-      const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
-        { token: tokenAddr, amount: amountBigInt, action: 'supply' },
-        spokeProvider
-      );
-      
-      if (allowanceResult.ok && !allowanceResult.value) {
-        console.log('[mm:supply] Approval needed, approving...');
-        const approveResult = await (sodaxClient as any).moneyMarket.approve(
-          { token: tokenAddr, amount: amountBigInt, action: 'supply' },
-          spokeProvider
-        );
-        
-        if (!approveResult.ok) {
-          throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
-        }
-        
-        // Wait for approval confirmation
-        const approvalTxHash = approveResult.value;
-        if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
-          await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
-          console.log('[mm:supply] Approval confirmed');
-        }
-      }
-    } catch (allowanceError) {
-      console.warn('[mm:supply] Allowance check failed, proceeding anyway:', allowanceError);
-    }
-
     // Execute supply
     const supplyResult = await (sodaxClient as any).moneyMarket.supply(
       supplyParams,
@@ -560,13 +537,7 @@ async function handleSupply(
     }
     
     const value = supplyResult.ok ? supplyResult.value : supplyResult;
-    // SDK may return [spokeTxHash, hubTxHash] tuple
-    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
-    
-    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
-    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
-    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
-    const dstTxHash = deliveryInfo?.dstTxHash;
+    const { spokeTxHash, hubTxHash } = parseRelayTxHashes(value);
 
     return {
       success: true,
@@ -625,6 +596,9 @@ async function handleWithdraw(
 
   const crossChain = isCrossChainOperation(chainId, dstChainId);
   const warnings: string[] = [];
+  if (skipSimulation) {
+    warnings.push('skipSimulation is not supported by the current SDK flow and was ignored.');
+  }
 
   try {
     // Pre-operation checks
@@ -639,7 +613,7 @@ async function handleWithdraw(
 
     // Parse amount with actual token decimals
     const decimals = await getTokenDecimals(chainId, token);
-    const amountBigInt = parseTokenAmount(amount, decimals);
+    const amountBigInt = withdrawType === 'all' ? MAX_UINT256 : parseTokenAmount(amount, decimals);
 
     const sodaxClient = await getSodaxClient();
 
@@ -658,35 +632,14 @@ async function handleWithdraw(
       warnings.push(`Cross-chain withdraw: withdrawing from ${chainId}, receiving tokens on ${dstChainId}`);
     }
 
-    // Check and handle allowance before withdraw.
-    // Frontend pattern (apps/node/src/moneymarket-actions.ts): run allowance check and approve when needed.
-    try {
-      const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
-        { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
-        spokeProvider
-      );
-      
-      if (allowanceResult.ok && !allowanceResult.value) {
-        console.log('[mm:withdraw] Approval needed, approving...');
-        const approveResult = await (sodaxClient as any).moneyMarket.approve(
-          { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
-          spokeProvider
-        );
-        
-        if (!approveResult.ok) {
-          throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
-        }
-        
-        // Wait for approval confirmation
-        const approvalTxHash = approveResult.value;
-        if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
-          await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
-          console.log('[mm:withdraw] Approval confirmed');
-        }
-      }
-    } catch (allowanceError) {
-      console.warn('[mm:withdraw] Allowance check failed, proceeding anyway:', allowanceError);
+    if (withdrawType === 'collateral') {
+      warnings.push("withdrawType='collateral' is not a distinct SDK mode; using standard withdraw.");
     }
+    const { approvalTxHash } = await ensureAllowance(
+      { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
+      spokeProvider
+    );
+    if (approvalTxHash) warnings.push(`Approval transaction executed: ${approvalTxHash}`);
 
     // Execute withdraw
     const withdrawResult = await (sodaxClient as any).moneyMarket.withdraw(
@@ -701,12 +654,7 @@ async function handleWithdraw(
     }
     
     const value = withdrawResult.ok ? withdrawResult.value : withdrawResult;
-    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
-    
-    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
-    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
-    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
-    const dstTxHash = deliveryInfo?.dstTxHash;
+    const { spokeTxHash, hubTxHash } = parseRelayTxHashes(value);
 
     return {
       success: true,
@@ -772,6 +720,9 @@ async function handleBorrow(
 
   const crossChain = isCrossChainOperation(chainId, dstChainId);
   const warnings: string[] = [];
+  if (skipSimulation) {
+    warnings.push('skipSimulation is not supported by the current SDK flow and was ignored.');
+  }
 
   try {
     // Pre-operation checks
@@ -823,38 +774,11 @@ async function handleBorrow(
       warnings.push(`Ensure you have sufficient collateral on ${chainId} to support this borrow`);
     }
 
-    // Check and handle allowance (required for hub chain operations)
-    // Reference: sodax-frontend moneymarket-ops.ts
-    const isHubChain = chainId === 'sonic' || chainId === '146';
-    if (isHubChain) {
-      try {
-        const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
-          { token: borrowTokenAddr, amount: amountBigInt, action: 'borrow' },
-          spokeProvider
-        );
-        
-        if (allowanceResult.ok && !allowanceResult.value) {
-          console.log('[mm:borrow] Approval needed, approving...');
-          const approveResult = await (sodaxClient as any).moneyMarket.approve(
-            { token: borrowTokenAddr, amount: amountBigInt, action: 'borrow' },
-            spokeProvider
-          );
-          
-          if (!approveResult.ok) {
-            throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
-          }
-          
-          // Wait for approval confirmation
-          const approvalTxHash = approveResult.value;
-          if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
-            await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
-            console.log('[mm:borrow] Approval confirmed');
-          }
-        }
-      } catch (allowanceError) {
-        console.warn('[mm:borrow] Allowance check failed, proceeding anyway:', allowanceError);
-      }
-    }
+    const { approvalTxHash } = await ensureAllowance(
+      { token: borrowTokenAddr, amount: amountBigInt, action: 'borrow' },
+      spokeProvider
+    );
+    if (approvalTxHash) warnings.push(`Approval transaction executed: ${approvalTxHash}`);
 
     // Execute borrow
     const borrowResult = await (sodaxClient as any).moneyMarket.borrow(
@@ -869,12 +793,7 @@ async function handleBorrow(
     }
     
     const value = borrowResult.ok ? borrowResult.value : borrowResult;
-    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
-    
-    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
-    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
-    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
-    const dstTxHash = deliveryInfo?.dstTxHash;
+    const { spokeTxHash, hubTxHash } = parseRelayTxHashes(value);
 
     return {
       success: true,
@@ -933,6 +852,9 @@ async function handleRepay(
 
   const crossChain = !!collateralChainId && collateralChainId !== chainId;
   const warnings: string[] = [];
+  if (skipSimulation) {
+    warnings.push('skipSimulation is not supported by the current SDK flow and was ignored.');
+  }
 
   try {
     // Pre-operation checks
@@ -945,13 +867,14 @@ async function handleRepay(
       policyId
     );
 
-    // Parse amount with actual token decimals (use -1 for max repay if repayAll is true)
+    // Parse amount with actual token decimals.
+    // For repay-all, SDK expects uint256 max rather than negative sentinel values.
     const decimals = await getTokenDecimals(chainId, token);
-    const amountBigInt = repayAll ? BigInt(-1) : parseTokenAmount(amount, decimals);
+    const amountBigInt = repayAll ? MAX_UINT256 : parseTokenAmount(amount, decimals);
 
-    // Check allowance for repay
+    // Frontend-aligned flow: check allowance and approve when required.
     const { approvalTxHash } = await ensureAllowance(
-      { token: tokenAddr, amount: amountBigInt === BigInt(-1) ? BigInt(0) : amountBigInt, action: 'repay' },
+      { token: tokenAddr, amount: amountBigInt, action: 'repay' },
       spokeProvider
     );
 
@@ -971,38 +894,8 @@ async function handleRepay(
 
     // Add cross-chain parameters if applicable
     if (crossChain && collateralChainId) {
-      repayParams.toChainId = collateralChainId;
+      repayParams.toChainId = toSodaxChainId(collateralChainId);
       warnings.push(`Cross-chain repay: Repaying debt on ${collateralChainId} using tokens from ${chainId}`);
-    }
-
-    // Check and handle allowance (required for ALL repay operations)
-    // Reference: sodax-frontend moneymarket-ops.ts - repay ALWAYS checks allowance
-    try {
-      const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
-        { token: tokenAddr, amount: amountBigInt, action: 'repay' },
-        spokeProvider
-      );
-      
-      if (allowanceResult.ok && !allowanceResult.value) {
-        console.log('[mm:repay] Approval needed, approving...');
-        const approveResult = await (sodaxClient as any).moneyMarket.approve(
-          { token: tokenAddr, amount: amountBigInt, action: 'repay' },
-          spokeProvider
-        );
-        
-        if (!approveResult.ok) {
-          throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
-        }
-        
-        // Wait for approval confirmation
-        const approvalTxHash = approveResult.value;
-        if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
-          await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
-          console.log('[mm:repay] Approval confirmed');
-        }
-      }
-    } catch (allowanceError) {
-      console.warn('[mm:repay] Allowance check failed, proceeding anyway:', allowanceError);
     }
 
     // Execute repay
@@ -1018,12 +911,7 @@ async function handleRepay(
     }
     
     const value = repayResult.ok ? repayResult.value : repayResult;
-    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
-    
-    // Extract tx hashes from deliveryInfo (SDK returns 3-element tuple)
-    const spokeTxHash = deliveryInfo?.srcTxHash || (solverResponse as any)?.txHash || solverResponse;
-    const hubTxHash = deliveryInfo?.hubTxHash || (intent as any)?.hubTxHash;
-    const dstTxHash = deliveryInfo?.dstTxHash;
+    const { spokeTxHash, hubTxHash } = parseRelayTxHashes(value);
 
     return {
       success: true,
@@ -1204,7 +1092,7 @@ export function registerMoneyMarketTools(agentTools: AgentTools): void {
   // Repay
   agentTools.register({
     name: "amped_mm_repay",
-    summary: "Repay borrowed tokens to the SODAX money market. Use amount='-1' or repayAll=true to repay full debt. Supports cross-chain repay.",
+    summary: "Repay borrowed tokens to the SODAX money market. Use repayAll=true to repay full debt. Supports cross-chain repay.",
     schema: MoneyMarketRepaySchema,
     handler: handleRepay,
   });
