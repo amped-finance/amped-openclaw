@@ -658,37 +658,34 @@ async function handleWithdraw(
       warnings.push(`Cross-chain withdraw: withdrawing from ${chainId}, receiving tokens on ${dstChainId}`);
     }
 
-    // Check and handle allowance (required for hub chain operations)
-    // Reference: sodax-frontend moneymarket-ops.ts
-    const isHubChain = chainId === 'sonic' || chainId === '146';
-    if (isHubChain) {
-      try {
-        const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
+    // Check and handle allowance before withdraw.
+    // Frontend pattern (apps/node/src/moneymarket-actions.ts): run allowance check and approve when needed.
+    try {
+      const allowanceResult = await (sodaxClient as any).moneyMarket.isAllowanceValid(
+        { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
+        spokeProvider
+      );
+      
+      if (allowanceResult.ok && !allowanceResult.value) {
+        console.log('[mm:withdraw] Approval needed, approving...');
+        const approveResult = await (sodaxClient as any).moneyMarket.approve(
           { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
           spokeProvider
         );
         
-        if (allowanceResult.ok && !allowanceResult.value) {
-          console.log('[mm:withdraw] Approval needed, approving...');
-          const approveResult = await (sodaxClient as any).moneyMarket.approve(
-            { token: tokenAddr, amount: amountBigInt, action: 'withdraw' },
-            spokeProvider
-          );
-          
-          if (!approveResult.ok) {
-            throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
-          }
-          
-          // Wait for approval confirmation
-          const approvalTxHash = approveResult.value;
-          if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
-            await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
-            console.log('[mm:withdraw] Approval confirmed');
-          }
+        if (!approveResult.ok) {
+          throw new Error(`Approval failed: ${serializeError(approveResult.error)}`);
         }
-      } catch (allowanceError) {
-        console.warn('[mm:withdraw] Allowance check failed, proceeding anyway:', allowanceError);
+        
+        // Wait for approval confirmation
+        const approvalTxHash = approveResult.value;
+        if (approvalTxHash && spokeProvider.walletProvider?.waitForTransactionReceipt) {
+          await spokeProvider.walletProvider.waitForTransactionReceipt(approvalTxHash);
+          console.log('[mm:withdraw] Approval confirmed');
+        }
       }
+    } catch (allowanceError) {
+      console.warn('[mm:withdraw] Allowance check failed, proceeding anyway:', allowanceError);
     }
 
     // Execute withdraw
