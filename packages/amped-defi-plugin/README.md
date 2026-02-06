@@ -61,7 +61,7 @@ npm install
 # List loaded plugins
 openclaw plugins list
 
-# Check for amped tools (should see 24 tools)
+# Check for amped tools (should see 25 tools)
 openclaw tools list | grep amped_
 ```
 
@@ -325,7 +325,7 @@ await deactivate();
 
 | Tool | Description |
 |------|-------------|
-| `amped_swap_quote` | Get exact-in/exact-out swap quote |
+| `amped_swap_quote` | Get exact-input swap quote |
 | `amped_swap_execute` | Execute swap with policy enforcement |
 | `amped_swap_status` | Check swap status by txHash/intentHash |
 | `amped_swap_cancel` | Cancel pending swap intent |

@@ -1,6 +1,6 @@
 {
   "name": "amped-defi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Amped DeFi plugin for cross-chain swaps, bridging, and money markets via SODAX SDK",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -36,9 +36,9 @@
   "author": "Amped Finance",
   "dependencies": {
     "@sinclair/typebox": "^0.32.0",
-    "@sodax/sdk": "1.1.0-beta-rc2",
-    "@sodax/wallet-sdk-core": "1.1.0-beta-rc2",
-    "@sodax/types": "1.1.0-beta-rc2",
+    "@sodax/sdk": "1.2.0-beta",
+    "@sodax/wallet-sdk-core": "1.2.0-beta",
+    "@sodax/types": "1.2.0-beta",
     "viem": "^2.0.0"
   },
   "devDependencies": {

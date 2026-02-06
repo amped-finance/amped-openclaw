@@ -2,7 +2,7 @@
  * Swap Tools for Amped DeFi Plugin
  * 
  * Provides OpenClaw tools for cross-chain swap operations using SODAX SDK:
- * - amped_swap_quote: Get exact-in/exact-out quotes
+ * - amped_swap_quote: Get exact-input quotes
  * - amped_swap_execute: Execute swaps with policy enforcement
  * - amped_swap_status: Poll intent status
  * - amped_swap_cancel: Cancel active intents
@@ -146,10 +146,7 @@ import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 // TypeBox Schemas
 // ============================================================================
 
-const SwapTypeSchema = Type.Union([
-  Type.Literal('exact_input'),
-  Type.Literal('exact_output')
-]);
+const SwapTypeSchema = Type.Literal('exact_input');
 
 const SwapQuoteRequestSchema = Type.Object({
   walletId: Type.String(),
@@ -864,10 +861,9 @@ export function registerSwapTools(agentTools: AgentTools): void {
   // Register swap quote tool
   agentTools.register({
     name: 'amped_swap_quote',
-    summary: 'Get a swap quote for exact-in or exact-out swaps across chains',
+    summary: 'Get an exact-input swap quote across chains',
     description: 'Retrieves a quote for swapping tokens across chains using the SODAX swap protocol. ' +
-      'Supports both exact input (specify input amount, get output estimate) and ' +
-      'exact output (specify desired output, get required input) modes.',
+      'Supports exact input mode (specify input amount, get output estimate).',
     schema: SwapQuoteRequestSchema,
     handler: handleSwapQuote
   });
