@@ -1,7 +1,7 @@
 ---
 name: amped-defi
 description: 25 DeFi tools for cross-chain swaps, bridging, and money market operations via SODAX SDK. Supply on Chain A, borrow to Chain B. Supports Ethereum, Arbitrum, Base, Optimism, Avalanche, BSC, Polygon, Sonic, LightLink, HyperEVM, Kaia.
-version: 1.0.0
+version: 1.0.1
 author: Amped Finance
 tools:
   # Discovery Tools (7)
@@ -1042,37 +1042,39 @@ Use these emoji for consistent chain identification in portfolio displays:
 
 ## 📊 Portfolio Presentation Format
 
-When displaying portfolio summaries, use this mobile-friendly ASCII box format:
+When displaying portfolio summaries, use this mobile-friendly left-anchored format.
+
+Formatting rules:
+- Use chain emojis on every chain row (balances and money market rows)
+- Do NOT use a right-hand border character at end-of-line (`│`/`║` on the far right)
+- Keep lines compact for mobile readability
 
 ### Header Box
 ```
-╔══════════════════════════════╗
-║     PORTFOLIO SUMMARY        ║
-║        $XX.XX USD            ║
-╠══════════════════════════════╣
-║ N wallets │ N chains │ HH:MM ║
-╚══════════════════════════════╝
+┌──────────────────────────────
+│ PORTFOLIO SUMMARY
+│ $XX.XX USD
+├──────────────────────────────
+│ N wallets | N chains | HH:MM
 ```
 
 ### Wallet Section
 ```
-┌──────────────────────────────┐
-│ 🔑 MAIN WALLET       $XX.XX  │
-│   0xD4f9...011c5             │
-├──────────────────────────────┤
-│ ⚡ LightLink 0.001 ETH $7.55  │
-│ 🟦 Base      0.002 ETH $12.48 │
-│ ⚪ Sonic     18.59 S   $0.89  │
-│ 🔽 Arbitrum  0.0002ETH $0.54  │
-│ 🔴 Optimism  0.0002ETH $0.44  │
-│ ♾️ Polygon   4.22 POL  $0.45  │
-│ 🔶 BSC       0.0006BNB $0.41  │
-├──────────────────────────────┤
-│ 💰 MONEY MARKET              │
-│ 🟦 Base  $21/$12.50 1.34  🟠 │
-│ ⚡ LL    $2.10/$1.20 1.40  🟠 │
-│ ⚪ Sonic $0.48/$0    ∞     🟢 │
-└──────────────────────────────┘
+│ 🔑 MAIN WALLET       $XX.XX
+│   0xD4f9...011c5
+├──────────────────────────────
+│ ⚡ LightLink 0.001 ETH $7.55
+│ 🟦 Base      0.002 ETH $12.48
+│ ⚪ Sonic     18.59 S   $0.89
+│ 🔽 Arbitrum  0.0002ETH $0.54
+│ 🔴 Optimism  0.0002ETH $0.44
+│ ♾️ Polygon   4.22 POL  $0.45
+│ 🔶 BSC       0.0006BNB $0.41
+├──────────────────────────────
+│ 💰 MONEY MARKET
+│ 🟦 Base  $21/$12.50 1.34  🟠
+│ ⚡ LL    $2.10/$1.20 1.40  🟠
+│ ⚪ Sonic $0.48/$0    ∞     🟢
 ```
 
 ### Health Factor Indicators

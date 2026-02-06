@@ -1,7 +1,7 @@
 ---
 name: amped-defi
 description: DeFi operations plugin for swaps, bridging, and cross-chain money market operations via SODAX SDK
-version: 1.0.0
+version: 1.0.1
 author: Amped Finance
 tools:
   # Discovery Tools
@@ -477,6 +477,25 @@ The `amped_cross_chain_positions` tool provides a **unified portfolio view** acr
 - Before any borrow/withdraw operation to check health factor
 - To monitor portfolio performance across all chains
 - To identify opportunities (available borrowing power, low utilization)
+
+### Portfolio Presentation Style
+
+When presenting portfolio summaries to users:
+- Use chain emojis on each chain line
+- Use a left-anchored layout and do NOT add a right-side border character
+- Keep lines compact for mobile readability
+
+Example:
+```
+│ PORTFOLIO SUMMARY
+│ $XX.XX USD
+├──────────────────────────────
+│ 🔑 MAIN WALLET       $XX.XX
+│ ⚡ LightLink 0.001 ETH $7.55
+│ 🟦 Base      0.002 ETH $12.48
+│ 💰 MONEY MARKET
+│ 🟦 Base  $21/$12.50 1.34  🟠
+```
 
 ### Cross-Chain Money Market Borrow Workflow (Advanced)
 
