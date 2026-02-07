@@ -487,21 +487,23 @@ The `amped_cross_chain_positions` tool provides a **unified portfolio view** acr
 
 When presenting portfolio summaries to users:
 - Use chain emojis on each chain line
-- Do NOT render right-edge box borders (`║`/`│`/`┐`/`┘`) on each line
-- Use nested tree connectors (`├─`, `└─`, `│`) to show wallet → balances → MM hierarchy
-- Keep lines compact (about 34-42 chars) for Telegram width
+- Do NOT render boxed sections or horizontal border lines
+- Forbidden chars in portfolio output: `╔ ╗ ╚ ╝ ╠ ╣ ═ ┌ ┐ └ ┘ ─`
+- Use lightweight tree bullets only (`•`, `├`, `└`) with minimal spacing
+- Keep lines compact (about 28-36 chars) for Telegram width
+- If a row is too long, wrap it onto the next line (never widen)
 
 Example:
 ```
 📊 Portfolio Summary  $XX.XX
-├─ wallets: N | chains: N | MM: ✅
-├─ 🔑 MAIN WALLET  $XX.XX
-│  ├─ ⚡ LightLink 0.001 ETH $7.55
-│  ├─ 🟦 Base      0.002 ETH $12.48
-│  └─ 💰 Money Market
-│     └─ 🟦 Base $21/$12.50 HF 1.34 🟠
-└─ 🏦 BANKR WALLET $XX.XX
-   └─ ◎ Solana 0.077 SOL $7.50
+├ wallets: N | chains: N
+├ MM active: ✅
+├ 🔑 Main  $XX.XX
+├ 0xD4f9...011c5
+├ 🟦 Base 0.002 ETH $12.48
+├ ⚡ LL   0.001 ETH  $7.55
+├ 💰 MM
+└ 🟦 Base $21/$12.5 HF1.34 🟠
 ```
 
 ### Cross-Chain Money Market Borrow Workflow (Advanced)

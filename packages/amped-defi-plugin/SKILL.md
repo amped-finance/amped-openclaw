@@ -1054,26 +1054,23 @@ When displaying portfolio summaries, use a compact nested-tree format for chat c
 
 Formatting rules:
 - Use chain emojis on every chain row (balances and money market rows)
-- Do NOT use right-edge box borders (`║`/`│`/`┐`/`┘`) on every line
-- Prefer tree connectors (`├─`, `└─`, `│`) to show hierarchy
-- Keep each line within about 34-42 chars for Telegram width
+- Do NOT render boxed sections or horizontal border lines
+- Forbidden chars in portfolio output: `╔ ╗ ╚ ╝ ╠ ╣ ═ ┌ ┐ └ ┘ ─`
+- Prefer lightweight tree bullets only (`•`, `├`, `└`) with minimal spacing
+- Keep each line within about 28-36 chars for Telegram width
+- If a row exceeds width, split it into two lines (never widen the row)
 
-### Preferred Layout (Tree)
+### Preferred Layout (Compact Tree)
 ```
 📊 Portfolio Summary  $XX.XX
-├─ wallets: N | chains: N | MM: ✅
-├─ 🔑 MAIN WALLET  $XX.XX
-│  ├─ 0xD4f9...011c5
-│  ├─ 🟦 Base      0.002 ETH   $12.48
-│  ├─ ⚡ LightLink 0.001 ETH    $7.55
-│  └─ 💰 Money Market
-│     ├─ 🟦 Base  $21/$12.50  HF 1.34 🟠
-│     └─ ⚪ Sonic $0.48/$0.00  HF ∞    🟢
-└─ 🏦 BANKR WALLET  $XX.XX
-   ├─ 0xd27d...330f
-   ├─ ◎ Solana  0.077 SOL      $7.50
-   └─ 💰 Money Market
-      └─ 🟦 Base  $0.50/$0.00  HF ∞    🟢
+├ wallets: N | chains: N
+├ MM active: ✅
+├ 🔑 Main  $XX.XX
+├ 0xD4f9...011c5
+├ 🟦 Base 0.002 ETH $12.48
+├ ⚡ LL   0.001 ETH  $7.55
+├ 💰 MM
+└ 🟦 Base $21/$12.5 HF1.34 🟠
 ```
 
 ### Health Factor Indicators
