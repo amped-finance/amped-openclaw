@@ -1050,39 +1050,30 @@ Use these emoji for consistent chain identification in portfolio displays:
 
 ## 📊 Portfolio Presentation Format
 
-When displaying portfolio summaries, use this mobile-friendly left-anchored format.
+When displaying portfolio summaries, use a compact nested-tree format for chat clients (Telegram-friendly).
 
 Formatting rules:
 - Use chain emojis on every chain row (balances and money market rows)
-- Do NOT use a right-hand border character at end-of-line (`│`/`║` on the far right)
-- Keep lines compact for mobile readability
+- Do NOT use right-edge box borders (`║`/`│`/`┐`/`┘`) on every line
+- Prefer tree connectors (`├─`, `└─`, `│`) to show hierarchy
+- Keep each line within about 34-42 chars for Telegram width
 
-### Header Box
+### Preferred Layout (Tree)
 ```
-┌──────────────────────────────
-│ PORTFOLIO SUMMARY
-│ $XX.XX USD
-├──────────────────────────────
-│ N wallets | N chains | HH:MM
-```
-
-### Wallet Section
-```
-│ 🔑 MAIN WALLET       $XX.XX
-│   0xD4f9...011c5
-├──────────────────────────────
-│ ⚡ LightLink 0.001 ETH $7.55
-│ 🟦 Base      0.002 ETH $12.48
-│ ⚪ Sonic     18.59 S   $0.89
-│ 🔽 Arbitrum  0.0002ETH $0.54
-│ 🔴 Optimism  0.0002ETH $0.44
-│ ♾️ Polygon   4.22 POL  $0.45
-│ 🔶 BSC       0.0006BNB $0.41
-├──────────────────────────────
-│ 💰 MONEY MARKET
-│ 🟦 Base  $21/$12.50 1.34  🟠
-│ ⚡ LL    $2.10/$1.20 1.40  🟠
-│ ⚪ Sonic $0.48/$0    ∞     🟢
+📊 Portfolio Summary  $XX.XX
+├─ wallets: N | chains: N | MM: ✅
+├─ 🔑 MAIN WALLET  $XX.XX
+│  ├─ 0xD4f9...011c5
+│  ├─ 🟦 Base      0.002 ETH   $12.48
+│  ├─ ⚡ LightLink 0.001 ETH    $7.55
+│  └─ 💰 Money Market
+│     ├─ 🟦 Base  $21/$12.50  HF 1.34 🟠
+│     └─ ⚪ Sonic $0.48/$0.00  HF ∞    🟢
+└─ 🏦 BANKR WALLET  $XX.XX
+   ├─ 0xd27d...330f
+   ├─ ◎ Solana  0.077 SOL      $7.50
+   └─ 💰 Money Market
+      └─ 🟦 Base  $0.50/$0.00  HF ∞    🟢
 ```
 
 ### Health Factor Indicators
@@ -1095,18 +1086,18 @@ Formatting rules:
 
 ### Chain Balance Row Format
 ```
-[emoji] [chain] [balance] [USD]
-⚡ LightLink 0.001 ETH $7.55
+├─ [emoji] [chain] [balance] [USD]
+├─ ⚡ LightLink 0.001 ETH $7.55
 ```
 
 ### Money Market Row Format
 ```
-[emoji] [chain] [supply]/[borrow] [HF] [indicator]
-🟦 Base  $21/$12.50 1.34  🟠
+└─ [emoji] [chain] [supply]/[borrow] HF [value] [status]
+└─ 🟦 Base $21/$12.50 HF 1.34 🟠
 ```
 
 ### Line Width
-Target 30 characters for mobile compatibility.
+Target 34-42 characters for Telegram chat compatibility.
 
 ## Installation
 
