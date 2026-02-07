@@ -11,7 +11,8 @@ import { Type, Static } from '@sinclair/typebox';
 import { createPublicClient, http, formatUnits, type PublicClient, type Address } from 'viem';
 import { getWalletManager } from '../wallet';
 import { aggregateCrossChainPositions, formatHealthFactor, getHealthFactorStatus } from '../utils/positionAggregator';
-import { fetchTokenPrices, getTokenPriceBySymbol } from '../utils/priceService';
+import { fetchTokenPrices } from '../utils/priceService';
+import { PORTFOLIO_MAX_LINE_WIDTH, renderPortfolioTree } from '../utils/portfolioFormatter';
 import { 
   getViemChain, 
   getDefaultRpcUrl, 
@@ -534,10 +535,19 @@ export async function handlePortfolioSummary(
     priceSource: priceMap ? 'SODAX' : 'unavailable',
   };
 
-  return {
+  const payload = {
     success: true,
     summary,
     wallets: results,
+  };
+  
+  return {
+    ...payload,
+    presentation: {
+      format: 'telegram_tree_v1',
+      maxLineWidth: PORTFOLIO_MAX_LINE_WIDTH,
+      text: renderPortfolioTree(payload),
+    },
   };
 }
 

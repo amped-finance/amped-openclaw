@@ -29,13 +29,13 @@ import {
   getSodaxIntentUrl,
   type TransactionTracking,
 } from '../utils/txTracking';
+import { ensureSolverCompatibleSwapRoute, mapSwapRoutingError } from '../utils/routeAvailability';
 
 // ============================================================================
 // SODAX API & Explorer Links
 // ============================================================================
 
 const SODAX_CANARY_API = 'https://canary-api.sodax.com/v1/be';
-const SOLVER_COMPATIBILITY_DOCS_URL = 'https://docs.sodax.com/developers/deployments/solver-compatible-assets';
 
 async function fetchIntentFromSodax(intentHash: string): Promise<any> {
   try {
@@ -63,36 +63,6 @@ function toHexIntentHash(hash: unknown): string | undefined {
   }
 }
 
-function isSameTokenAddress(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
-}
-
-function ensureSolverCompatibleToken(
-  chainId: string,
-  tokenAddress: string,
-  role: 'source' | 'destination'
-): void {
-  const supported = getSupportedSwapTokensForChain(chainId);
-  if (!supported || supported.length === 0) return;
-
-  const found = supported.find(t => isSameTokenAddress(t.address, tokenAddress));
-  if (found) return;
-
-  const preview = supported.slice(0, 12).map(t => t.symbol).join(', ');
-  throw new Error(
-    `Token ${tokenAddress} is not currently solver-compatible as the ${role} asset on ${chainId}. ` +
-    `See ${SOLVER_COMPATIBILITY_DOCS_URL}. Supported examples: ${preview}`
-  );
-}
-
-function mapSwapErrorMessage(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  const lower = raw.toLowerCase();
-  if (lower.includes('unsupported token_src') || lower.includes('unsupported token_dst') || lower.includes('solver-compatible')) {
-    return `${raw}. Check compatible assets: ${SOLVER_COMPATIBILITY_DOCS_URL}`;
-  }
-  return raw;
-}
 
 // SODAX internal chain ID to block explorer mapping
 const SODAX_CHAIN_EXPLORERS: Record<number, string> = {
@@ -151,7 +121,7 @@ async function pollForDelivery(
   return { delivered: false };
 }
 
-import { resolveToken, getTokenInfo, getSupportedSwapTokensForChain } from '../utils/tokenResolver';
+import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 
 // ============================================================================
 // TypeBox Schemas
@@ -287,8 +257,12 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     // Resolve token symbols to addresses
     const srcTokenAddr = await resolveToken(params.srcChainId, params.srcToken);
     const dstTokenAddr = await resolveToken(params.dstChainId, params.dstToken);
-    ensureSolverCompatibleToken(params.srcChainId, srcTokenAddr, 'source');
-    ensureSolverCompatibleToken(params.dstChainId, dstTokenAddr, 'destination');
+    ensureSolverCompatibleSwapRoute({
+      srcChainId: params.srcChainId,
+      dstChainId: params.dstChainId,
+      srcTokenAddress: srcTokenAddr,
+      dstTokenAddress: dstTokenAddr,
+    });
     
     // Get token info for decimals
     const srcTokenInfo = await getTokenInfo(params.srcChainId, srcTokenAddr);
@@ -323,7 +297,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
         : typeof quoteResult.error === 'string' 
           ? quoteResult.error 
           : JSON.stringify(quoteResult.error, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
-      throw new Error(`Quote failed: ${mapSwapErrorMessage(errorMsg)}`);
+      throw new Error(`Quote failed: ${mapSwapRoutingError(errorMsg)}`);
     }
     
     const quote = quoteResult.ok ? quoteResult.value : quoteResult;
@@ -397,7 +371,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
       error: error instanceof Error ? error.message : String(error)
     });
     
-    throw new Error(`Failed to get swap quote: ${mapSwapErrorMessage(error)}`);
+    throw new Error(`Failed to get swap quote: ${mapSwapRoutingError(error)}`);
   }
 }
 
@@ -418,8 +392,12 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     // Resolve token symbols to addresses
     const srcTokenAddr = await resolveToken(params.quote.srcChainId, params.quote.srcToken);
     const dstTokenAddr = await resolveToken(params.quote.dstChainId, params.quote.dstToken);
-    ensureSolverCompatibleToken(params.quote.srcChainId, srcTokenAddr, 'source');
-    ensureSolverCompatibleToken(params.quote.dstChainId, dstTokenAddr, 'destination');
+    ensureSolverCompatibleSwapRoute({
+      srcChainId: params.quote.srcChainId,
+      dstChainId: params.quote.dstChainId,
+      srcTokenAddress: srcTokenAddr,
+      dstTokenAddress: dstTokenAddr,
+    });
     
     // Get token info for decimals
     const srcTokenInfo = await getTokenInfo(params.quote.srcChainId, srcTokenAddr);
@@ -549,7 +527,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         : typeof swapResult.error === 'string' 
           ? swapResult.error 
           : JSON.stringify(swapResult.error, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
-      throw new Error(`Swap failed: ${mapSwapErrorMessage(errorMsg)}`);
+      throw new Error(`Swap failed: ${mapSwapRoutingError(errorMsg)}`);
     }
     
     const value = swapResult.ok ? swapResult.value : swapResult;
@@ -633,7 +611,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       error: error instanceof Error ? error.message : String(error)
     });
     
-    throw new Error(`Swap execution failed: ${mapSwapErrorMessage(error)}`);
+    throw new Error(`Swap execution failed: ${mapSwapRoutingError(error)}`);
   }
 }
 

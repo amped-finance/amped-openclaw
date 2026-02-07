@@ -24,6 +24,7 @@ import { resolveToken } from '../utils/tokenResolver';
 import { toSodaxChainId } from '../wallet/types';
 import { handleSwapQuote, handleSwapExecute } from './swap';
 import { type TransactionTracking } from '../utils/txTracking';
+import { ensureBridgeRouteAvailable } from '../utils/routeAvailability';
 
 // ============================================================================
 // TypeBox Schemas
@@ -150,21 +151,11 @@ async function handleBridgeDiscover(
 
   try {
     const sodax = getSodaxClient();
-
-    // Get bridgeable tokens from SODAX SDK
-    // SDK API: getBridgeableTokens(from: SpokeChainId, to: SpokeChainId, token: string)
-    const result = sodax.bridge.getBridgeableTokens(
-      toSodaxChainId(srcChainId) as any,
-      toSodaxChainId(dstChainId) as any,
-      srcTokenAddr
-    );
-
-    // Handle Result type - SDK returns Result<XToken[], unknown>
-    if (!result.ok) {
-      throw new Error(`Failed to get bridgeable tokens: ${serializeError((result as any).error) || 'Unknown error'}`);
-    }
-
-    const tokens = result.value;
+    const tokens = await ensureBridgeRouteAvailable(sodax, {
+      srcChainId,
+      dstChainId,
+      srcTokenAddress: srcTokenAddr,
+    });
     const bridgeableTokens = tokens.map((t: any) => t.address || t.symbol || String(t));
 
     console.log('[bridge:discover] Found bridgeable tokens', {
@@ -218,26 +209,13 @@ async function handleBridgeQuote(
     // Create XToken objects for the SDK
     const fromToken = { chainId: toSodaxChainId(srcChainId), address: srcTokenAddr } as any;
     const toToken = { chainId: toSodaxChainId(dstChainId), address: dstTokenAddr } as any;
-
-    // Check if the route is bridgeable using isBridgeable
-    // SDK may have different signature - adapting based on available methods
-    let isBridgeable = false;
-    try {
-      // Try to get bridgeable tokens to check if route exists
-      const result = sodax.bridge.getBridgeableTokens(
-        toSodaxChainId(srcChainId) as any,
-        toSodaxChainId(dstChainId) as any,
-        srcTokenAddr
-      );
-      if (result.ok && result.value.length > 0) {
-        isBridgeable = result.value.some((t: any) => 
-          t.address?.toLowerCase() === dstTokenAddr.toLowerCase() ||
-          t === dstTokenAddr
-        );
-      }
-    } catch {
-      isBridgeable = false;
-    }
+    await ensureBridgeRouteAvailable(sodax, {
+      srcChainId,
+      dstChainId,
+      srcTokenAddress: srcTokenAddr,
+      dstTokenAddress: dstTokenAddr,
+    });
+    const isBridgeable = true;
 
     // Get maximum bridgeable amount
     let maxBridgeableAmount = '0';
