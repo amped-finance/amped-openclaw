@@ -30,6 +30,7 @@ import {
   type TransactionTracking,
 } from '../utils/txTracking';
 import { ensureSolverCompatibleSwapRoute, mapSwapRoutingError } from '../utils/routeAvailability';
+import { checkGasReserve, formatGasReserveWarning } from '../utils/gasReserve';
 
 // ============================================================================
 // SODAX API & Explorer Links
@@ -448,6 +449,33 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       srcDecimals,
       dstDecimals
     });
+    
+    // 5.5 Gas Reserve Protection: Check if swapping native token
+    const isNativeToken = srcTokenAddr.toLowerCase() === '0x0000000000000000000000000000000000000000';
+    if (isNativeToken) {
+      try {
+        // Get current balance
+        const balance = await (spokeProvider as any).walletProvider.getBalance?.();
+        if (balance !== undefined) {
+          const gasCheck = checkGasReserve(balance, inputAmountRaw, params.quote.srcChainId);
+          if (!gasCheck.safe) {
+            throw new Error(
+              formatGasReserveWarning(
+                params.quote.srcChainId,
+                (Number(balance) / 1e18).toFixed(6),
+                params.quote.inputAmount
+              )
+            );
+          }
+        }
+      } catch (error) {
+        // If gas check fails, throw the error; if balance query fails, log and continue
+        if (error instanceof Error && error.message.includes('Gas Reserve Protection')) {
+          throw error;
+        }
+        console.warn('[swap_execute] Could not verify gas reserve:', error);
+      }
+    }
     
     // 6. Build intentParams (used for allowance check, approval, and swap)
     const intentParams = {
