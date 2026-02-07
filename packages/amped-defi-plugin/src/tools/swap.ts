@@ -22,32 +22,19 @@ import { getWalletManager } from '../wallet/walletManager';
 import type { AgentTools } from '../types';
 import { toSodaxChainId } from '../wallet/types';
 import { getSodaxApiClient } from '../utils/sodaxApi';
+import {
+  buildIntentTrackingLink,
+  buildTxTrackingLink,
+  getSodaxMessageSearchUrl,
+  getSodaxIntentUrl,
+  type TransactionTracking,
+} from '../utils/txTracking';
 
 // ============================================================================
 // SODAX API & Explorer Links
 // ============================================================================
 
 const SODAX_CANARY_API = 'https://canary-api.sodax.com/v1/be';
-
-// Chain ID to block explorer mapping
-const CHAIN_EXPLORERS: Record<string, string> = {
-  'ethereum': 'https://etherscan.io/tx/',
-  'base': 'https://basescan.org/tx/',
-  'arbitrum': 'https://arbiscan.io/tx/',
-  'optimism': 'https://optimistic.etherscan.io/tx/',
-  'polygon': 'https://polygonscan.com/tx/',
-  'sonic': 'https://sonicscan.org/tx/',
-  'avalanche': 'https://snowtrace.io/tx/',
-  'bsc': 'https://bscscan.com/tx/',
-  'solana': 'https://solscan.io/tx/',
-};
-
-function getExplorerLink(chainId: string, txHash: string): string | undefined {
-  // Normalize chain ID (remove 0x prefix and suffix if present)
-  const normalizedChainId = chainId.replace(/^0x[\\da-f]+\\./, '').toLowerCase();
-  const explorer = CHAIN_EXPLORERS[normalizedChainId];
-  return explorer ? `${explorer}${txHash}` : undefined;
-}
 
 async function fetchIntentFromSodax(intentHash: string): Promise<any> {
   try {
@@ -73,14 +60,6 @@ function toHexIntentHash(hash: unknown): string | undefined {
   } catch {
     return str; // Return as-is if conversion fails
   }
-}
-
-function getSodaxScanUrl(txHash: string): string {
-  return `https://sodaxscan.com/messages/search?value=${txHash}`;
-}
-
-function getSodaxIntentApiUrl(intentHash: string): string {
-  return `${SODAX_CANARY_API}/intent/${intentHash}`;
 }
 
 // SODAX internal chain ID to block explorer mapping
@@ -208,6 +187,8 @@ const SwapExecuteResultSchema = Type.Object({
   spokeTxHash: Type.String(),
   hubTxHash: Type.Optional(Type.String()),
   intentHash: Type.Optional(Type.String()),
+  fulfillmentTxHash: Type.Optional(Type.String()),
+  tracking: Type.Optional(Type.Any()),
   status: Type.String(),
   message: Type.Optional(Type.String())
 });
@@ -222,6 +203,8 @@ const SwapStatusResultSchema = Type.Object({
   intentHash: Type.Optional(Type.String()),
   spokeTxHash: Type.Optional(Type.String()),
   hubTxHash: Type.Optional(Type.String()),
+  fulfillmentTxHash: Type.Optional(Type.String()),
+  tracking: Type.Optional(Type.Any()),
   filledAmount: Type.Optional(Type.String()),
   error: Type.Optional(Type.String()),
   createdAt: Type.Optional(Type.Number()),
@@ -245,6 +228,7 @@ const SwapCancelParamsSchema = Type.Object({
 const SwapCancelResultSchema = Type.Object({
   success: Type.Boolean(),
   txHash: Type.Optional(Type.String()),
+  tracking: Type.Optional(Type.Any()),
   message: Type.String()
 });
 
@@ -534,32 +518,61 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     
     const value = swapResult.ok ? swapResult.value : swapResult;
     
-    // SDK may return [response, intent, deliveryInfo] tuple
-    const [solverResponse, intent, deliveryInfo] = Array.isArray(value) ? value : [value, undefined, undefined];
-    
-    // Extract internal tracking info
-    const srcTxHash = deliveryInfo?.srcTxHash;
-    const intentHash = toHexIntentHash((solverResponse as any)?.intent_hash) || toHexIntentHash(intent?.intentId);
-    
+    // SDK may return [response, intent, deliveryInfo] or [spokeTxHash, hubTxHash]
+    const [first, second, third] = Array.isArray(value) ? value : [value, undefined, undefined];
+    const solverResponse = first as any;
+    const intent = second as any;
+    const deliveryInfo = third as any;
+    const srcTxHash = String(
+      deliveryInfo?.srcTxHash ||
+      (typeof first === 'string' ? first : undefined) ||
+      solverResponse?.srcTxHash ||
+      solverResponse?.txHash ||
+      ''
+    ) || undefined;
+    const hubTxHash = String(
+      deliveryInfo?.hubTxHash ||
+      (typeof second === 'string' ? second : undefined) ||
+      intent?.hubTxHash ||
+      ''
+    ) || undefined;
+    const intentHash =
+      toHexIntentHash(solverResponse?.intent_hash) ||
+      toHexIntentHash(intent?.intentId) ||
+      toHexIntentHash(deliveryInfo?.intentHash);
+
     // Poll for delivery confirmation (wait up to 60s)
-    let deliveryResult: { delivered: boolean; deliveryExplorer?: string } = { delivered: false };
+    let deliveryResult: { delivered: boolean; deliveryTxHash?: string; deliveryExplorer?: string; dstChainId?: number } = { delivered: false };
     if (intentHash) {
       console.log('[swap_execute] Waiting for delivery confirmation...');
       deliveryResult = await pollForDelivery(intentHash, 60000, 3000);
     }
-    
+
+    const tracking: TransactionTracking = {
+      sourceTx: buildTxTrackingLink(srcTxHash, params.quote.srcChainId),
+      hubTx: buildTxTrackingLink(hubTxHash, 'sonic'),
+      destinationTx: buildTxTrackingLink(
+        deliveryResult.deliveryTxHash,
+        deliveryResult.dstChainId ?? params.quote.dstChainId
+      ),
+      intent: buildIntentTrackingLink(intentHash),
+    };
+
     // Build user-friendly result
     const result = {
       status: deliveryResult.delivered ? 'delivered' : 'submitted',
       message: deliveryResult.delivered 
         ? 'Swap completed! Funds delivered to destination.' 
         : 'Swap submitted, awaiting cross-chain delivery...',
-      // User-friendly tracking link
-      sodaxScanUrl: srcTxHash ? getSodaxScanUrl(srcTxHash) : undefined,
-      // Source chain: where user initiated the swap
-      // Destination chain: where user RECEIVED funds
-      initiationTx: srcTxHash ? getExplorerLink(params.quote.srcChainId, srcTxHash) : undefined,
-      receiptTx: deliveryResult.deliveryExplorer,
+      spokeTxHash: srcTxHash,
+      hubTxHash,
+      intentHash,
+      fulfillmentTxHash: deliveryResult.deliveryTxHash,
+      tracking,
+      // Legacy fields kept for backward compatibility.
+      sodaxScanUrl: tracking.intent?.sodaxScanUrl || (srcTxHash ? getSodaxMessageSearchUrl(srcTxHash) : undefined),
+      initiationTx: tracking.sourceTx?.explorerUrl,
+      receiptTx: tracking.destinationTx?.explorerUrl || deliveryResult.deliveryExplorer,
     };
     
     logStructured({
@@ -667,12 +680,20 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
     const fulfillmentTxHash = filledEvent?.txHash;
     const receivedOutput = filledEvent?.intentState?.receivedOutput;
     
+    const spokeTxHash = params.txHash !== hubTxHash ? params.txHash : undefined;
+    const tracking: TransactionTracking = {
+      sourceTx: buildTxTrackingLink(spokeTxHash, intent?.srcChain),
+      hubTx: buildTxTrackingLink(hubTxHash, 'sonic'),
+      destinationTx: buildTxTrackingLink(fulfillmentTxHash, intent?.dstChain),
+      intent: buildIntentTrackingLink(intentHash),
+    };
+
     // Build result
     const result: Record<string, unknown> = {
       status,
       intentHash,
       hubTxHash,  // Hub chain tx that created the intent
-      spokeTxHash: params.txHash !== hubTxHash ? params.txHash : undefined,  // Original spoke tx if different
+      spokeTxHash,  // Original spoke tx if different
       open: isOpen,
       // Intent details
       srcChain: intent?.srcChain,
@@ -687,8 +708,11 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       // Fulfillment details
       fulfillmentTxHash,
       fulfillmentChain: intent?.dstChain,
-      // Tracking links
-      sodaxScanUrl: `https://sodaxscan.com/intents/${intentHash}`,
+      tracking,
+      // Legacy field kept for backward compatibility.
+      sodaxScanUrl: tracking.intent?.sodaxScanUrl || getSodaxIntentUrl(intentHash),
+      initiationTx: tracking.sourceTx?.explorerUrl,
+      receiptTx: tracking.destinationTx?.explorerUrl,
     };
     
     logStructured({
@@ -779,6 +803,9 @@ async function handleSwapCancel(params: SwapCancelParams): Promise<Record<string
     const result = {
       success: true,
       txHash: cancelTxHash,
+      tracking: {
+        sourceTx: buildTxTrackingLink(cancelTxHash, params.srcChainId),
+      },
       message: 'Intent cancelled successfully'
     };
     

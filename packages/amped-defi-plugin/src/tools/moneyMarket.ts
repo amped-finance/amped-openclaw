@@ -28,6 +28,7 @@ import { serializeError } from '../utils/errorUtils';
 import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
 import { toSodaxChainId } from '../wallet/types';
 import { parseUnits } from 'viem';
+import { buildTxTrackingLink, type TransactionTracking } from '../utils/txTracking';
 
 // ============================================================================
 // TypeBox Schemas
@@ -269,6 +270,7 @@ interface MoneyMarketOperationResult {
   dstSpokeTxHash?: string;
   // Raw intent data (for createIntent operations)
   rawIntent?: unknown;
+  tracking?: TransactionTracking;
 }
 
 interface IntentResult extends MoneyMarketOperationResult {
@@ -528,6 +530,22 @@ function isCrossChainOperation(srcChainId: string, dstChainId?: string): boolean
   return !!dstChainId && dstChainId !== srcChainId;
 }
 
+function buildMoneyMarketTracking(
+  spokeTxHash: string | undefined,
+  hubTxHash: string | undefined,
+  sourceChainId: string,
+  destinationChainId?: string
+): TransactionTracking | undefined {
+  const sourceTx = buildTxTrackingLink(spokeTxHash, sourceChainId);
+  const hubTx = buildTxTrackingLink(hubTxHash, 'sonic');
+  const destinationTx =
+    destinationChainId && destinationChainId !== sourceChainId
+      ? undefined
+      : sourceTx;
+  if (!sourceTx && !hubTx && !destinationTx) return undefined;
+  return { sourceTx, hubTx, destinationTx };
+}
+
 // ============================================================================
 // Tool Handlers
 // ============================================================================
@@ -615,6 +633,7 @@ async function handleSupply(
     
     const value = supplyResult.ok ? supplyResult.value : supplyResult;
     const { spokeTxHash, hubTxHash } = parseRelayTxHashes(value);
+    const tracking = buildMoneyMarketTracking(spokeTxHash, hubTxHash, chainId, dstChainId || chainId);
 
     return {
       success: true,
@@ -629,6 +648,7 @@ async function handleSupply(
       token,
       amount,
       isCrossChain: crossChain,
+      tracking,
       message: crossChain 
         ? `Successfully supplied ${amount} ${token} on ${chainId}. Collateral available on ${dstChainId || chainId}.`
         : `Successfully supplied ${amount} ${token} to money market on ${chainId}`,
@@ -739,6 +759,7 @@ async function handleWithdraw(
     
     const value = withdrawResult.ok ? withdrawResult.value : withdrawResult;
     const { spokeTxHash, hubTxHash } = parseRelayTxHashes(value);
+    const tracking = buildMoneyMarketTracking(spokeTxHash, hubTxHash, chainId, dstChainId || chainId);
 
     return {
       success: true,
@@ -753,6 +774,7 @@ async function handleWithdraw(
       token,
       amount,
       isCrossChain: crossChain,
+      tracking,
       message: crossChain
         ? `Successfully withdrew ${amount} ${token} from ${chainId} to ${dstChainId}`
         : `Successfully withdrew ${amount} ${token} from money market on ${chainId}`,
@@ -878,6 +900,7 @@ async function handleBorrow(
     
     const value = borrowResult.ok ? borrowResult.value : borrowResult;
     const { spokeTxHash, hubTxHash } = parseRelayTxHashes(value);
+    const tracking = buildMoneyMarketTracking(spokeTxHash, hubTxHash, chainId, dstChainId || chainId);
 
     return {
       success: true,
@@ -892,6 +915,7 @@ async function handleBorrow(
       token,
       amount,
       isCrossChain: crossChain,
+      tracking,
       message: crossChain
         ? `Successfully borrowed ${amount} ${token} on ${dstChainId} using collateral from ${chainId}. Interest rate mode: ${interestRateMode === 1 ? 'Stable' : 'Variable'}`
         : `Successfully borrowed ${amount} ${token} from money market on ${chainId}. Interest rate mode: ${interestRateMode === 1 ? 'Stable' : 'Variable'}`,
@@ -996,6 +1020,7 @@ async function handleRepay(
     
     const value = repayResult.ok ? repayResult.value : repayResult;
     const { spokeTxHash, hubTxHash } = parseRelayTxHashes(value);
+    const tracking = buildMoneyMarketTracking(spokeTxHash, hubTxHash, chainId, collateralChainId || chainId);
 
     return {
       success: true,
@@ -1009,6 +1034,7 @@ async function handleRepay(
       token,
       amount: repayAll ? "max (full debt)" : amount,
       isCrossChain: crossChain,
+      tracking,
       message: repayAll
         ? `Successfully repaid full debt for ${token} on ${chainId}`
         : `Successfully repaid ${amount} ${token} to money market on ${chainId}`,

@@ -23,6 +23,7 @@ import { serializeError } from '../utils/errorUtils';
 import { resolveToken } from '../utils/tokenResolver';
 import { toSodaxChainId } from '../wallet/types';
 import { handleSwapQuote, handleSwapExecute } from './swap';
+import { type TransactionTracking } from '../utils/txTracking';
 
 // ============================================================================
 // TypeBox Schemas
@@ -119,6 +120,11 @@ type BridgeExecuteParams = Static<typeof BridgeExecuteSchema>;
 interface TransactionResult {
   spokeTxHash: string;
   hubTxHash?: string;
+  intentHash?: string;
+  status?: string;
+  message?: string;
+  sodaxScanUrl?: string;
+  tracking?: TransactionTracking;
 }
 
 /**
@@ -350,12 +356,21 @@ async function handleBridgeExecute(
     console.log('[bridge:execute] Swap executed', swapResult);
 
     // Map swap result to bridge result format
+    const tracking = (swapResult.tracking as TransactionTracking | undefined);
+    const spokeTxHash = tracking?.sourceTx?.txHash || String(swapResult.spokeTxHash || '');
+    const hubTxHash = tracking?.hubTx?.txHash || (swapResult.hubTxHash ? String(swapResult.hubTxHash) : undefined);
+    const intentHash = tracking?.intent?.intentHash || (swapResult.intentHash ? String(swapResult.intentHash) : undefined);
+
     return {
-      spokeTxHash: String(swapResult.initiationTx || swapResult.spokeTxHash || ''),
-      hubTxHash: swapResult.hubTxHash ? String(swapResult.hubTxHash) : undefined,
+      spokeTxHash,
+      hubTxHash,
+      intentHash,
       status: String(swapResult.status),
       message: swapResult.message ? String(swapResult.message) : 'Bridge executed via swap infrastructure',
-      sodaxScanUrl: swapResult.sodaxScanUrl ? String(swapResult.sodaxScanUrl) : undefined,
+      sodaxScanUrl:
+        tracking?.intent?.sodaxScanUrl ||
+        (swapResult.sodaxScanUrl ? String(swapResult.sodaxScanUrl) : undefined),
+      tracking,
     } as TransactionResult;
   } catch (error) {
     const errorMessage = serializeError(error);

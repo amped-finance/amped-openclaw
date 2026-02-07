@@ -98,6 +98,8 @@ describe('moneyMarket handlers', () => {
     expect(result.success).toBe(true);
     expect(result.spokeTxHash).toBe('0xSpoke');
     expect(result.hubTxHash).toBe('0xHub');
+    expect((result as any).tracking?.sourceTx?.explorerUrl).toBe('https://sonicscan.org/tx/0xSpoke');
+    expect((result as any).tracking?.hubTx?.explorerUrl).toBe('https://sonicscan.org/tx/0xHub');
     expect(moneyMarket.withdraw).toHaveBeenCalledTimes(1);
   });
 
@@ -179,5 +181,7 @@ describe('moneyMarket handlers', () => {
     const repayParams = moneyMarket.repay.mock.calls[0][0];
     expect(repayParams.amount).toBe(maxUint256);
     expect(repayParams.toChainId).toBe('146');
+    expect((result as any).tracking?.sourceTx?.explorerUrl).toBe('https://basescan.org/tx/0xSpoke');
+    expect((result as any).tracking?.hubTx?.explorerUrl).toBe('https://sonicscan.org/tx/0xHub');
   });
 });
