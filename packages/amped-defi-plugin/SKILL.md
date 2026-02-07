@@ -353,11 +353,11 @@ Step 4: Execute Swap
       maxSlippageBps=100,
       skipSimulation=false
     )
-  ← Returns: { spokeTxHash, hubTxHash, intentHash, status }
+  ← Returns: { status, message, spokeTxHash, hubTxHash, intentHash, fulfillmentTxHash?, tracking }
 
 Step 5: Verify Status
   → amped_swap_status(txHash=spokeTxHash)
-  ← Returns: { status, confirmations, filledAmount, remainingAmount }
+  ← Returns: { status, spokeTxHash, hubTxHash, fulfillmentTxHash?, tracking, ...intentDetails }
 
 Step 6: Handle Failures (if needed)
   → amped_swap_cancel(walletId="main", intent=<intent>, srcChainId="ethereum")
@@ -1146,6 +1146,22 @@ Swaps and bridges use **intent-based execution**:
 - The `sodaxScanUrl` in responses shows full intent lifecycle
 
 **Don't assume completion** just because the tool returned success — that means the intent was submitted, not settled.
+
+### Transaction Response Contract (Required)
+
+For tools that submit transactions (`amped_swap_execute`, `amped_swap_status`, `amped_swap_cancel`, `amped_bridge_execute`, and money market execute tools), return a consistent `tracking` object whenever identifiers exist:
+
+- `tracking.sourceTx`: `{ txHash, chainId, explorerUrl, sodaxScanUrl }`
+- `tracking.hubTx`: `{ txHash, chainId, explorerUrl, sodaxScanUrl }`
+- `tracking.destinationTx`: `{ txHash, chainId, explorerUrl, sodaxScanUrl }` when known
+- `tracking.intent`: `{ intentHash, sodaxScanUrl, apiUrl }` when known
+
+Rules:
+- Every tx hash/intent hash returned to users must include verification links.
+- Keep legacy top-level fields for compatibility (`sodaxScanUrl`, `initiationTx`, `receiptTx`), but treat `tracking` as canonical.
+- Execute responses should include source/hub/intent immediately (if available), and destination once delivered.
+- Status responses should use the same `tracking` shape as execute.
+- When presenting links in user-facing summaries, include chain-specific emojis where suitable (for fast scanning in chat UIs).
 
 ### Solana Address Format
 
