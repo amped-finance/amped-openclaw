@@ -345,6 +345,7 @@ Step 3: Review Quote
   ✓ Check slippageBps ≤ maxSlippageBps (configurable, default 100)
   ✓ Verify expectedOutput meets requirements
   ✓ Confirm fees are acceptable
+  ✓ Confirm src/dst tokens are solver-compatible for the selected route
 
 Step 4: Execute Swap
   → amped_swap_execute(
@@ -1144,6 +1145,17 @@ Swaps and bridges use **intent-based execution**:
 
 **Don't assume completion** just because the tool returned success — that means the intent was submitted, not settled.
 
+### Solver Compatibility (Required)
+
+Before swap execution, verify both source and destination tokens are solver-compatible for their chains.
+
+If swap fails with unsupported token errors, return a clear incompatibility message and point users to:
+- https://docs.sodax.com/developers/deployments/solver-compatible-assets
+
+Behavior rule:
+- Do not silently fallback to arbitrary route guesses for incompatible tokens.
+- Tell the user the requested asset pair is not currently compatible with the solver.
+
 ### Transaction Response Contract (Required)
 
 For tools that submit transactions (`amped_swap_execute`, `amped_swap_status`, `amped_swap_cancel`, `amped_bridge_execute`, and money market execute tools), return a consistent `tracking` object whenever identifiers exist:
@@ -1173,3 +1185,12 @@ Default slippage (50 bps / 0.5%) may cause reverts during high volatility. Incre
 ### Per-Chain Health Factors
 
 Money market positions on different chains have **independent health factors**. Collateral on Base does NOT protect positions on Arbitrum. Always check per-chain health, not just aggregated.
+
+### Money Market Token Resolution
+
+For money market operations (`supply`, `borrow`, `withdraw`, `repay`), resolve/validate tokens from the **money market token catalog** for the chain, not the swap token catalog.
+
+Guidance:
+- Use MM-supported token lists for symbol/address resolution.
+- Only fallback to swap token catalogs if MM catalogs are temporarily unavailable.
+- If token is unsupported in MM for that chain, return a clear unsupported-token error.

@@ -313,6 +313,7 @@ Step 3: Review Quote
   ✓ Check slippageBps ≤ maxSlippageBps (configurable, default 100)
   ✓ Verify expectedOutput meets requirements
   ✓ Confirm fees are acceptable
+  ✓ Confirm src/dst tokens are solver-compatible for the selected route
 
 Step 4: Execute Swap
   → amped_swap_execute(
@@ -321,11 +322,11 @@ Step 4: Execute Swap
       maxSlippageBps=100,
       skipSimulation=false
     )
-  ← Returns: { spokeTxHash, hubTxHash, intentHash, status }
+  ← Returns: { status, message, spokeTxHash, hubTxHash, intentHash, fulfillmentTxHash?, tracking }
 
 Step 5: Verify Status
   → amped_swap_status(txHash=spokeTxHash)
-  ← Returns: { status, confirmations, filledAmount, remainingAmount }
+  ← Returns: { status, spokeTxHash, hubTxHash, fulfillmentTxHash?, tracking, ...intentDetails }
 
 Step 6: Handle Failures (if needed)
   → amped_swap_cancel(walletId="main", intent=<intent>, srcChainId="ethereum")
@@ -762,9 +763,25 @@ Policy violations return structured errors with:
 | `INSUFFICIENT_BALANCE` | Wallet balance < requested amount | Reduce amount or fund wallet |
 | `INSUFFICIENT_ALLOWANCE` | Token allowance < requested amount | Tool will auto-approve, or approve manually |
 | `QUOTE_EXPIRED` | Quote deadline has passed | Get fresh quote |
+| `QUOTE_UNSUPPORTED_TOKEN` | Token is not currently solver-compatible on selected chain | Use compatible assets and re-quote |
 | `BRIDGE_NOT_AVAILABLE` | Token pair not bridgeable | Use swap for different tokens or different route |
 | `MM_HEALTH_FACTOR_LOW` | Operation would cause liquidation risk | Repay debt or add collateral first |
 | `MM_CROSS_CHAIN_NOT_SUPPORTED` | Cross-chain operation not supported for this pair | Use same-chain operation or different token/chain |
+
+### Solver Compatibility (Required)
+
+For swap execution:
+- Validate both source and destination assets are solver-compatible for their chains.
+- If incompatible, return a clear message and link users to:
+  - https://docs.sodax.com/developers/deployments/solver-compatible-assets
+- Do not try silent routing fallbacks for incompatible assets.
+
+### Money Market Token Resolution
+
+For money market operations (`supply`, `borrow`, `withdraw`, `repay`):
+- Resolve/validate tokens using the money-market token catalog for the chain.
+- Do not use swap-token catalogs as the primary source for MM token resolution.
+- If MM catalog is temporarily unavailable, fallback is acceptable but should be treated as best-effort.
 
 ## Idempotency and Retries
 
