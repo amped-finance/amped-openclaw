@@ -1,4 +1,4 @@
-const PORTFOLIO_MAX_LINE_WIDTH = 36;
+const PORTFOLIO_MAX_LINE_WIDTH = 50;
 
 const CHAIN_EMOJIS: Record<string, string> = {
   lightlink: '⚡',
@@ -15,6 +15,21 @@ const CHAIN_EMOJIS: Record<string, string> = {
   solana: '◎',
 };
 
+const CHAIN_PROPER_NAMES: Record<string, string> = {
+  lightlink: 'LightLink',
+  base: 'Base',
+  sonic: 'Sonic',
+  arbitrum: 'Arbitrum',
+  optimism: 'Optimism',
+  polygon: 'Polygon',
+  bsc: 'BSC',
+  ethereum: 'Ethereum',
+  avalanche: 'Avalanche',
+  hyperevm: 'Hyperliquid',
+  kaia: 'Kaia',
+  solana: 'Solana',
+};
+
 interface PortfolioWallet {
   wallet: { nickname: string; address: string; type: string };
   balances: Array<{
@@ -25,6 +40,9 @@ interface PortfolioWallet {
     chainTotalUsd?: string;
   }>;
   moneyMarket?: {
+    totalSupplyUsd: string;
+    totalBorrowUsd: string;
+    netWorthUsd: string;
     chainBreakdown: Array<{
       chainId: string;
       supplyUsd: string;
@@ -50,10 +68,11 @@ function clip(line: string, max: number = PORTFOLIO_MAX_LINE_WIDTH): string {
   return `${line.slice(0, max - 1)}…`;
 }
 
-function fmtUsd(value?: string): string {
-  if (!value) return '$0';
-  if (!value.startsWith('$')) return `$${value}`;
-  return value;
+function fmtUsd(value?: string | number): string {
+  if (value === undefined || value === null) return '$0';
+  const str = String(value);
+  if (!str.startsWith('$')) return `$${str}`;
+  return str;
 }
 
 function shortAddress(address: string): string {
@@ -83,39 +102,110 @@ function chainEmoji(chainName: string): string {
   return CHAIN_EMOJIS[chainName.toLowerCase()] || '•';
 }
 
+function chainProperName(chainName: string): string {
+  const lower = chainName.toLowerCase();
+  // Handle SDK format like "0x2105.base"
+  if (lower.includes('.')) {
+    const parts = lower.split('.');
+    const name = parts[parts.length - 1];
+    return CHAIN_PROPER_NAMES[name] || chainName;
+  }
+  return CHAIN_PROPER_NAMES[lower] || chainName;
+}
+
 function pushLine(lines: string[], line: string): void {
   lines.push(clip(line));
 }
 
 export function renderPortfolioTree(input: PortfolioRenderInput): string {
   const lines: string[] = [];
+  const totalWallets = input.wallets.length;
 
+  // Header
   pushLine(lines, `📊 Portfolio ${fmtUsd(input.summary.estimatedTotalUsd)}`);
-  pushLine(lines, `• wallets: ${input.summary.walletCount} | chains: ${input.summary.chainsQueried}`);
+  pushLine(lines, `├─ Wallets: ${input.summary.walletCount} | Chains: ${input.summary.chainsQueried}`);
+  pushLine(lines, '│');
 
-  for (const wallet of input.wallets) {
-    pushLine(lines, `• 🔑 ${wallet.wallet.nickname} ${fmtUsd(wallet.walletTotalUsd)}`);
-    pushLine(lines, `  • ${shortAddress(wallet.wallet.address)}`);
+  input.wallets.forEach((wallet, walletIdx) => {
+    const isLastWallet = walletIdx === totalWallets - 1;
+    const walletPrefix = isLastWallet ? '└─' : '├─';
+    const walletPad = isLastWallet ? '   ' : '│  ';
 
-    for (const balance of wallet.balances) {
-      const emoji = chainEmoji(balance.chainName);
-      const native = `${compactBalance(balance.native.balance)} ${balance.native.symbol}`;
-      pushLine(lines, `  • ${emoji} ${balance.chainName} ${native} ${fmtUsd(balance.chainTotalUsd)}`);
-    }
+    // Wallet header
+    pushLine(lines, `${walletPrefix} 🔑 ${wallet.wallet.nickname} ${fmtUsd(wallet.walletTotalUsd)}`);
+    pushLine(lines, `${walletPad}├─ Address: ${shortAddress(wallet.wallet.address)}`);
+    pushLine(lines, `${walletPad}│`);
 
-    if (wallet.moneyMarket?.chainBreakdown?.length) {
-      pushLine(lines, '  • 💰 Money Market');
-      for (const mm of wallet.moneyMarket.chainBreakdown) {
-        const label = mm.chainId.includes('.') ? mm.chainId.split('.').pop() || mm.chainId : mm.chainId;
-        const emoji = chainEmoji(label);
-        const hf = mm.healthFactor === '∞' ? '∞' : mm.healthFactor;
+    // Liquid assets section
+    if (wallet.balances.length > 0) {
+      const hasMM = wallet.moneyMarket?.chainBreakdown && wallet.moneyMarket.chainBreakdown.length > 0;
+      const liquidPrefix = hasMM ? '├─' : '└─';
+      const liquidPad = hasMM ? '│  ' : '   ';
+
+      pushLine(lines, `${walletPad}${liquidPrefix} 💧 Liquid Assets`);
+
+      wallet.balances.forEach((balance, balIdx) => {
+        const isLastChain = balIdx === wallet.balances.length - 1;
+        const chainPrefix = isLastChain ? '└─' : '├─';
+        const chainPad = isLastChain ? '   ' : '│  ';
+
+        const emoji = chainEmoji(balance.chainName);
+        const properName = chainProperName(balance.chainName);
+
+        pushLine(lines, `${walletPad}${liquidPad}${chainPrefix} ${emoji} ${properName} (${fmtUsd(balance.chainTotalUsd)})`);
+
+        // Native token
+        const hasTokens = balance.tokens && balance.tokens.length > 0;
+        const nativePrefix = hasTokens ? '├─' : '└─';
         pushLine(
           lines,
-          `    • ${emoji} ${label} $${mm.supplyUsd}/$${mm.borrowUsd} HF ${hf} ${healthEmoji(mm.healthStatus?.status)}`
+          `${walletPad}${liquidPad}${chainPad}${nativePrefix} Native: ${compactBalance(balance.native.balance)} ${balance.native.symbol}`
         );
+
+        // ERC20 tokens
+        if (hasTokens) {
+          balance.tokens.forEach((token, tIdx) => {
+            const isLastToken = tIdx === balance.tokens.length - 1;
+            const tokenPrefix = isLastToken ? '└─' : '├─';
+            pushLine(
+              lines,
+              `${walletPad}${liquidPad}${chainPad}${tokenPrefix} ERC20: ${compactBalance(token.balance)} ${token.symbol}`
+            );
+          });
+        }
+      });
+
+      if (hasMM) {
+        pushLine(lines, `${walletPad}│`);
       }
     }
-  }
+
+    // Money market section
+    if (wallet.moneyMarket?.chainBreakdown && wallet.moneyMarket.chainBreakdown.length > 0) {
+      const netWorth = fmtUsd(wallet.moneyMarket.netWorthUsd);
+      pushLine(lines, `${walletPad}└─ 💰 Money Market (${netWorth} net)`);
+
+      wallet.moneyMarket.chainBreakdown.forEach((mm, mmIdx) => {
+        const isLastMM = mmIdx === wallet.moneyMarket!.chainBreakdown.length - 1;
+        const mmPrefix = isLastMM ? '└─' : '├─';
+
+        const label = mm.chainId.includes('.') ? mm.chainId.split('.').pop() || mm.chainId : mm.chainId;
+        const emoji = chainEmoji(label);
+        const properName = chainProperName(label);
+        const hf = mm.healthFactor === '∞' ? '∞' : parseFloat(mm.healthFactor).toFixed(2);
+
+        pushLine(
+          lines,
+          `${walletPad}   ${mmPrefix} ${emoji} ${properName}: $${mm.supplyUsd} supply | $${mm.borrowUsd} borrow | HF ${hf} ${healthEmoji(mm.healthStatus?.status)}`
+        );
+      });
+    }
+
+    // Add spacing between wallets
+    if (!isLastWallet) {
+      pushLine(lines, '│');
+    }
+  });
 
   return lines.join('\n');
 }
