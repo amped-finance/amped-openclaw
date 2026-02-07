@@ -35,6 +35,7 @@ import {
 // ============================================================================
 
 const SODAX_CANARY_API = 'https://canary-api.sodax.com/v1/be';
+const SOLVER_COMPATIBILITY_DOCS_URL = 'https://docs.sodax.com/developers/deployments/solver-compatible-assets';
 
 async function fetchIntentFromSodax(intentHash: string): Promise<any> {
   try {
@@ -60,6 +61,37 @@ function toHexIntentHash(hash: unknown): string | undefined {
   } catch {
     return str; // Return as-is if conversion fails
   }
+}
+
+function isSameTokenAddress(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function ensureSolverCompatibleToken(
+  chainId: string,
+  tokenAddress: string,
+  role: 'source' | 'destination'
+): void {
+  const supported = getSupportedSwapTokensForChain(chainId);
+  if (!supported || supported.length === 0) return;
+
+  const found = supported.find(t => isSameTokenAddress(t.address, tokenAddress));
+  if (found) return;
+
+  const preview = supported.slice(0, 12).map(t => t.symbol).join(', ');
+  throw new Error(
+    `Token ${tokenAddress} is not currently solver-compatible as the ${role} asset on ${chainId}. ` +
+    `See ${SOLVER_COMPATIBILITY_DOCS_URL}. Supported examples: ${preview}`
+  );
+}
+
+function mapSwapErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lower = raw.toLowerCase();
+  if (lower.includes('unsupported token_src') || lower.includes('unsupported token_dst') || lower.includes('solver-compatible')) {
+    return `${raw}. Check compatible assets: ${SOLVER_COMPATIBILITY_DOCS_URL}`;
+  }
+  return raw;
 }
 
 // SODAX internal chain ID to block explorer mapping
@@ -119,7 +151,7 @@ async function pollForDelivery(
   return { delivered: false };
 }
 
-import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
+import { resolveToken, getTokenInfo, getSupportedSwapTokensForChain } from '../utils/tokenResolver';
 
 // ============================================================================
 // TypeBox Schemas
@@ -255,6 +287,8 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
     // Resolve token symbols to addresses
     const srcTokenAddr = await resolveToken(params.srcChainId, params.srcToken);
     const dstTokenAddr = await resolveToken(params.dstChainId, params.dstToken);
+    ensureSolverCompatibleToken(params.srcChainId, srcTokenAddr, 'source');
+    ensureSolverCompatibleToken(params.dstChainId, dstTokenAddr, 'destination');
     
     // Get token info for decimals
     const srcTokenInfo = await getTokenInfo(params.srcChainId, srcTokenAddr);
@@ -289,7 +323,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
         : typeof quoteResult.error === 'string' 
           ? quoteResult.error 
           : JSON.stringify(quoteResult.error, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
-      throw new Error(`Quote failed: ${errorMsg}`);
+      throw new Error(`Quote failed: ${mapSwapErrorMessage(errorMsg)}`);
     }
     
     const quote = quoteResult.ok ? quoteResult.value : quoteResult;
@@ -363,7 +397,7 @@ async function handleSwapQuote(params: SwapQuoteRequest): Promise<Record<string,
       error: error instanceof Error ? error.message : String(error)
     });
     
-    throw new Error(`Failed to get swap quote: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Failed to get swap quote: ${mapSwapErrorMessage(error)}`);
   }
 }
 
@@ -384,6 +418,8 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
     // Resolve token symbols to addresses
     const srcTokenAddr = await resolveToken(params.quote.srcChainId, params.quote.srcToken);
     const dstTokenAddr = await resolveToken(params.quote.dstChainId, params.quote.dstToken);
+    ensureSolverCompatibleToken(params.quote.srcChainId, srcTokenAddr, 'source');
+    ensureSolverCompatibleToken(params.quote.dstChainId, dstTokenAddr, 'destination');
     
     // Get token info for decimals
     const srcTokenInfo = await getTokenInfo(params.quote.srcChainId, srcTokenAddr);
@@ -513,7 +549,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
         : typeof swapResult.error === 'string' 
           ? swapResult.error 
           : JSON.stringify(swapResult.error, (k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
-      throw new Error(`Swap failed: ${errorMsg}`);
+      throw new Error(`Swap failed: ${mapSwapErrorMessage(errorMsg)}`);
     }
     
     const value = swapResult.ok ? swapResult.value : swapResult;
@@ -597,7 +633,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       error: error instanceof Error ? error.message : String(error)
     });
     
-    throw new Error(`Swap execution failed: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Swap execution failed: ${mapSwapErrorMessage(error)}`);
   }
 }
 

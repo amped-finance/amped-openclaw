@@ -12,6 +12,7 @@ import { toSodaxChainId } from '../wallet/types';
 
 // Cache tokens per chain to avoid repeated lookups
 const tokenCache = new Map<string, Token[]>();
+const moneyMarketTokenCache = new Map<string, Token[]>();
 
 // Native token addresses
 const EVM_NATIVE_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -165,6 +166,73 @@ function populateTokenCache(chainId: string): Token[] {
 }
 
 /**
+ * Populate money market token cache for a chain from SDK config service.
+ * Falls back to swap token catalog if MM catalog is unavailable.
+ */
+function populateMoneyMarketTokenCache(chainId: string): Token[] {
+  const sdkChainId = toSodaxChainId(chainId);
+  let tokens = moneyMarketTokenCache.get(chainId);
+  if (tokens) return tokens;
+
+  try {
+    const client = getSodaxClient();
+    const configService = (client as any).config;
+
+    if (configService?.getSupportedMoneyMarketTokensByChainId) {
+      tokens = [...configService.getSupportedMoneyMarketTokensByChainId(sdkChainId)] as Token[];
+    } else if (configService?.getMoneyMarketTokensByChainId) {
+      tokens = configService.getMoneyMarketTokensByChainId(sdkChainId) as Token[];
+    } else {
+      const allMmTokens =
+        (configService as any)?.sodaxConfig?.supportedMoneyMarketTokens ||
+        (configService as any)?.supportedMoneyMarketTokens;
+      tokens = (allMmTokens?.[sdkChainId] || allMmTokens?.[chainId] || []) as Token[];
+    }
+
+    if (tokens && tokens.length > 0) {
+      console.log(`[tokenResolver] Loaded ${tokens.length} MM tokens from SDK for ${chainId}`);
+    }
+  } catch (err) {
+    console.error(`[tokenResolver] Failed to fetch MM tokens for chain ${chainId}:`, err);
+    tokens = [];
+  }
+
+  // Fallback to swap catalog if MM catalog is empty/unavailable.
+  if (!tokens || tokens.length === 0) {
+    tokens = populateTokenCache(chainId);
+    if (tokens.length > 0) {
+      console.warn(`[tokenResolver] Falling back to swap token catalog for MM on ${chainId}`);
+    }
+  }
+
+  moneyMarketTokenCache.set(chainId, tokens || []);
+  return tokens || [];
+}
+
+function resolveTokenFromCatalog(
+  chainId: string,
+  tokenInput: string,
+  tokens: Token[],
+  scopeLabel: 'swap' | 'money market'
+): string {
+  if (isValidTokenAddress(tokenInput, chainId)) {
+    return isEvmAddress(tokenInput) ? tokenInput.toLowerCase() : tokenInput;
+  }
+
+  const symbolUpper = tokenInput.toUpperCase();
+  const token = tokens.find(t => t.symbol.toUpperCase() === symbolUpper);
+  if (!token) {
+    const available = tokens.length > 0 ? tokens.map(t => t.symbol).join(', ') : 'No tokens loaded';
+    throw new Error(
+      `Unknown token "${tokenInput}" for ${scopeLabel} on chain ${chainId}. ` +
+      `Available: ${available}. Alternatively, provide the token address directly.`
+    );
+  }
+
+  return isEvmAddress(token.address) ? token.address.toLowerCase() : token.address;
+}
+
+/**
  * Resolve a token symbol or address to a normalized address
  * 
  * @param chainId - The chain ID to resolve the token on
@@ -176,32 +244,8 @@ export async function resolveToken(
   chainId: string,
   tokenInput: string
 ): Promise<string> {
-  // If already a valid address, normalize and return
-  if (isValidTokenAddress(tokenInput, chainId)) {
-    // EVM addresses are lowercased, Solana addresses preserve case
-    return isEvmAddress(tokenInput) ? tokenInput.toLowerCase() : tokenInput;
-  }
-
-  // Get tokens from cache or SDK
   const tokens = populateTokenCache(chainId);
-
-  // Find by symbol (case-insensitive)
-  const symbolUpper = tokenInput.toUpperCase();
-  const token = tokens.find(t => t.symbol.toUpperCase() === symbolUpper);
-  
-  if (!token) {
-    // Build helpful error message with available tokens
-    const available = tokens.length > 0 
-      ? tokens.map(t => t.symbol).join(', ')
-      : 'No tokens loaded';
-    throw new Error(
-      `Unknown token "${tokenInput}" on chain ${chainId}. ` +
-      `Available: ${available}. ` +
-      `Alternatively, provide the token address directly.`
-    );
-  }
-
-  return isEvmAddress(token.address) ? token.address.toLowerCase() : token.address;
+  return resolveTokenFromCatalog(chainId, tokenInput, tokens, 'swap');
 }
 
 /**
@@ -216,6 +260,17 @@ export async function resolveTokens(
   tokenInputs: string[]
 ): Promise<string[]> {
   return Promise.all(tokenInputs.map(t => resolveToken(chainId, t)));
+}
+
+/**
+ * Resolve a token for money market operations using MM-specific token catalogs.
+ */
+export async function resolveMoneyMarketToken(
+  chainId: string,
+  tokenInput: string
+): Promise<string> {
+  const tokens = populateMoneyMarketTokenCache(chainId);
+  return resolveTokenFromCatalog(chainId, tokenInput, tokens, 'money market');
 }
 
 /**
@@ -268,11 +323,55 @@ export async function getTokenInfo(
   }
 }
 
+export async function getMoneyMarketTokenInfo(
+  chainId: string,
+  tokenInput: string
+): Promise<Token | null> {
+  const sdkChainId = toSodaxChainId(chainId);
+  if (isValidTokenAddress(tokenInput, chainId) && isNativeToken(tokenInput, chainId)) {
+    const nativeInfo = getNativeTokenInfo(chainId);
+    if (nativeInfo) return nativeInfo as unknown as Token;
+  }
+
+  const tokens = populateMoneyMarketTokenCache(chainId);
+
+  if (isValidTokenAddress(tokenInput, chainId)) {
+    const addrNorm = isEvmAddress(tokenInput) ? tokenInput.toLowerCase() : tokenInput;
+    const found = tokens.find(t => {
+      const tokenAddr = isEvmAddress(t.address) ? t.address.toLowerCase() : t.address;
+      return tokenAddr === addrNorm;
+    });
+    if (found) return found;
+
+    const fallback = FALLBACK_TOKENS[chainId] || FALLBACK_TOKENS[sdkChainId];
+    if (fallback) {
+      const fallbackToken = fallback.find(t => {
+        const tokenAddr = isEvmAddress(t.address) ? t.address.toLowerCase() : t.address;
+        return tokenAddr === addrNorm;
+      });
+      if (fallbackToken) return fallbackToken as unknown as Token;
+    }
+    return null;
+  }
+
+  const symbolUpper = tokenInput.toUpperCase();
+  return tokens.find(t => t.symbol.toUpperCase() === symbolUpper) || null;
+}
+
+export function getSupportedSwapTokensForChain(chainId: string): Token[] {
+  return populateTokenCache(chainId);
+}
+
+export function getSupportedMoneyMarketTokensForChain(chainId: string): Token[] {
+  return populateMoneyMarketTokenCache(chainId);
+}
+
 /**
  * Clear the token cache (useful for testing or after config refresh)
  */
 export function clearTokenCache(): void {
   tokenCache.clear();
+  moneyMarketTokenCache.clear();
 }
 
 /**
@@ -280,6 +379,10 @@ export function clearTokenCache(): void {
  */
 export function getCachedTokens(chainId: string): Token[] | undefined {
   return tokenCache.get(chainId);
+}
+
+export function getCachedMoneyMarketTokens(chainId: string): Token[] | undefined {
+  return moneyMarketTokenCache.get(chainId);
 }
 
 // Export address validation utilities for use by other modules

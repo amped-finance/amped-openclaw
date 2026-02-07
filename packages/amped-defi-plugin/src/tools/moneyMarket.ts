@@ -25,7 +25,7 @@ import { PolicyEngine } from "../policy/policyEngine";
 import { getWalletManager } from '../wallet/walletManager';
 import { AgentTools } from "../types";
 import { serializeError } from '../utils/errorUtils';
-import { resolveToken, getTokenInfo } from '../utils/tokenResolver';
+import { resolveMoneyMarketToken, getMoneyMarketTokenInfo } from '../utils/tokenResolver';
 import { toSodaxChainId } from '../wallet/types';
 import { parseUnits } from 'viem';
 import { buildTxTrackingLink, type TransactionTracking } from '../utils/txTracking';
@@ -325,11 +325,8 @@ async function prepareMoneyMarketOperation(
   const _sodaxClient = getSodaxClient(); // Just verify it's ready
   void _sodaxClient;
 
-  // Normalize chain ID to SDK format for token resolution
-  const sdkChainId = toSodaxChainId(chainId);
-
   // Resolve token symbol to address
-  const tokenAddr = await resolveToken(sdkChainId, token);
+  const tokenAddr = await resolveMoneyMarketToken(chainId, token);
 
   // Resolve wallet and create spoke provider
   const { walletAddress, spokeProvider } = await resolveWalletAndProvider(walletId, chainId);
@@ -363,8 +360,7 @@ async function getTokenDecimals(
   token: string
 ): Promise<number> {
   try {
-    const sdkChainId = toSodaxChainId(chainId);
-    const tokenInfo = await getTokenInfo(sdkChainId, token);
+    const tokenInfo = await getMoneyMarketTokenInfo(chainId, token);
     return tokenInfo?.decimals ?? 18;
   } catch {
     // If token info lookup fails, fall back to 18 decimals
@@ -403,7 +399,7 @@ async function normalizeWithdrawTokenAddress(
 
   // Try resolving token against destination chain first (frontend effectively does this via constrained UI selection).
   try {
-    const dstResolved = await resolveToken(targetChainId, tokenInput);
+    const dstResolved = await resolveMoneyMarketToken(targetChainId, tokenInput);
     if (isSupported(dstResolved)) {
       return dstResolved;
     }
@@ -853,7 +849,7 @@ async function handleBorrow(
     // So params.token must be the destination chain's token address
     let borrowTokenAddr = tokenAddr;
     if (crossChain && dstChainId) {
-      borrowTokenAddr = await resolveToken(dstChainId, token);
+      borrowTokenAddr = await resolveMoneyMarketToken(dstChainId, token);
       console.log('[mm:borrow] Cross-chain: resolved token on destination chain', {
         srcChain: chainId,
         dstChain: dstChainId,

@@ -2,6 +2,8 @@ const mockGetSodaxClient = jest.fn();
 const mockGetSpokeProvider = jest.fn();
 const mockResolveToken = jest.fn();
 const mockGetTokenInfo = jest.fn();
+const mockResolveMoneyMarketToken = jest.fn();
+const mockGetMoneyMarketTokenInfo = jest.fn();
 const mockToSodaxChainId = jest.fn();
 const mockCheckMoneyMarket = jest.fn();
 const mockResolveWallet = jest.fn();
@@ -18,6 +20,8 @@ jest.mock('../providers/spokeProviderFactory', () => ({
 jest.mock('../utils/tokenResolver', () => ({
   resolveToken: mockResolveToken,
   getTokenInfo: mockGetTokenInfo,
+  resolveMoneyMarketToken: mockResolveMoneyMarketToken,
+  getMoneyMarketTokenInfo: mockGetMoneyMarketTokenInfo,
 }));
 
 jest.mock('../wallet/types', () => ({
@@ -52,6 +56,7 @@ describe('moneyMarket handlers', () => {
     },
   };
   const isMoneyMarketSupportedToken = jest.fn();
+  const getSupportedMoneyMarketTokensByChainId = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -60,6 +65,7 @@ describe('moneyMarket handlers', () => {
       moneyMarket,
       config: {
         isMoneyMarketSupportedToken,
+        getSupportedMoneyMarketTokensByChainId,
       },
     });
     mockGetSpokeProvider.mockResolvedValue({
@@ -72,6 +78,8 @@ describe('moneyMarket handlers', () => {
     });
     mockResolveToken.mockResolvedValue('0xToken');
     mockGetTokenInfo.mockResolvedValue({ decimals: 6 });
+    mockResolveMoneyMarketToken.mockResolvedValue('0xToken');
+    mockGetMoneyMarketTokenInfo.mockResolvedValue({ decimals: 6 });
     mockCheckMoneyMarket.mockResolvedValue({ allowed: true });
     mockToSodaxChainId.mockImplementation((chainId: string) => {
       if (chainId === 'sonic') return '146';
@@ -79,6 +87,20 @@ describe('moneyMarket handlers', () => {
       return chainId;
     });
     isMoneyMarketSupportedToken.mockReturnValue(true);
+    getSupportedMoneyMarketTokensByChainId.mockImplementation((chainId: string) => {
+      if (chainId === '30') {
+        return [{ address: '0xMmUsdc', symbol: 'USDC', decimals: 6 }];
+      }
+      if (chainId === '146') {
+        return [{ address: '0xMmUsdcSonic', symbol: 'USDC', decimals: 6 }];
+      }
+      return [];
+    });
+    mockResolveMoneyMarketToken.mockImplementation(async (_chainId: string, token: string) => {
+      if (String(token).toUpperCase() === 'USDC') return '0xmmusdc';
+      if (String(token).toLowerCase() === 'sodaeth') return '0x4effb5813271699683c25c734f4dabc45b363709';
+      return '0xtoken';
+    });
 
     moneyMarket.isAllowanceValid.mockResolvedValue({ ok: true, value: true });
     moneyMarket.approve.mockResolvedValue({ ok: true, value: '0xApprove' });
@@ -184,4 +206,5 @@ describe('moneyMarket handlers', () => {
     expect((result as any).tracking?.sourceTx?.explorerUrl).toBe('https://basescan.org/tx/0xSpoke');
     expect((result as any).tracking?.hubTx?.explorerUrl).toBe('https://sonicscan.org/tx/0xHub');
   });
+
 });
