@@ -135,6 +135,7 @@ export const SODAX_SUPPORTED_CHAINS = [
   'bsc',
   'lightlink',
   'hyper',
+  'hyperevm',
   'kaia',
 ] as const;
 
@@ -152,11 +153,17 @@ export const SODAX_TO_SIMPLE_CHAIN: Record<string, string> = {
   '0x38.bsc': 'bsc',
   '0xa86a.avax': 'avalanche',
   '0x2019.kaia': 'kaia',
+  '0x1.icon': 'icon',
   // These don't have prefixes in SODAX
   'ethereum': 'ethereum',
   'sonic': 'sonic',
   'lightlink': 'lightlink',
-  'hyper': 'hyperevm',
+  'hyper': 'hyper',
+  'solana': 'solana',
+  'sui': 'sui',
+  'stellar': 'stellar',
+  'injective-1': 'injective',
+  'icon': 'icon',
   'kaia': 'kaia',
 };
 
@@ -178,6 +185,13 @@ export const SIMPLE_TO_SODAX_CHAIN: Record<string, string> = {
   'lightlink': 'lightlink',
   'hyperevm': 'hyper',
   'hyper': 'hyper',
+  'solana': 'solana',
+  'sui': 'sui',
+  'stellar': 'stellar',
+  'injective': 'injective-1',
+  'injective-1': 'injective-1',
+  'icon': '0x1.icon',
+  '0x1.icon': '0x1.icon',
 };
 
 /**
