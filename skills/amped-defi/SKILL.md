@@ -237,6 +237,11 @@ The SODAX money market supports powerful cross-chain operations:
    - Keep health factor > 1.5 for safety margin
    - Use `amped_money_market_positions` to monitor
 
+9. **Use a safety buffer for near-full withdrawals**
+   - Withdrawing too close to full balance can fail due to accrual/rounding and state changes between check and submit
+   - For full exits, prefer `withdrawType="all"`
+   - If specifying amount manually, leave a small buffer (typically 0.1%-1% or a fixed dust amount)
+
 ## Parameter Conventions
 
 ### Amount Units
@@ -586,7 +591,6 @@ Step 2: Repay (Full or Partial)
       walletId="main",
       chainId="sonic",
       token="0x...",
-      amount="-1",        // Special value for max
       repayAll=true
     )
 
@@ -614,6 +618,10 @@ Step 2: Withdraw
       withdrawType="default"  // Options: default, collateral, all
     )
   ← Returns: { txHash, spokeTxHash, hubTxHash }
+
+  If attempting near-full withdrawal:
+  → prefer withdrawType="all"
+  OR reduce manual amount slightly (e.g., 99.5% of visible balance)
 
 Step 3: Verify Withdrawal
   → amped_money_market_positions(walletId="main", chainId="sonic")
