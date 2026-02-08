@@ -117,93 +117,99 @@ function pushLine(lines: string[], line: string): void {
   lines.push(clip(line));
 }
 
+/**
+ * Format a chain balance in compact form: "Chain: 0.123 ETH, 4.56 USDC ($5.67)"
+ */
+function formatChainCompact(balance: PortfolioWallet['balances'][0]): string {
+  const emoji = chainEmoji(balance.chainName);
+  const properName = chainProperName(balance.chainName);
+  const parts: string[] = [];
+
+  // Native token
+  if (parseFloat(balance.native.balance) > 0) {
+    parts.push(`${compactBalance(balance.native.balance)} ${balance.native.symbol}`);
+  }
+
+  // Tokens (max 2, or sum them up)
+  const nonZeroTokens = balance.tokens.filter(t => parseFloat(t.balance) > 0);
+  if (nonZeroTokens.length > 0) {
+    // Show first 2 tokens, or summarize if more
+    const tokensToShow = nonZeroTokens.slice(0, 2);
+    tokensToShow.forEach(t => {
+      parts.push(`${compactBalance(t.balance)} ${t.symbol}`);
+    });
+    if (nonZeroTokens.length > 2) {
+      parts.push(`+${nonZeroTokens.length - 2} more`);
+    }
+  }
+
+  const valueStr = balance.chainTotalUsd ? ` (${balance.chainTotalUsd})` : '';
+  return `${emoji} ${properName}: ${parts.join(', ')}${valueStr}`;
+}
+
+/**
+ * Format money market in compact form: "MM: $X supply, $Y borrow, HF Z ✅"
+ */
+function formatMMCompact(mm: PortfolioWallet['moneyMarket']): string {
+  if (!mm) return '';
+
+  // Get overall health factor from chain breakdown (weighted average or worst)
+  // Use the minimum health factor across chains as the conservative measure
+  let worstHF = Infinity;
+  let worstStatus = { status: 'healthy', color: 'green' };
+
+  for (const chain of mm.chainBreakdown) {
+    const hf = chain.healthFactor === '∞' ? Infinity : parseFloat(chain.healthFactor);
+    if (hf < worstHF) {
+      worstHF = hf;
+      worstStatus = chain.healthStatus;
+    }
+  }
+
+  const hfStr = worstHF === Infinity ? '∞' : worstHF.toFixed(2);
+  const emoji = healthEmoji(worstStatus.status);
+  return `💰 MM: $${mm.totalSupplyUsd} supply, $${mm.totalBorrowUsd} borrow, HF ${hfStr} ${emoji}`;
+}
+
 export function renderPortfolioTree(input: PortfolioRenderInput): string {
   const lines: string[] = [];
-  const totalWallets = input.wallets.length;
 
   // Header
-  pushLine(lines, `📊 Portfolio ${fmtUsd(input.summary.estimatedTotalUsd)}`);
-  pushLine(lines, `├─ Wallets: ${input.summary.walletCount} | Chains: ${input.summary.chainsQueried}`);
-  pushLine(lines, '│');
+  pushLine(lines, `📊 Portfolio — ${fmtUsd(input.summary.estimatedTotalUsd)}`);
 
-  input.wallets.forEach((wallet, walletIdx) => {
-    const isLastWallet = walletIdx === totalWallets - 1;
-    const walletPrefix = isLastWallet ? '└─' : '├─';
-    const walletPad = isLastWallet ? '   ' : '│  ';
+  input.wallets.forEach((wallet) => {
+    // Wallet header with truncated address
+    pushLine(lines, '');
+    pushLine(lines, `🔑 ${wallet.wallet.nickname} — ${fmtUsd(wallet.walletTotalUsd)}`);
+    pushLine(lines, `\`${shortAddress(wallet.wallet.address)}\``);
 
-    // Wallet header
-    pushLine(lines, `${walletPrefix} 🔑 ${wallet.wallet.nickname} ${fmtUsd(wallet.walletTotalUsd)}`);
-    pushLine(lines, `${walletPad}├─ Address: ${shortAddress(wallet.wallet.address)}`);
-    pushLine(lines, `${walletPad}│`);
+    // Sort balances by USD value (descending)
+    const sortedBalances = [...wallet.balances].sort((a, b) => {
+      const aVal = parseFloat(a.chainTotalUsd?.replace('$', '') || '0');
+      const bVal = parseFloat(b.chainTotalUsd?.replace('$', '') || '0');
+      return bVal - aVal;
+    });
 
-    // Liquid assets section
-    if (wallet.balances.length > 0) {
-      const hasMM = wallet.moneyMarket?.chainBreakdown && wallet.moneyMarket.chainBreakdown.length > 0;
-      const liquidPrefix = hasMM ? '├─' : '└─';
-      const liquidPad = hasMM ? '│  ' : '   ';
+    // Show top 3 chains, group the rest
+    const topChains = sortedBalances.slice(0, 3);
+    const otherChains = sortedBalances.slice(3);
 
-      pushLine(lines, `${walletPad}${liquidPrefix} 💧 Liquid Assets`);
+    topChains.forEach(balance => {
+      pushLine(lines, `  ${formatChainCompact(balance)}`);
+    });
 
-      wallet.balances.forEach((balance, balIdx) => {
-        const isLastChain = balIdx === wallet.balances.length - 1;
-        const chainPrefix = isLastChain ? '└─' : '├─';
-        const chainPad = isLastChain ? '   ' : '│  ';
-
-        const emoji = chainEmoji(balance.chainName);
-        const properName = chainProperName(balance.chainName);
-
-        pushLine(lines, `${walletPad}${liquidPad}${chainPrefix} ${emoji} ${properName} (${fmtUsd(balance.chainTotalUsd)})`);
-
-        // Native token
-        const hasTokens = balance.tokens && balance.tokens.length > 0;
-        const nativePrefix = hasTokens ? '├─' : '└─';
-        pushLine(
-          lines,
-          `${walletPad}${liquidPad}${chainPad}${nativePrefix} Native: ${compactBalance(balance.native.balance)} ${balance.native.symbol}`
-        );
-
-        // ERC20 tokens
-        if (hasTokens) {
-          balance.tokens.forEach((token, tIdx) => {
-            const isLastToken = tIdx === balance.tokens.length - 1;
-            const tokenPrefix = isLastToken ? '└─' : '├─';
-            pushLine(
-              lines,
-              `${walletPad}${liquidPad}${chainPad}${tokenPrefix} ERC20: ${compactBalance(token.balance)} ${token.symbol}`
-            );
-          });
-        }
-      });
-
-      if (hasMM) {
-        pushLine(lines, `${walletPad}│`);
-      }
+    // Group smaller chains - show emojis of chains in the group
+    if (otherChains.length > 0) {
+      const otherTotal = otherChains.reduce((sum, b) => {
+        return sum + parseFloat(b.chainTotalUsd?.replace('$', '') || '0');
+      }, 0);
+      const chainEmojis = otherChains.map(b => chainEmoji(b.chainName)).join('');
+      pushLine(lines, `  ⛓️ ${chainEmojis} [${otherChains.length} other chains: $${otherTotal.toFixed(2)}]`);
     }
 
-    // Money market section
-    if (wallet.moneyMarket?.chainBreakdown && wallet.moneyMarket.chainBreakdown.length > 0) {
-      const netWorth = fmtUsd(wallet.moneyMarket.netWorthUsd);
-      pushLine(lines, `${walletPad}└─ 💰 Money Market (${netWorth} net)`);
-
-      wallet.moneyMarket.chainBreakdown.forEach((mm, mmIdx) => {
-        const isLastMM = mmIdx === wallet.moneyMarket!.chainBreakdown.length - 1;
-        const mmPrefix = isLastMM ? '└─' : '├─';
-
-        const label = mm.chainId.includes('.') ? mm.chainId.split('.').pop() || mm.chainId : mm.chainId;
-        const emoji = chainEmoji(label);
-        const properName = chainProperName(label);
-        const hf = mm.healthFactor === '∞' ? '∞' : parseFloat(mm.healthFactor).toFixed(2);
-
-        pushLine(
-          lines,
-          `${walletPad}   ${mmPrefix} ${emoji} ${properName}: $${mm.supplyUsd} supply | $${mm.borrowUsd} borrow | HF ${hf} ${healthEmoji(mm.healthStatus?.status)}`
-        );
-      });
-    }
-
-    // Add spacing between wallets
-    if (!isLastWallet) {
-      pushLine(lines, '│');
+    // Money market (single line)
+    if (wallet.moneyMarket && wallet.moneyMarket.chainBreakdown.length > 0) {
+      pushLine(lines, `  ${formatMMCompact(wallet.moneyMarket)}`);
     }
   });
 
