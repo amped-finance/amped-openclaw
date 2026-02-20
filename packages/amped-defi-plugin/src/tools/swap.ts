@@ -618,7 +618,7 @@ async function handleSwapExecute(params: SwapExecuteParams): Promise<Record<stri
       fulfillmentTxHash: deliveryResult.deliveryTxHash,
       tracking,
       // Legacy fields kept for backward compatibility.
-      sodaxScanUrl: tracking.intent?.sodaxScanUrl || (srcTxHash ? getSodaxMessageSearchUrl(srcTxHash) : undefined),
+      sodaxScanUrl: intentHash ? getSodaxMessageSearchUrl(intentHash) : (srcTxHash ? getSodaxMessageSearchUrl(srcTxHash) : undefined),
       initiationTx: tracking.sourceTx?.explorerUrl,
       receiptTx: tracking.destinationTx?.explorerUrl || deliveryResult.deliveryExplorer,
     };
@@ -758,7 +758,7 @@ async function handleSwapStatus(params: SwapStatusParams): Promise<Record<string
       fulfillmentChain: intent?.dstChain,
       tracking,
       // Legacy field kept for backward compatibility.
-      sodaxScanUrl: tracking.intent?.sodaxScanUrl || getSodaxIntentUrl(intentHash),
+      sodaxScanUrl: intentHash ? getSodaxMessageSearchUrl(intentHash) : (spokeTxHash ? getSodaxMessageSearchUrl(spokeTxHash) : undefined),
       initiationTx: tracking.sourceTx?.explorerUrl,
       receiptTx: tracking.destinationTx?.explorerUrl,
     };

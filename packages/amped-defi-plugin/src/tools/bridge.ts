@@ -23,7 +23,7 @@ import { serializeError } from '../utils/errorUtils';
 import { resolveToken } from '../utils/tokenResolver';
 import { toSodaxChainId } from '../wallet/types';
 import { handleSwapQuote, handleSwapExecute } from './swap';
-import { type TransactionTracking } from '../utils/txTracking';
+import { type TransactionTracking, getSodaxMessageSearchUrl } from '../utils/txTracking';
 import { ensureBridgeRouteAvailable } from '../utils/routeAvailability';
 
 // ============================================================================
@@ -346,8 +346,8 @@ async function handleBridgeExecute(
       status: String(swapResult.status),
       message: swapResult.message ? String(swapResult.message) : 'Bridge executed via swap infrastructure',
       sodaxScanUrl:
-        tracking?.intent?.sodaxScanUrl ||
-        (swapResult.sodaxScanUrl ? String(swapResult.sodaxScanUrl) : undefined),
+        intentHash ? getSodaxMessageSearchUrl(intentHash) :
+        (spokeTxHash ? getSodaxMessageSearchUrl(spokeTxHash) : tracking?.intent?.sodaxScanUrl),
       tracking,
     } as TransactionResult;
   } catch (error) {

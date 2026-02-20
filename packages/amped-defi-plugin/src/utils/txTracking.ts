@@ -72,7 +72,7 @@ export function getSodaxMessageSearchUrl(value: string): string {
 }
 
 export function getSodaxIntentUrl(intentHash: string): string {
-  return `https://sodaxscan.com/intents/${intentHash}`;
+  return `https://sodaxscan.com/messages/search?value=${intentHash}`;
 }
 
 export function getSodaxIntentApiUrl(intentHash: string): string {

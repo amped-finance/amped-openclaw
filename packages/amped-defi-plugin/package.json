@@ -1,6 +1,6 @@
 {
   "name": "amped-defi",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Amped DeFi plugin for cross-chain swaps, bridging, and money markets via SODAX SDK",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
