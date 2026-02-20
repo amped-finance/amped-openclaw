@@ -29,16 +29,27 @@ const CHAIN_EXPLORERS: Record<string, string> = {
   sonic: 'https://sonicscan.org/tx/',
   avalanche: 'https://snowtrace.io/tx/',
   bsc: 'https://bscscan.com/tx/',
+  lightlink: 'https://phoenix.lightlink.io/tx/',
+  hyper: 'https://hyperevmscan.io/tx/',
+  hyperevm: 'https://hyperevmscan.io/tx/',
+  kaia: 'https://kaiascan.io/tx/',
+  redbelly: 'https://redbelly.explorer.caldera.xyz/tx/',
   solana: 'https://solscan.io/tx/',
+  icon: 'https://tracker.icon.community/transaction/',
 };
 
 const SODAX_CHAIN_ID_TO_ALIAS: Record<string, string> = {
-  '1': 'solana',
+  '1': 'solana',       // SODAX internal ID for Solana
   '10': 'optimism',
-  '30': 'base',
+  '30': 'base',        // SODAX internal ID for Base
   '56': 'bsc',
   '137': 'polygon',
   '146': 'sonic',
+  '151': 'redbelly',
+  '999': 'hyper',
+  '1890': 'lightlink',
+  '8217': 'kaia',
+  '8453': 'base',      // EVM chain ID for Base
   '42161': 'arbitrum',
   '43114': 'avalanche',
 };

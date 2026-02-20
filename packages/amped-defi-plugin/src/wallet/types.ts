@@ -120,9 +120,8 @@ export const BANKR_CHAIN_IDS: Record<string, number> = {
 export const BANKR_SUPPORTED_CHAINS = ['ethereum', 'polygon', 'base'] as const;
 
 /**
- * All SODAX-supported EVM chains
+ * All SODAX-supported chains
  * NOTE: Keep in sync with SODAX SDK supported chains
- * Non-EVM chains (solana, sui, stellar, injective) are excluded
  */
 export const SODAX_SUPPORTED_CHAINS = [
   'ethereum',
@@ -137,6 +136,12 @@ export const SODAX_SUPPORTED_CHAINS = [
   'hyper',
   'hyperevm',
   'kaia',
+  'redbelly',
+  'solana',
+  'sui',
+  'stellar',
+  'injective',
+  'icon',
 ] as const;
 
 /**
@@ -145,7 +150,7 @@ export const SODAX_SUPPORTED_CHAINS = [
  * Simple format: base, polygon, ethereum
  */
 export const SODAX_TO_SIMPLE_CHAIN: Record<string, string> = {
-  // SODAX format -> simple
+  // SODAX prefixed format -> simple
   '0x2105.base': 'base',
   '0x89.polygon': 'polygon',
   '0xa4b1.arbitrum': 'arbitrum',
@@ -159,6 +164,7 @@ export const SODAX_TO_SIMPLE_CHAIN: Record<string, string> = {
   'sonic': 'sonic',
   'lightlink': 'lightlink',
   'hyper': 'hyper',
+  'redbelly': 'redbelly',
   'solana': 'solana',
   'sui': 'sui',
   'stellar': 'stellar',
@@ -171,18 +177,21 @@ export const SODAX_TO_SIMPLE_CHAIN: Record<string, string> = {
  * Simple to SODAX chain ID mapping
  */
 export const SIMPLE_TO_SODAX_CHAIN: Record<string, string> = {
-  // Simple -> SODAX format
+  // Simple -> SODAX format (prefixed chains)
   'base': '0x2105.base',
   'polygon': '0x89.polygon',
   'arbitrum': '0xa4b1.arbitrum',
   'optimism': '0xa.optimism',
   'bsc': '0x38.bsc',
   'avalanche': '0xa86a.avax',
+  'avax': '0xa86a.avax',
   'kaia': '0x2019.kaia',
+  'icon': '0x1.icon',
   // No prefix needed
   'ethereum': 'ethereum',
   'sonic': 'sonic',
   'lightlink': 'lightlink',
+  'redbelly': 'redbelly',
   'hyperevm': 'hyper',
   'hyper': 'hyper',
   'solana': 'solana',
@@ -190,7 +199,6 @@ export const SIMPLE_TO_SODAX_CHAIN: Record<string, string> = {
   'stellar': 'stellar',
   'injective': 'injective-1',
   'injective-1': 'injective-1',
-  'icon': '0x1.icon',
   '0x1.icon': '0x1.icon',
 };
 
@@ -199,28 +207,31 @@ export const SIMPLE_TO_SODAX_CHAIN: Record<string, string> = {
  * Handles both SODAX prefixed format and simple format
  */
 export function normalizeChainId(chainId: string): string {
+  const lower = chainId.toLowerCase();
+  
   // Already in mapping
   if (SODAX_TO_SIMPLE_CHAIN[chainId]) {
     return SODAX_TO_SIMPLE_CHAIN[chainId];
   }
   
-  // Check if it's already simple format
-  if (SIMPLE_TO_SODAX_CHAIN[chainId]) {
-    return chainId;
+  // Check if it's already simple format (case-insensitive)
+  if (SIMPLE_TO_SODAX_CHAIN[lower]) {
+    return lower;
   }
   
   // Try to extract from prefixed format (0xNNN.name -> name)
   const match = chainId.match(/^0x[a-fA-F0-9]+\.(.+)$/);
   if (match) {
-    return match[1];
+    return match[1].toLowerCase();
   }
   
-  // Return as-is
-  return chainId;
+  // Return lowercase
+  return lower;
 }
 
 /**
  * Convert simple chain ID to SODAX format
+ * Case-insensitive: "Base", "BASE", "base" all map to "0x2105.base"
  */
 export function toSodaxChainId(chainId: string): string {
   // Already in SODAX format
@@ -228,7 +239,8 @@ export function toSodaxChainId(chainId: string): string {
     return chainId;
   }
   
-  return SIMPLE_TO_SODAX_CHAIN[chainId] || chainId;
+  const lower = chainId.toLowerCase();
+  return SIMPLE_TO_SODAX_CHAIN[lower] || lower;
 }
 
 /**

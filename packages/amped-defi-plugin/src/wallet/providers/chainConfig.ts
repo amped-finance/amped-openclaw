@@ -36,6 +36,7 @@ export const CHAIN_IDS = {
   LIGHTLINK: 1890,
   HYPEREVM: 999,
   KAIA: 8217,
+  REDBELLY: 151,
 } as const;
 
 /**
@@ -62,6 +63,7 @@ export const SDK_CHAIN_ID_MAP: Record<string, number> = {
   'hyper': CHAIN_IDS.HYPEREVM,
   'kaia': CHAIN_IDS.KAIA,
   '0x2019.kaia': CHAIN_IDS.KAIA,
+  'redbelly': CHAIN_IDS.REDBELLY,
 };
 
 /**
@@ -89,6 +91,17 @@ export const kaia = defineChain({
 });
 
 /**
+ * Redbelly chain definition
+ */
+export const redbelly = defineChain({
+  id: CHAIN_IDS.REDBELLY,
+  name: 'Redbelly',
+  nativeCurrency: { decimals: 18, name: 'RBNT', symbol: 'RBNT' },
+  rpcUrls: { default: { http: ['https://rbn-gcp-australia-southeast1-a-0-b-rpc.devnet.redbelly.network:8545'] } },
+  blockExplorers: { default: { name: 'Redbelly Explorer', url: 'https://redbelly.explorer.caldera.xyz' } },
+});
+
+/**
  * Chain configuration by numeric ID
  */
 const CHAIN_CONFIG: Record<number, Chain> = {
@@ -103,6 +116,7 @@ const CHAIN_CONFIG: Record<number, Chain> = {
   [CHAIN_IDS.LIGHTLINK]: lightlinkPhoenix,
   [CHAIN_IDS.HYPEREVM]: hyper,
   [CHAIN_IDS.KAIA]: kaia,
+  [CHAIN_IDS.REDBELLY]: redbelly,
 };
 
 /**
@@ -125,6 +139,7 @@ export const DEFAULT_RPC_URLS: Record<number, string> = {
   [CHAIN_IDS.LIGHTLINK]: 'https://replicator.phoenix.lightlink.io/rpc/v1',
   [CHAIN_IDS.HYPEREVM]: 'https://rpc.hyperliquid.xyz/evm',
   [CHAIN_IDS.KAIA]: 'https://public-en.node.kaia.io',
+  [CHAIN_IDS.REDBELLY]: 'https://rbn-gcp-australia-southeast1-a-0-b-rpc.devnet.redbelly.network:8545',
 };
 
 /**

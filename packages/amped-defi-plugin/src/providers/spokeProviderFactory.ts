@@ -36,6 +36,8 @@ const providerCache = new Map<string, SpokeProvider>();
 const SONIC_CHAIN_ID = 'sonic';
 
 // Chain ID mapping for SDK (some chains need specific format)
+// This mirrors SIMPLE_TO_SODAX_CHAIN from wallet/types — kept here to
+// avoid a circular import and because we cast to SpokeChainId.
 const CHAIN_ID_MAP: Record<string, SpokeChainId> = {
   'sonic': 'sonic',
   'ethereum': 'ethereum',
@@ -45,9 +47,17 @@ const CHAIN_ID_MAP: Record<string, SpokeChainId> = {
   'polygon': '0x89.polygon',
   'bsc': '0x38.bsc',
   'avalanche': '0xa86a.avax',
+  'avax': '0xa86a.avax',
   'lightlink': 'lightlink',
   'hyperevm': 'hyper',
   'hyper': 'hyper',
+  'kaia': '0x2019.kaia',
+  'redbelly': 'redbelly',
+  'icon': '0x1.icon',
+  'solana': 'solana',
+  'sui': 'sui',
+  'stellar': 'stellar',
+  'injective': 'injective-1',
 } as Record<string, SpokeChainId>;
 
 /**
@@ -62,7 +72,8 @@ async function getRpcUrl(chainId: string): Promise<string> {
  * Get the SDK chain ID for a given chain
  */
 function getSdkChainId(chainId: string): SpokeChainId {
-  return (CHAIN_ID_MAP[chainId] || chainId) as SpokeChainId;
+  const lower = chainId.toLowerCase();
+  return (CHAIN_ID_MAP[lower] || lower) as SpokeChainId;
 }
 
 /**

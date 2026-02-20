@@ -17,6 +17,10 @@ const GAS_RESERVES: Record<string, string> = {
   lightlink: '0.002',     // ~$4-6
   bsc: '0.005',           // ~$3-5 (BNB)
   avalanche: '0.1',       // ~$3-5 (AVAX)
+  hyper: '0.1',           // ~$2 (HYPE)
+  hyperevm: '0.1',        // alias
+  kaia: '1',              // ~$0.20 (KAIA is cheap)
+  redbelly: '1',          // (RBNT — conservative default)
   solana: '0.01',         // ~$0.60 (SOL)
 };
 

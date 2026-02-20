@@ -43,6 +43,12 @@ export function mapSwapRoutingError(error: unknown): string {
   if (lower.includes('unsupported token_src') || lower.includes('unsupported token_dst') || lower.includes('solver-compatible')) {
     return `${raw}. Check compatible assets: ${SOLVER_COMPATIBILITY_DOCS_URL}`;
   }
+  if (lower.includes('no_path_found') || lower.includes('no path found') || lower.includes('"code":-4')) {
+    return `${raw}. The solver could not find a swap path — this usually means insufficient liquidity for this pair. Try a different token pair or route through a hub chain (e.g., swap to USDC on Sonic first).`;
+  }
+  if (lower.includes('no_private_liquidity') || lower.includes('"code":-5')) {
+    return `${raw}. The solver has no private liquidity for this route. Try a smaller amount or a different token pair.`;
+  }
   return raw;
 }
 

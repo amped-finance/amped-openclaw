@@ -20,6 +20,7 @@ const SOLANA_NATIVE_ADDRESS = '11111111111111111111111111111111';
 
 // Native token configs per chain (18 decimals for all EVM chains, 9 for Solana)
 const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: number; address: string }> = {
+  // EVM chains (SODAX format keys)
   sonic: { symbol: 'S', name: 'Sonic', decimals: 18, address: EVM_NATIVE_ADDRESS },
   ethereum: { symbol: 'ETH', name: 'Ether', decimals: 18, address: EVM_NATIVE_ADDRESS },
   '0xa4b1.arbitrum': { symbol: 'ETH', name: 'Ether', decimals: 18, address: EVM_NATIVE_ADDRESS },
@@ -30,6 +31,9 @@ const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: nu
   '0xa86a.avax': { symbol: 'AVAX', name: 'Avalanche', decimals: 18, address: EVM_NATIVE_ADDRESS },
   hyper: { symbol: 'HYPE', name: 'Hyperliquid', decimals: 18, address: EVM_NATIVE_ADDRESS },
   lightlink: { symbol: 'ETH', name: 'Ether', decimals: 18, address: EVM_NATIVE_ADDRESS },
+  '0x2019.kaia': { symbol: 'KAIA', name: 'Kaia', decimals: 18, address: EVM_NATIVE_ADDRESS },
+  redbelly: { symbol: 'RBNT', name: 'Redbelly', decimals: 18, address: EVM_NATIVE_ADDRESS },
+  // Non-EVM chains
   solana: { symbol: 'SOL', name: 'Solana', decimals: 9, address: SOLANA_NATIVE_ADDRESS },
 };
 

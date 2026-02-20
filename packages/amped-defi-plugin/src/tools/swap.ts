@@ -67,14 +67,20 @@ function toHexIntentHash(hash: unknown): string | undefined {
 
 // SODAX internal chain ID to block explorer mapping
 const SODAX_CHAIN_EXPLORERS: Record<number, string> = {
-  1: 'https://solscan.io/tx/',           // Solana
-  30: 'https://basescan.org/tx/',        // Base
+  1: 'https://solscan.io/tx/',           // Solana (SODAX internal ID 1)
+  30: 'https://basescan.org/tx/',        // Base (SODAX internal ID 30)
   146: 'https://sonicscan.org/tx/',      // Sonic (hub)
   42161: 'https://arbiscan.io/tx/',      // Arbitrum
   10: 'https://optimistic.etherscan.io/tx/', // Optimism
   137: 'https://polygonscan.com/tx/',    // Polygon
   56: 'https://bscscan.com/tx/',         // BSC
   43114: 'https://snowtrace.io/tx/',     // Avalanche
+  // EVM chain IDs
+  8453: 'https://basescan.org/tx/',      // Base (EVM chain ID)
+  1890: 'https://phoenix.lightlink.io/tx/',  // LightLink
+  999: 'https://hyperevmscan.io/tx/',    // HyperEVM
+  8217: 'https://kaiascan.io/tx/',       // Kaia
+  151: 'https://redbelly.explorer.caldera.xyz/tx/', // Redbelly
 };
 
 /**

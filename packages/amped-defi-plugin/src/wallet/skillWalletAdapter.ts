@@ -32,7 +32,7 @@ try {
  * These are only used when evm-wallet-skill does not provide an RPC
  */
 const FALLBACK_RPCS: Record<string, string> = {
-  // SODAX supported spoke chains
+  // SODAX supported EVM spoke chains
   ethereum: 'https://ethereum.publicnode.com',
   arbitrum: 'https://arb1.arbitrum.io/rpc',
   base: 'https://mainnet.base.org',
@@ -42,8 +42,12 @@ const FALLBACK_RPCS: Record<string, string> = {
   polygon: 'https://polygon-bor-rpc.publicnode.com',
   // Sonic hub chain
   sonic: 'https://rpc.soniclabs.com',
-  // Additional chains (may not be SODAX-supported but useful)
+  // Additional EVM chains
   lightlink: 'https://replicator.phoenix.lightlink.io/rpc/v1',
+  hyper: 'https://rpc.hyperliquid.xyz/evm',
+  hyperevm: 'https://rpc.hyperliquid.xyz/evm',
+  kaia: 'https://public-en.node.kaia.io',
+  redbelly: 'https://rbn-gcp-australia-southeast1-a-0-b-rpc.devnet.redbelly.network:8545',
 };
 
 /**
