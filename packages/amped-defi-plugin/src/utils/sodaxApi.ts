@@ -6,6 +6,7 @@
  */
 
 import { ErrorCode, AmpedDefiError } from './errors';
+import { SODAX_ENV } from './sodaxConfig';
 
 const DEFAULT_BASE_URL = 'https://canary-api.sodax.com';
 const API_VERSION = 'v1';
@@ -86,8 +87,8 @@ export class SodaxApiClient {
   private timeoutMs: number;
 
   constructor(config: SodaxApiConfig = {}) {
-    this.baseUrl = config.baseUrl || process.env.SODAX_API_URL || DEFAULT_BASE_URL;
-    this.apiKey = config.apiKey || process.env.SODAX_API_KEY;
+    this.baseUrl = config.baseUrl || SODAX_ENV.apiUrl || DEFAULT_BASE_URL;
+    this.apiKey = config.apiKey || SODAX_ENV.apiKey;
     this.timeoutMs = config.timeoutMs || 30000;
   }
 

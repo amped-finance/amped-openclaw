@@ -127,6 +127,14 @@ export function getBackendConfig(): BackendConfig {
 }
 
 /**
+ * Check if BANKR_API_KEY environment variable is set
+ * (lightweight check that avoids full config resolution)
+ */
+export function isBankrApiKeyPresent(): boolean {
+  return !!process.env.BANKR_API_KEY;
+}
+
+/**
  * Check if Bankr backend is configured and available
  */
 export function isBankrConfigured(): boolean {

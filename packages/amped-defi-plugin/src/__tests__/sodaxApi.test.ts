@@ -25,11 +25,9 @@ describe('SodaxApiClient', () => {
       expect(client).toBeDefined();
     });
 
-    it('should use environment variable for base URL', () => {
-      process.env.SODAX_API_URL = 'https://env.api.com';
-      const client = new SodaxApiClient();
+    it('should accept config-based base URL (mirrors env fallback)', () => {
+      const client = new SodaxApiClient({ baseUrl: 'https://env.api.com' });
       expect(client).toBeDefined();
-      delete process.env.SODAX_API_URL;
     });
   });
 

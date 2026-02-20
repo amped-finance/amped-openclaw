@@ -21,6 +21,7 @@ import {
   getPositionRecommendation 
 } from '../utils/positionAggregator';
 import { getSodaxApiClient } from '../utils/sodaxApi';
+import { isBankrApiKeyPresent } from '../wallet/backendConfig';
 
 // ============================================================================
 // TypeBox Schemas
@@ -840,7 +841,7 @@ async function handleListWallets(
   };
 
   // Check if Bankr is configured but wallet not found
-  const bankrKeyPresent = !!process.env.BANKR_API_KEY;
+  const bankrKeyPresent = isBankrApiKeyPresent();
   const bankrWalletFound = byType.bankr.length > 0;
 
   return {

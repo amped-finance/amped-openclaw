@@ -163,7 +163,7 @@ export class BankrBackend implements IWalletBackend {
     if (this.cachedSolanaAddress) return this.cachedSolanaAddress;
     
     // Check for cached address on disk
-    const cachePath = `${process.env.HOME}/.openclaw/cache/bankr-${this.nickname}-solana-address.json`;
+    const cachePath = join(BANKR_CACHE_DIR, `bankr-${this.nickname}-solana-address.json`);
     try {
       const fs = await import('fs');
       if (fs.existsSync(cachePath)) {
