@@ -41,10 +41,25 @@ DeFi operations plugin for [OpenClaw](https://openclaw.ai) enabling seamless cro
 ### Quick Install
 
 ```bash
+# 1. Install the plugin
 openclaw plugins install amped-defi
+
+# 2. Add to the plugin allow list
+#    If you have NO existing allow list:
+openclaw config set plugins.allow '["amped-defi"]' --json
+
+#    If you ALREADY have plugins in your allow list, edit the config
+#    to append "amped-defi" to the existing array:
+#    openclaw config   (opens the config wizard)
+#    — or edit ~/.openclaw/openclaw.json directly
+
+# 3. Restart the gateway
+openclaw gateway restart
 ```
 
-Verify with `openclaw plugins list`.
+> **⚠️ Allow list required:** OpenClaw requires plugins to be explicitly added to `plugins.allow` in your config. Without this, the plugin will show as "disabled (not in allowlist)" and its tools won't load.
+
+Verify with `openclaw plugins list` — the plugin should show as **loaded**.
 
 ### Install from Source
 
@@ -55,7 +70,9 @@ cd ~/.openclaw/extensions/amped-defi
 npm install
 ```
 
-#### 4. Verify Installation
+Then add to the allow list and restart the gateway (steps 2–3 above).
+
+#### Verify Installation
 
 ```bash
 # List loaded plugins
@@ -74,6 +91,11 @@ You should see tools like:
 
 ### Updating the Plugin
 
+```bash
+openclaw plugins update amped-defi
+```
+
+Or reinstall manually:
 ```bash
 openclaw plugins uninstall amped-defi
 openclaw plugins install amped-defi
@@ -593,21 +615,37 @@ try {
 **Issue:** Tools not showing up in `openclaw tools list`
 
 **Solutions:**
-1. Ensure dependencies are installed in the extension directory:
+
+1. **Check the allow list** — the most common issue. The plugin must be in `plugins.allow`:
+   ```bash
+   openclaw config get plugins.allow
+   ```
+   If `amped-defi` is missing, add it:
+   ```bash
+   openclaw config set plugins.allow '["amped-defi"]' --json
+   openclaw gateway restart
+   ```
+   If you have other plugins allowed, edit `~/.openclaw/openclaw.json` and append `"amped-defi"` to the existing `plugins.allow` array.
+
+2. Ensure dependencies are installed in the extension directory:
    ```bash
    cd ~/.openclaw/extensions/amped-defi
    npm install
    ```
 
-2. Check OpenClaw config has the plugin enabled:
-   ```yaml
-   plugins:
-     entries:
-       amped-defi:
-         enabled: true
+3. Check OpenClaw config has the plugin enabled:
+   ```json
+   {
+     "plugins": {
+       "allow": ["amped-defi"],
+       "entries": {
+         "amped-defi": { "enabled": true }
+       }
+     }
+   }
    ```
 
-3. Check OpenClaw logs for errors:
+4. Check OpenClaw logs for errors:
    ```bash
    tail -100 ~/.openclaw/logs/openclaw.log
    ```
