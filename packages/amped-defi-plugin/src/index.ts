@@ -5,6 +5,14 @@
  * via the SODAX SDK.
  */
 
+// Suppress harmless "bigint: Failed to load bindings" warning from
+// bigint-buffer (Solana transitive dep). Pure-JS fallback works fine.
+const _origWarn = console.warn;
+console.warn = (...args: unknown[]) => {
+  if (typeof args[0] === 'string' && args[0].includes('bigint: Failed to load bindings')) return;
+  _origWarn.apply(console, args);
+};
+
 import { Type, TSchema } from '@sinclair/typebox';
 
 /**
