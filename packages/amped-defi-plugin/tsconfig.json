@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
+    "module": "CommonJS",
     "lib": [
       "ES2022"
     ],
@@ -15,7 +15,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "resolveJsonModule": true,
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "noImplicitAny": false,
     "strictNullChecks": false,
     "strictFunctionTypes": false,
