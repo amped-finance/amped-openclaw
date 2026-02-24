@@ -36,9 +36,9 @@
   "author": "Amped Finance",
   "dependencies": {
     "@sinclair/typebox": "^0.32.0",
-    "@sodax/sdk": "1.2.2-beta",
-    "@sodax/wallet-sdk-core": "1.2.2-beta",
-    "@sodax/types": "1.2.2-beta",
+    "@sodax/sdk": "1.2.3-beta",
+    "@sodax/wallet-sdk-core": "1.2.3-beta",
+    "@sodax/types": "1.2.3-beta",
     "viem": "^2.0.0"
   },
   "devDependencies": {
